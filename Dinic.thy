@@ -31,15 +31,11 @@ end
 locale LayerGraphExplicit = Graph c for c :: "'capacity::linordered_idom graph" +
   fixes s :: node
   fixes  l :: "node \<Rightarrow> nat"
+  (* assumes s_node[simp, intro!]: "s \<in> V" TODO check if really needed, or whether the following implies this for nonempty *)
   assumes fully_connected: "\<forall>v \<in> V. connected s v"
   assumes s_in_layer_zero: "l s = 0"
   assumes layered: "\<forall>(u, v) \<in> E. l u + 1 = l v"
 begin
-lemma only_s_in_layer_zero: "l v = 0 \<Longrightarrow> v = s" sorry
-
-
-(*lemma path_ascends_layers': "isPath u p v \<Longrightarrow> l u \<le> l v" sorry*)
-
 lemma path_ascends_layers': "isPathInductive u p v \<Longrightarrow> l v = l u + length p"
 proof (induction rule: isPathInductive.induct)
   case (SelfPath u)
@@ -49,65 +45,47 @@ next
   then show ?case using layered by fastforce
 qed
 
-lemma path_ascends_layers: "isPath u p v \<Longrightarrow> l v = l u + length p"
+lemma path_ascends_layers[dest]: "isPath u p v \<Longrightarrow> l v = l u + length p"
   using isPathInductive_correct path_ascends_layers' by blast
 
-(* lemma path_ascends_layers''':
-  assumes "isPath u p v"
-  shows "l v = l u + length p"
+lemma paths_unique_len: "\<lbrakk>isPath u p1 v; isPath u p2 v\<rbrakk> \<Longrightarrow> length p1 = length p2"
+  by fastforce
+
+definition unique_dist :: "node \<Rightarrow> node \<Rightarrow> nat"
+  where "unique_dist u v = (THE d. dist u d v)"
+thm the_equality
+
+lemma unique_dist_is_min_dist: "connected u v \<Longrightarrow> unique_dist u v = min_dist u v"
+  unfolding unique_dist_def
+proof (rule the_equality)
+  assume "connected u v"
+  then show "dist u (min_dist u v) v" unfolding connected_def min_dist_def dist_def
+    by (smt (verit, best) LeastI) (* TODO prettify *)
+next
+  fix d
+  show "dist u d v \<Longrightarrow> d = min_dist u v" unfolding min_dist_def dist_def using paths_unique_len
+    by (smt (verit, best) LeastI) (* TODO prettify *)
+qed
+
+(* TODO show that l is simply the distance from s; need to first define unique dist *)
+lemma l_is_s_dist: "u \<in> V \<Longrightarrow> l u = unique_dist s u" sorry
+
+
+lemma s_node_for_nonempty: "V \<noteq> {} \<Longrightarrow> s \<in> V"
 proof -
-  thm isPath_custom_induct[OF assms]
-  show ?thesis apply (rule isPath_custom_induct[OF assms]) sorry
+  assume "V \<noteq> {}"
+  then obtain u where "u \<in> V" by blast
+  with fully_connected obtain p where "isPath s p u" unfolding connected_def by blast
+  then show "s \<in> V"
+    using \<open>u \<in> V\<close> connected_inV_iff fully_connected by blast (* TODO prettify *)
 qed
 
-lemma path_ascends_layers: "isPath u p v \<Longrightarrow> l v = l u + length p"
-proof (induction rule: isPath_custom_induct)
-  case 1
-  then show ?case sorry
-next
-  case (2 u)
-  then show ?case sorry
-next
-  case (3 u v p w)
-  then show ?case sorry
-qed
-
-lemma path_ascends_layers': "isPath u p v \<Longrightarrow> l v = l u + length p"
-proof (induction p)
-  case Nil
-  then show ?case by simp
-next
-  case (Cons e p)
-  then show ?case sorry
-qed*)
-
-(*lemma path_asends_layers': "isPath u p v \<Longrightarrow> l v = l u + length p"
-proof (induction u p v rule: isPath.induct)
-  case (1 u v)
-  then show ?case sorry
-next
-  case (2 u x y p v)
-  then show ?case sorry
-qed*)
-
-lemma source_paths_unique_len': "\<lbrakk>isPathInductive s p1 v; isPathInductive s p2 v\<rbrakk> \<Longrightarrow> length p1 = length p2"
-proof (induction rule: isPathInductive.induct)
-  case (SelfPath u)
-  then show ?case using path_ascends_layers' by fastforce
-next
-  case (EdgePath u v p w)
-  then show ?case sorry
-qed
-
-lemma source_paths_unique_len: "\<lbrakk>isPath s p1 v; isPath s p2 v\<rbrakk> \<Longrightarrow> length p1 = length p2"
-proof (induction p1)
-  case Nil
-  then have "s = v" by simp
-  then have "p2 = []" using path_ascends_layers[OF \<open>isPath s p2 v\<close>] by simp
-  then show ?case by blast
-next
-  case (Cons a p1)
-  then show ?case sorry
+lemma only_s_in_layer_zero: "v \<in> V \<Longrightarrow> l v = 0 \<Longrightarrow> v = s"
+proof -
+  assume "v \<in> V" "l v = 0"
+  then obtain p where "isPath s p v" using fully_connected connected_def by blast
+  with \<open>l v = 0\<close> s_in_layer_zero have "length p = 0" by fastforce
+  with \<open>isPath s p v\<close> show "v = s" by simp
 qed
 end
 
