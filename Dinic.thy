@@ -18,26 +18,23 @@ next
   then show "isPathInductive u p v" by (induction u p v rule: isPath.induct) (simp_all add: SelfPath EdgePath)
 qed
 
-lemma isPath_custom_induct: "isPath u' p' v' \<Longrightarrow> (\<And>u. P u [] u) \<Longrightarrow>
+text \<open>This rule allows us to use isPath as if it were an inductive predicate,
+which is sometimes more convenient\<close>
+lemma isPath_custom_induct[consumes 1, case_names SelfPath EdgePath]: "isPath u' p' v' \<Longrightarrow> (\<And>u. P u [] u) \<Longrightarrow>
 (\<And>u v p w. (u, v) \<in> E \<Longrightarrow> isPath v p w \<Longrightarrow> P v p w \<Longrightarrow> P u ((u, v) # p) w) \<Longrightarrow> P u' p' v'"
   apply (simp only: isPathInductive_correct[symmetric])
   using isPathInductive.induct by blast
-
-thm isPath.induct
-thm isPathInductive.induct
-thm isPath_custom_induct
 end
 
 locale LayerGraphExplicit = Graph c for c :: "'capacity::linordered_idom graph" +
   fixes s :: node
-  fixes  l :: "node \<Rightarrow> nat"
-  (* assumes s_node[simp, intro!]: "s \<in> V" TODO check if really needed, or whether the following implies this for nonempty *)
-  assumes fully_connected: "\<forall>v \<in> V. connected s v"
-  assumes s_in_layer_zero: "l s = 0"
-  assumes layered: "\<forall>(u, v) \<in> E. l u + 1 = l v"
+  fixes  layer :: "node \<Rightarrow> nat"
+  assumes fully_connected: "\<forall>u \<in> V. connected s u"
+  assumes s_in_layer_zero: "layer s = 0"
+  assumes layered: "\<forall>(u, v) \<in> E. layer u + 1 = layer v"
 begin
-lemma path_ascends_layers': "isPathInductive u p v \<Longrightarrow> l v = l u + length p"
-proof (induction rule: isPathInductive.induct)
+lemma path_ascends_layers[dest]: "isPath u p v \<Longrightarrow> layer v = layer u + length p"
+proof (induction rule: isPath_custom_induct)
   case (SelfPath u)
   then show ?case by simp
 next
@@ -45,15 +42,11 @@ next
   then show ?case using layered by fastforce
 qed
 
-lemma path_ascends_layers[dest]: "isPath u p v \<Longrightarrow> l v = l u + length p"
-  using isPathInductive_correct path_ascends_layers' by blast
-
 lemma paths_unique_len: "\<lbrakk>isPath u p1 v; isPath u p2 v\<rbrakk> \<Longrightarrow> length p1 = length p2"
   by fastforce
 
 definition unique_dist :: "node \<Rightarrow> node \<Rightarrow> nat"
   where "unique_dist u v = (THE d. dist u d v)"
-thm the_equality
 
 lemma unique_dist_is_min_dist: "connected u v \<Longrightarrow> unique_dist u v = min_dist u v"
   unfolding unique_dist_def
@@ -66,10 +59,7 @@ next
   show "dist u d v \<Longrightarrow> d = min_dist u v" unfolding min_dist_def dist_def using paths_unique_len
     by (smt (verit, best) LeastI) (* TODO prettify *)
 qed
-
-(* TODO show that l is simply the distance from s; need to first define unique dist *)
-lemma l_is_s_dist: "u \<in> V \<Longrightarrow> l u = unique_dist s u" sorry
-
+(* TODO check if these lemmata for uniqueness suffice *)
 
 lemma s_node_for_nonempty: "V \<noteq> {} \<Longrightarrow> s \<in> V"
 proof -
@@ -80,44 +70,41 @@ proof -
     using \<open>u \<in> V\<close> connected_inV_iff fully_connected by blast (* TODO prettify *)
 qed
 
-lemma only_s_in_layer_zero: "v \<in> V \<Longrightarrow> l v = 0 \<Longrightarrow> v = s"
+thm the_equality[symmetric]
+
+lemma l_is_s_dist: "u \<in> V \<Longrightarrow> layer u = unique_dist s u"
 proof -
-  assume "v \<in> V" "l v = 0"
-  then obtain p where "isPath s p v" using fully_connected connected_def by blast
-  with \<open>l v = 0\<close> s_in_layer_zero have "length p = 0" by fastforce
-  with \<open>isPath s p v\<close> show "v = s" by simp
+  assume "u \<in> V"
+  with fully_connected obtain p where "isPath s p u" unfolding connected_def by blast
+  with path_ascends_layers s_in_layer_zero have "layer u = length p" by simp
+  thm the_equality[symmetric]
+  with \<open>isPath s p u\<close>  show "layer u = unique_dist s u" unfolding unique_dist_def dist_def
+    by (smt (verit, del_insts) add_0 path_ascends_layers s_in_layer_zero the_equality) (* TODO prettify *)
+qed
+
+lemma only_s_in_layer_zero: "u \<in> V \<Longrightarrow> layer u = 0 \<Longrightarrow> u = s" (* TODO easier with prev lemma? *)
+proof -
+  assume "u \<in> V" "layer u = 0"
+  then obtain p where "isPath s p u" using fully_connected connected_def by blast
+  with \<open>layer u = 0\<close> s_in_layer_zero have "length p = 0" by fastforce
+  with \<open>isPath s p u\<close> show "u = s" by simp
 qed
 end
 
-locale LayerGraphImplicit = Graph c for c :: "'capacity::linordered_idom graph" +
-  assumes layered: "\<exists>l :: node \<Rightarrow> nat. (\<exists>s. l s = 0) \<and> (\<forall>u v. (u, v) \<in> E \<longrightarrow> l u + 1 = l v)"
-(* TODO missing connectedness *)
-begin
-thm layered
-end
+definition layering :: "_ graph \<Rightarrow> node \<Rightarrow> _ graph"
+  where "layering c s \<equiv> \<lambda>(u, v).
+    if Graph.min_dist c s u + 1 = Graph.min_dist c s v then
+      c (u, v)
+    else
+      0"
 
-locale LayerGraphSemiImplicit = Graph c for c :: "'capacity::linordered_idom graph" +
-  fixes s :: node
-  assumes fully_connected: "\<forall>v \<in> V. connected s v"
-  assumes layered: "\<exists>l :: node \<Rightarrow> nat. l s = 0 \<and> (\<forall>(u, v) \<in> E. l u + 1 = l v)"
-  (* assumes layered: "\<exists>l :: node \<Rightarrow> nat. l s = 0 \<and> (\<forall>u v. (u, v) \<in> E \<longrightarrow> l u + 1 = l v)" *)
-  (* assumes fully_connected': "\<forall>v. v \<in> V \<longrightarrow> connected s v" *)
-  (*assumes tmp2: "\<forall>(u, v)\<in> E. connected u v"*)
-(* TODO missing connectedness *)
-begin
-thm layered
-(*lemma path_ascends_layers: "isPath u p v \<Longrightarrow>*)
 
-lemma source_paths_unique_len: "\<lbrakk>isPath s p1 v; isPath s p2 v\<rbrakk> \<Longrightarrow> len p1 = len p2"
-proof (induction p1)
-  case Nil
-  then have "p2 = []" sorry
-  then show ?case by blast
-next
-  case (Cons a p1)
-  then show ?case sorry
-qed
-end
+
+
+
+
+
+(* OLD *)
 
 locale LayerGraph = Graph c for c :: "'capacity::linordered_idom graph" +
   fixes s :: node
