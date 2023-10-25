@@ -24,6 +24,8 @@ lemma isPath_custom_induct[consumes 1, case_names SelfPath EdgePath]: "isPath u'
 (\<And>u v p w. (u, v) \<in> E \<Longrightarrow> isPath v p w \<Longrightarrow> P v p w \<Longrightarrow> P u ((u, v) # p) w) \<Longrightarrow> P u' p' v'"
   apply (simp only: isPathInductive_correct[symmetric])
   using isPathInductive.induct by blast
+
+thm [[show_tags=true]] isPath_custom_induct
 end
 
 locale LayerGraphExplicit = Graph c for c :: "'capacity::linordered_idom graph" +
@@ -91,12 +93,95 @@ proof -
 qed
 end
 
+(*
 definition layering :: "_ graph \<Rightarrow> node \<Rightarrow> _ graph"
   where "layering c s \<equiv> \<lambda>(u, v).
     if Graph.min_dist c s u + 1 = Graph.min_dist c s v then
       c (u, v)
     else
       0"
+*)
+
+locale InducedLayeredGraph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes s :: node
+  assumes s_node[simp, intro!]: "s \<in> V"
+begin
+
+definition layering :: "'capacity graph"
+  where "layering \<equiv> \<lambda>(u, v).
+    if min_dist s u + 1 = min_dist s v then
+      c (u, v)
+    else
+      0"
+
+interpretation l: Graph layering .
+
+interpretation tmp: LayerGraphExplicit "layering" s "min_dist s"
+proof
+  show "\<forall>u\<in>l.V. l.connected s u"
+  proof
+    fix u
+    assume "u \<in> l.V"
+    then show "l.connected s u" unfolding l.connected_def sorry
+  qed
+next
+  show "min_dist s s = 0" by (rule min_dist_z)
+next
+  show "\<forall>(u, v)\<in>l.E. min_dist s u + 1 = min_dist s v"
+  proof
+    fix x
+    assume "x \<in> l.E"
+    obtain u v where "x = (u, v)" by fastforce
+    with \<open>x \<in> l.E\<close> have "(u, v) \<in> l.E" by blast
+    then have "layering (u, v) \<noteq> 0" unfolding l.E_def by blast
+    then have "min_dist s u + 1 = min_dist s v" unfolding layering_def
+      by (smt (verit, best) case_prod_conv)
+    with \<open>x \<in> l.E\<close> \<open>x = (u, v)\<close> show "case x of (u, v) \<Rightarrow> min_dist s u + 1 = min_dist s v" by blast (* TODO prettify *)
+  qed
+qed
+
+
+(*lemma test: "(\<And>x. x \<in> S \<Longrightarrow> P x) \<Longrightarrow> \<forall>x \<in> S. P x" sorry*)
+thm Set.ballI
+thm Set.strip
+find_theorems "case ?x of (u, v) \<Rightarrow> ?P u v"
+thm prod_cases
+thm prod.case
+thm Product_Type.split
+
+(*
+interpretation tmp: LayerGraphExplicit "layering" s "min_dist s"
+proof
+  show "\<forall>u\<in>V. connected s u"
+  proof
+    fix u
+    assume "u \<in> V"
+    then show "connected s u" sorry
+  qed
+next
+  show "min_dist s s = 0" by (rule min_dist_z)
+next
+  show "\<forall>(u, v)\<in>E. min_dist s u + 1 = min_dist s v"
+  proof
+    fix x
+    assume "x \<in> E"
+    obtain u v where "x = (u, v)" by fastforce
+    with \<open>x \<in> E\<close> have "(u, v) \<in> E" by blast
+    then have "min_dist s u + 1 = min_dist s v" using layering_def E_def sorry
+    with \<open>x \<in> E\<close> \<open>x = (u, v)\<close> show "case x of (u, v) \<Rightarrow> min_dist s u + 1 = min_dist s v" by blast (* TODO prettify *)
+  qed
+qed
+*)
+end
+
+
+(*
+GOALS:
+- Logically connect the layer graph to the original graph
+- Show that any (augmenting) path in the layer graph is also one in the original
+- Show that there can be no augmenting paths in the original graph that are shorter than the s-t
+  distance in the layer graph (need the network context for this)
+*)
 
 
 
