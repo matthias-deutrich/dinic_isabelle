@@ -116,13 +116,44 @@ definition layering :: "'capacity graph"
 
 interpretation l: Graph layering .
 
-interpretation tmp: LayerGraphExplicit "layering" s "min_dist s"
+find_theorems name:isPath
+find_theorems isPath
+thm isPath.simps
+thm isShortestPath_def
+
+lemma l_vertices_connected_in_base: "u \<in> l.V \<Longrightarrow> connected s u"
+proof -
+  fix u
+  assume "u \<in> l.V"
+  then obtain v where "(u, v) \<in> l.E \<or> (v, u) \<in> l.E" using l.V_def by auto
+  then show "connected s u"
+  proof
+    assume "(u, v) \<in> l.E"
+    then have "min_dist s u + 1 = min_dist s v" using l.E_def layering_def
+      by (smt (verit, best) case_prod_conv mem_Collect_eq)
+    then obtain p where "isPath s p u" sorry
+    then show "connected s u" unfolding connected_def by blast
+  next
+    assume "(v, u) \<in> l.E"
+    then show "connected s u" sorry
+  qed
+qed
+
+lemma shortest_s_paths_remain_l_paths: "isShortestPath s p u \<Longrightarrow> l.isPath s p u" sorry
+
+(* TODO show that it is also a SHORTEST path, using l.E \<subseteq> E and contradiction *)
+(* l_keeps_shortest_s_paths *)
+
+interpretation l: LayerGraphExplicit "layering" s "min_dist s"
 proof
   show "\<forall>u\<in>l.V. l.connected s u"
   proof
     fix u
     assume "u \<in> l.V"
-    then show "l.connected s u" unfolding l.connected_def sorry
+    then have "connected s u" by (rule l_vertices_connected_in_base)
+    then obtain p where "isShortestPath s p u" by (rule obtain_shortest_path)
+    then have "l.isPath s p u" by (rule shortest_s_paths_remain_l_paths)
+    then show "l.connected s u" unfolding l.connected_def by blast
   qed
 next
   show "min_dist s s = 0" by (rule min_dist_z)
