@@ -26,7 +26,32 @@ lemma isPath_custom_induct[consumes 1, case_names SelfPath EdgePath]: "isPath u'
   using isPathInductive.induct by blast
 
 thm [[show_tags=true]] isPath_custom_induct
+
 end
+
+
+locale Subgraph = g': Graph c' + g: Graph c for c :: "'capacity::linordered_idom graph" and c' :: "'capacity graph" +
+  assumes E_ss: "g'.E \<subseteq> g.E"
+begin
+notation g.E ("E")
+notation g'.E ("E''")
+notation g.V ("V")
+notation g'.V ("V''")
+
+lemma V_ss: "V' \<subseteq> V" unfolding g.V_def g'.V_def using E_ss by blast
+end
+
+locale CapacitySubgraph = g': Graph c' + g: Graph c for c :: "'capacity::linordered_idom graph" and c' :: "'capacity graph" +
+  assumes c_ss: "\<forall>u v.\<bar>c' (u, v)\<bar> \<le> \<bar>c (u, v)\<bar>"
+begin
+
+end
+
+sublocale CapacitySubgraph \<subseteq> Subgraph
+proof unfold_locales
+  from c_ss show "g'.E \<subseteq> g.E" unfolding g.E_def g'.E_def
+    by (metis (mono_tags, lifting) abs_le_zero_iff abs_zero case_prodD case_prodI2 mem_Collect_eq subsetI) (* TODO prettify *)
+qed
 
 locale LayerGraphExplicit = Graph c for c :: "'capacity::linordered_idom graph" +
   fixes s :: node
@@ -109,35 +134,71 @@ begin
 
 definition layering :: "'capacity graph"
   where "layering \<equiv> \<lambda>(u, v).
-    if min_dist s u + 1 = min_dist s v then
+    if connected s u \<and> min_dist s u + 1 = min_dist s v then
       c (u, v)
     else
       0"
 
+(* TODO check whether this is really a good idea, especially the exclamation mark *)
+lemma layeringE[elim!]:
+  fixes u v
+  assumes major: "layering (u, v) \<noteq> 0"
+    and minor: "\<lbrakk>(u, v) \<in> E;
+                connected s u;
+                connected s v;
+                \<exists>n. n = min_dist s u \<and> n + 1 = min_dist s v\<rbrakk>
+              \<Longrightarrow> P"
+  shows P
+proof -
+  from major have "(u, v) \<in> E" using layering_def
+    by (smt (verit) Graph.zero_cap_simp case_prod_conv)
+  moreover from major have "connected s u" using layering_def
+    by (smt (verit) case_prod_conv)
+  moreover from \<open>(u, v) \<in> E\<close> \<open>connected s u\<close> have "connected s v" using connected_append_edge
+    by blast
+  moreover from major have "\<exists> n. n = min_dist s u \<and> n + 1 = min_dist s v" using layering_def
+    by (smt (verit) case_prod_conv)
+  ultimately show P using minor by blast
+qed
+
+(*lemma tmp:
+  fixes u v
+  assumes "layering (u, v) \<noteq> 0"
+  shows "connected s u"
+proof -
+  from assms have "c (u, v) \<noteq> 0" using layering_def
+    by (smt (verit) case_prod_conv)
+  from assms have "connected s u" using layering_def
+    by (smt (verit) case_prod_conv)
+  from assms have "\<exists> n. n = min_dist s u \<and> n + 1 = min_dist s v" using layering_def
+    by (smt (verit) case_prod_conv)
+  from assms have "\<exists> n. n = min_dist s u" using layering_def by blast
+qed*)
+
+
 interpretation l: Graph layering .
+
+(* TODO check if this is a good idea *)
+lemma layer_edgeE[elim]:
+  fixes u v
+  assumes major: "(u, v) \<in> l.E"
+    and minor: "\<lbrakk>(u, v) \<in> E;
+                connected s u;
+                connected s v;
+                \<exists>n. n = min_dist s u \<and> n + 1 = min_dist s v\<rbrakk>
+              \<Longrightarrow> P"
+  shows P
+  using assms l.E_def by blast
+
+(* TODO general subgraph locale? if so, use transfer_path *)
 
 find_theorems name:isPath
 find_theorems isPath
 thm isPath.simps
 thm isShortestPath_def
 
-lemma l_vertices_connected_in_base: "u \<in> l.V \<Longrightarrow> connected s u"
-proof -
-  fix u
-  assume "u \<in> l.V"
-  then obtain v where "(u, v) \<in> l.E \<or> (v, u) \<in> l.E" using l.V_def by auto
-  then show "connected s u"
-  proof
-    assume "(u, v) \<in> l.E"
-    then have "min_dist s u + 1 = min_dist s v" using l.E_def layering_def
-      by (smt (verit, best) case_prod_conv mem_Collect_eq)
-    then obtain p where "isPath s p u" sorry
-    then show "connected s u" unfolding connected_def by blast
-  next
-    assume "(v, u) \<in> l.E"
-    then show "connected s u" sorry
-  qed
-qed
+lemma l_vertices_connected_in_base: "u \<in> l.V \<Longrightarrow> connected s u" (* TODO necessary? *)
+  using l.V_def by blast
 
 lemma shortest_s_paths_remain_l_paths: "isShortestPath s p u \<Longrightarrow> l.isPath s p u" sorry
 
