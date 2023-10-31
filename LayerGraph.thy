@@ -144,6 +144,9 @@ lemma layer_edgeE[elim]:
   shows P
   using assms l.E_def by blast
 
+lemma layer_edge_iff: "(u, v) \<in> l.E \<longleftrightarrow> (u, v) \<in> E \<and> connected s u \<and> min_dist s u + 1 = min_dist s v"
+  using E_def' l.E_def' layering_def by auto
+
 (* TODO use transfer_path *)
 
 find_theorems name:isPath
@@ -159,13 +162,32 @@ find_theorems isPath
 
 (*lemma tmp: "\<forall>e \<in> set p"*)
 
-lemma shortest_s_path_remains_path: "isShortestPath s p u \<Longrightarrow> l.isPath s p u" (* TODO NOTE: can't prove this by simple induction on p *)
-proof (induction p)
-  case Nil
-  then show ?case using shortestPath_is_path by fastforce
-next
-  case (Cons a p)
-  then show ?case sorry
+thm old.prod.exhaust
+thm nat_gcd.cases
+thm surj_pair
+
+lemma shortest_s_path_remains_path:
+  assumes sp: "isShortestPath s p u"
+  shows "l.isPath s p u"
+proof -
+  thm isShortestPath_level_edge(4)[OF sp]
+  have "(set p) \<subseteq> l.E"
+  proof
+    fix e
+    assume "e \<in> set p"
+    obtain v w where "e = (v, w)" by fastforce
+    with \<open>e \<in> set p\<close> have "(v, w) \<in> set p" by simp
+    from \<open>(v, w) \<in> set p\<close> assms have "(v, w) \<in> E"
+      using isPath_edgeset shortestPath_is_path by blast
+    moreover from \<open>(v, w) \<in> set p\<close> have "connected s v"
+      by (rule isShortestPath_level_edge(1)[OF assms])
+    moreover from \<open>(v, w) \<in> set p\<close> have "min_dist s v + 1 = min_dist s w"
+      by (rule isShortestPath_level_edge(4)[OF assms, symmetric])
+    ultimately show "e \<in> l.E" using \<open>e = (v, w)\<close> layer_edge_iff by simp
+  qed
+  moreover from assms have "isPrePath s p u"
+    using shortestPath_is_path isPrePath_if_isPath_in_some_graph by blast
+  ultimately show "l.isPath s p u" using l.isPath_alt by simp
 qed
 
 lemma shortest_s_path_remains_shortest: "isShortestPath s p u \<Longrightarrow> l.isShortestPath s p u"
