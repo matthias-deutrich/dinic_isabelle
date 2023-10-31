@@ -49,4 +49,9 @@ end
 
 lemma isPrePath_if_isPath_in_some_graph: "\<exists>c. Graph.isPath c u p v \<Longrightarrow> isPrePath u p v"
   using Graph.isPath_alt by blast
+
+thm Graph.isPath.elims
+thm Graph.isPath_fwd_cases
+lemma (in Graph) "isPath u p v \<Longrightarrow> p \<noteq> [] \<Longrightarrow> u \<in> V" (* TODO use or remove *)
+  using V_def isPath_fwd_cases by fastforce
 end

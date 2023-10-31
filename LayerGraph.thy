@@ -207,17 +207,19 @@ proof
 next
   show "min_dist s s = 0" by (rule min_dist_z)
 next
-  show "\<forall>(u, v)\<in>l.E. min_dist s u + 1 = min_dist s v"
-  proof
-    fix x
-    assume "x \<in> l.E"
-    obtain u v where "x = (u, v)" by fastforce
-    with \<open>x \<in> l.E\<close> have "(u, v) \<in> l.E" by blast
-    then have "layering (u, v) \<noteq> 0" unfolding l.E_def by simp
-    then have "min_dist s u + 1 = min_dist s v" unfolding layering_def
-      by (smt (verit, best) case_prod_conv)
-    with \<open>x \<in> l.E\<close> \<open>x = (u, v)\<close> show "case x of (u, v) \<Rightarrow> min_dist s u + 1 = min_dist s v" by blast (* TODO prettify *)
-  qed
+  show "\<forall>(u, v) \<in> l.E. min_dist s u + 1 = min_dist s v" using layer_edge_iff by blast
+qed
+
+theorem connected_iff_in_layering: "s \<noteq> u \<Longrightarrow> connected s u \<longleftrightarrow> u \<in> l.V"
+proof
+  assume "s \<noteq> u" "connected s u"
+  then obtain p where "isShortestPath s p u" using obtain_shortest_path by blast
+  then have "l.isPath s p u" by (rule shortest_s_path_remains_path)
+  thm l.isPath_bwd_cases[OF \<open>l.isPath s p u\<close>] (* TODO remove *)
+  with \<open>s \<noteq> u\<close> show "u \<in> l.V" using l.isPath_bwd_cases l.V_def by blast
+next
+  assume "u \<in> l.V"
+  then show "connected s u" by (rule l_vertices_connected_in_base)
 qed
 end
 end
