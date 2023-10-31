@@ -167,10 +167,9 @@ thm nat_gcd.cases
 thm surj_pair
 
 lemma shortest_s_path_remains_path:
-  assumes sp: "isShortestPath s p u"
+  assumes "isShortestPath s p u"
   shows "l.isPath s p u"
 proof -
-  thm isShortestPath_level_edge(4)[OF sp]
   have "(set p) \<subseteq> l.E"
   proof
     fix e
@@ -179,10 +178,10 @@ proof -
     with \<open>e \<in> set p\<close> have "(v, w) \<in> set p" by simp
     from \<open>(v, w) \<in> set p\<close> assms have "(v, w) \<in> E"
       using isPath_edgeset shortestPath_is_path by blast
-    moreover from \<open>(v, w) \<in> set p\<close> have "connected s v"
-      by (rule isShortestPath_level_edge(1)[OF assms])
-    moreover from \<open>(v, w) \<in> set p\<close> have "min_dist s v + 1 = min_dist s w"
-      by (rule isShortestPath_level_edge(4)[OF assms, symmetric])
+    moreover from assms \<open>(v, w) \<in> set p\<close> have "connected s v"
+      by (rule isShortestPath_level_edge(1))
+    moreover from assms \<open>(v, w) \<in> set p\<close> have "min_dist s v + 1 = min_dist s w"
+      by (rule isShortestPath_level_edge(4)[symmetric])
     ultimately show "e \<in> l.E" using \<open>e = (v, w)\<close> layer_edge_iff by simp
   qed
   moreover from assms have "isPrePath s p u"

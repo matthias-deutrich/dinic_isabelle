@@ -22,7 +22,7 @@ next
   then show ?case using E_ss by auto
 qed
 
-lemma shortest_paths_remain_if_contained: "\<lbrakk>g.isShortestPath u p v; g'.isPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
+lemma shortest_paths_remain_if_contained: "\<lbrakk>g'.isPath u p v; g.isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
   using sg_paths_are_base_paths by (meson Graph.isShortestPath_def)
 end
 
