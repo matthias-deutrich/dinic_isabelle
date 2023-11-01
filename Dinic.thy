@@ -1,6 +1,8 @@
 theory Dinic
-imports LayerGraph "Flow_Networks.Network"
+imports LayerGraph "Flow_Networks.Ford_Fulkerson"
 begin
+find_theorems Graph.isShortestPath
+
 
 
 
