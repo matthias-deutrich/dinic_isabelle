@@ -128,8 +128,8 @@ qed*)
 
 interpretation l: Graph layering .
 
-interpretation l_sub: CapacitySubgraph layering c unfolding layering_def
-  by unfold_locales simp
+interpretation l_sub: Subgraph layering c
+  unfolding Subgraph_def isSubgraph_def layering_def by simp
 
 thm l_sub.V_ss
 
