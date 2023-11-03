@@ -66,6 +66,9 @@ proof -
   with \<open>layer u = 0\<close> s_in_layer_zero have "length p = 0" by fastforce
   with \<open>isPath s p u\<close> show "u = s" by simp
 qed
+
+lemma all_paths_are_shortest: "isPath u p v \<Longrightarrow> isShortestPath u p v" unfolding isShortestPath_def
+  by (metis le_refl paths_unique_len)
 end
 
 (*
@@ -194,6 +197,8 @@ qed
 lemma shortest_s_path_remains_shortest: "isShortestPath s p u \<Longrightarrow> l.isShortestPath s p u"
   using shortest_s_path_remains_path l_sub.shortest_paths_remain_if_contained by blast
 
+lemma tmp: "l.isShortestPath s p u \<Longrightarrow> isShortestPath s p u" sorry
+
 
 interpretation l: LayerGraphExplicit "layering" s "min_dist s"
 proof
@@ -211,6 +216,9 @@ next
 next
   show "\<forall>(u, v) \<in> l.E. min_dist s u + 1 = min_dist s v" using layer_edge_iff by blast
 qed
+(*
+  by (metis (mono_tags, lifting) Graph.min_dist_z LayerGraphExplicit.intro case_prodI2 l.connected_def l_vertices_connected_in_base layer_edge_iff obtain_shortest_path shortest_s_path_remains_path)
+*)
 
 theorem connected_iff_in_layering: "s \<noteq> u \<Longrightarrow> connected s u \<longleftrightarrow> u \<in> l.V"
 proof
@@ -223,6 +231,8 @@ next
   assume "u \<in> l.V"
   then show "connected s u" by (rule l_vertices_connected_in_base)
 qed
+
+thm l.all_paths_are_shortest
 end
 
 section \<open>Path Union\<close>
@@ -286,10 +296,13 @@ proof (rule set_eqI)
 qed
 end
 
+
 context InducedLayeredGraph
 begin
 (* TODO ask why the Graph interpretation l of layering is immediately unfolded in previous context, but not in new context (since interpretation l should be persistent *)
 interpretation l: Graph layering .
+interpretation l: LayerGraphExplicit "layering" s "min_dist s" (* TODO *)
+  by (metis (mono_tags, lifting) Graph.min_dist_z LayerGraphExplicit.intro case_prodI2 l.connected_def l_vertices_connected_in_base layer_edge_iff obtain_shortest_path shortest_s_path_remains_path)
 lemma layer_graph_is_all_shortest_s_paths_union:
   assumes no_s_self_loop: "(s, s) \<notin> E" (* TODO check if needed *)
   shows "isPathUnion layering (shortestSPaths s V)" unfolding isPathUnion_def
@@ -299,6 +312,9 @@ proof (rule set_eqI)
   have "((u, v) \<in> l.E) = ((u, v) \<in> \<Union> (set ` shortestSPaths s V))"
   proof
     assume "(u, v) \<in> l.E"
+    then obtain p where "l.isPath s p v" "(u, v) \<in> set p" sorry
+      (*apply (meson layer_edgeE obtain_shortest_path shortest_s_path_remains_path)*)
+    then have "l.isShortestPath s p v" using l.all_paths_are_shortest by simp
     then show "(u, v) \<in> \<Union> (set ` shortestSPaths s V)" sorry
   next
     assume "(u, v) \<in> \<Union> (set ` shortestSPaths s V)"

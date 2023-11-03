@@ -17,6 +17,7 @@ interpretation subgraph: order isSubgraph isTrueSubgraph
   apply force+
   done
 
+
 locale CapacityLeSubgraph = g': Graph c' + g: Graph c for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +
   assumes cap_abs_le: "\<forall>e.\<bar>c' e\<bar> \<le> \<bar>c e\<bar>" (* TODO assure sign is the same? *)
 
@@ -33,14 +34,9 @@ lemma E_ss: "E' \<subseteq> E" using c'_sg_c unfolding g.E_def g'.E_def isSubgra
 lemma V_ss: "V' \<subseteq> V" unfolding g.V_def g'.V_def using E_ss by blast
 
 lemma sg_paths_are_base_paths: "g'.isPath u p v \<Longrightarrow> g.isPath u p v"
+  apply (induction rule: g'.isPath_custom_induct)
+  using E_ss by auto
 (* TODO use transfer_path *)
-proof (induction rule: g'.isPath_custom_induct)
-  case (SelfPath u)
-  then show ?case by simp
-next
-  case (EdgePath u v p w)
-  then show ?case using E_ss by auto
-qed
 
 lemma shortest_paths_remain_if_contained: "\<lbrakk>g'.isPath u p v; g.isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
   using sg_paths_are_base_paths by (meson Graph.isShortestPath_def)
