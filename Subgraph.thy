@@ -19,7 +19,8 @@ interpretation subgraph: order isSubgraph isTrueSubgraph
 
 
 locale CapacityLeSubgraph = g': Graph c' + g: Graph c for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +
-  assumes cap_abs_le: "\<forall>e.\<bar>c' e\<bar> \<le> \<bar>c e\<bar>" (* TODO assure sign is the same? *)
+  (* assumes cap_abs_le: "\<forall>e.\<bar>c' e\<bar> \<le> \<bar>c e\<bar>"*)
+  assumes cap_abs_le: "\<forall>e. (0 \<le> c' e \<and> c' e \<le> c e) \<or> (c e \<le> c' e \<and> c' e \<le> 0)"
 
 locale Subgraph = g': Graph c' + g: Graph c for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +
   assumes c'_sg_c: "isSubgraph c' c"
@@ -45,13 +46,13 @@ end
 sublocale Subgraph \<subseteq> CapacityLeSubgraph
   using c'_sg_c
   unfolding CapacityLeSubgraph_def isSubgraph_def
-  by (metis abs_ge_zero abs_zero dual_order.refl)
+  by (metis linorder_le_cases)
 
 
-(* locale PosCapacitySubgraph = CapacitySubgraph +
-  assumes caps_non_negative: "\<forall>e. c e \<ge> 0 \<and> c' e \<ge> 0"
+locale PosCapacityLeSubgraph = CapacityLeSubgraph +
+  assumes caps_non_negative: "\<forall>e. 0 \<le> c e \<and> 0 \<le> c' e"
 begin
-lemma cap_le: "\<forall>e. c' e \<le> c e" using cap_abs_le caps_non_negative by simp
-end *)
+lemma cap_le: "\<forall>e. c' e \<le> c e" using cap_abs_le caps_non_negative by (meson order.trans)
+end
 
 end

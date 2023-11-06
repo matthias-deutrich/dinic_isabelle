@@ -32,6 +32,8 @@ lemma isPath_custom_induct[consumes 1, case_names SelfPath EdgePath]:
   \<Longrightarrow> P u' p' v'"
   using isPathInductive.induct by (simp only: isPathInductive_correct[symmetric]) blast
 
+thm isPath.induct
+
 (* TODO check whether this is useful *)
 lemma E_def': "E = {e. c e \<noteq> 0}" unfolding E_def by blast
 
