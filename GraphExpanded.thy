@@ -3,9 +3,9 @@ imports "Flow_Networks.Graph"
 begin
 
 (* TODO check whether useful *)
-inductive isPrePath :: "node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool" where
-  SelfPrePath: "isPrePath u [] u"
-| StepPrePath: "isPrePath v p w \<Longrightarrow> isPrePath u ((u, v) # p) w"
+inductive isLinked :: "node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool" where
+  SelfPrePath: "isLinked u [] u"
+| StepPrePath: "isLinked v p w \<Longrightarrow> isLinked u ((u, v) # p) w"
 
 context Graph
 begin
@@ -32,24 +32,28 @@ lemma isPath_custom_induct[consumes 1, case_names SelfPath EdgePath]:
   \<Longrightarrow> P u' p' v'"
   using isPathInductive.induct by (simp only: isPathInductive_correct[symmetric]) blast
 
-thm isPath.induct
+(*lemma tmp:
+  assumes "isPath u' p' v'"
+  obtains u where 
+
+thm isPath.induct*)
 
 (* TODO check whether this is useful *)
 lemma E_def': "E = {e. c e \<noteq> 0}" unfolding E_def by blast
 
-lemma isPath_alt: "isPath u p v \<longleftrightarrow>  isPrePath u p v \<and> (set p) \<subseteq> E"
+lemma isPath_alt: "isPath u p v \<longleftrightarrow>  isLinked u p v \<and> (set p) \<subseteq> E"
 proof
   assume "isPath u p v"
-  then show "isPrePath u p v \<and> (set p) \<subseteq> E"
-    by (induction rule: isPath_custom_induct) (simp_all add: isPrePath.intros)
+  then show "isLinked u p v \<and> (set p) \<subseteq> E"
+    by (induction rule: isPath_custom_induct) (simp_all add: isLinked.intros)
 next
-  assume "isPrePath u p v \<and> (set p) \<subseteq> E"
-  then have "isPrePath u p v" "(set p) \<subseteq> E" by blast+
-  then show "isPath u p v" by (induction rule: isPrePath.induct) simp_all
+  assume "isLinked u p v \<and> (set p) \<subseteq> E"
+  then have "isLinked u p v" "(set p) \<subseteq> E" by blast+
+  then show "isPath u p v" by (induction rule: isLinked.induct) simp_all
 qed
 end
 
-lemma isPrePath_if_isPath_in_some_graph: "\<exists>c. Graph.isPath c u p v \<Longrightarrow> isPrePath u p v"
+lemma isLinked_if_isPath: "Graph.isPath c u p v \<Longrightarrow> isLinked u p v"
   using Graph.isPath_alt by blast
 
 thm Graph.isPath.elims
