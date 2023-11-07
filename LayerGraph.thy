@@ -138,7 +138,22 @@ qed
 lemma shortest_s_path_remains_shortest: "isShortestPath s p u \<Longrightarrow> l.isShortestPath s p u"
   using shortest_s_path_remains_path l_sub.shortest_paths_remain_if_contained by blast
 
-sublocale l: LayerGraphExplicit "s_layering" s "min_dist s" (* TODO necessary? *)
+
+(* TODO necessary? or reuse from LayerGraphExplicit *)
+lemma path_adds_to_source_dist: "l.isPath u p v \<Longrightarrow> min_dist s u + length p = min_dist s v"
+  by (induction rule: l.isPath_custom_induct) auto
+
+(* TODO necessary? *)
+(*lemma all_l_paths_are_shortest_in_base: "l.isPath s p u \<Longrightarrow> isShortestPath s p u"
+proof (induction rule: l.isPath_custom_induct)
+  case (SelfPath u)
+  then show ?case unfolding isShortestPath_def by simp
+next
+  case (EdgePath u v p w)
+  then show ?case sorry
+qed*)
+
+(*sublocale l: LayerGraphExplicit "s_layering" s "min_dist s" (* TODO necessary? *)
 proof
   show "\<forall>u\<in>l.V. l.connected s u"
   proof
@@ -153,7 +168,7 @@ next
   show "min_dist s s = 0" by (rule min_dist_z)
 next
   show "\<forall>(u, v) \<in> l.E. min_dist s u + 1 = min_dist s v" by blast
-qed
+qed*)
 
 lemma connected_iff_in_layering: "s \<noteq> u \<Longrightarrow> connected s u \<longleftrightarrow> u \<in> l.V" (* TODO necessary? *)
 proof
@@ -222,11 +237,33 @@ qed
 lemma l'_edge_iff: "(u, v) \<in> l'.E \<longleftrightarrow> (u, v) \<in> E \<and> connected s u \<and> min_dist s u + 1 = min_dist s v \<and> connected v t \<and> min_dist u t = min_dist v t + 1" (* TODO necessary? *)
   using E_def' l'.E_def' s_t_layering_def by auto
 
-lemma l'_vertices_connected_in_base: "u \<in> l'.V \<Longrightarrow> connected s u" (* TODO necessary? *)
+lemma l'_vertices_dual_connected_in_base: "u \<in> l'.V \<Longrightarrow> connected s u \<and> connected u t" (* TODO necessary? *)
   unfolding l'.V_def
   using connected_append_edge by blast
 
-lemma shortest_s_t_path_remains_path:
+lemma shortest_t_path_remains_path:
+  assumes "connected s u" "isShortestPath u p t"
+  shows "l'.isPath u p t"
+proof -
+  have "(set p) \<subseteq> l'.E"
+  proof clarify
+    fix v w
+    assume "(v, w) \<in> set p"
+    with assms have "(v, w) \<in> E"
+      using isPath_edgeset shortestPath_is_path by blast
+    show "(v, w) \<in> l'.E"
+      apply (unfold l'_edge_iff)
+      apply (intro conjI)
+      thm conjI
+      using [[rule_trace]] apply rule
+      using isShortestPath_level_edge[OF assms \<open>(v, w) \<in> set p\<close>] l'_edge_iff[of v w] sorry
+  qed
+  moreover from assms have "isLinked s p t"
+    using shortestPath_is_path isLinked_if_isPath by blast
+  ultimately show "l'.isPath s p t" using l'.isPath_alt by simp
+qed
+
+lemma shortest_s_t_path_remains_path: (* TODO redo as corollary *)
   assumes "isShortestPath s p t"
   shows "l'.isPath s p t"
 proof -
@@ -252,7 +289,9 @@ lemma shortest_s_t_path_remains_shortest: "isShortestPath s p t \<Longrightarrow
 
 (* TODO check if necessary as seperate lemma, rename *)
 (* potentially use the ideas from LayerGraphExplicit *)
-lemma tmp: "(u, v) \<in> l'.E \<Longrightarrow> min_dist s u + 1 + min_dist v t = min_dist s t" sorry
+thm isShortestPath_min_dist_def
+(*lemma tmp': *)
+(*lemma tmp: "(u, v) \<in> l'.E \<Longrightarrow> min_dist s u + 1 + min_dist v t = min_dist s t" sorry*)
 
 theorem s_t_layering_is_shortest_s_t_paths_union:
   "isPathUnion s_t_layering (shortestSTPaths s t)" unfolding isPathUnion_def
@@ -260,12 +299,20 @@ proof (rule pair_set_eqI)
   fix u v
   assume "(u, v) \<in> l'.E"
   then have "connected s u" "connected v t" and min_dist_s: "min_dist s u + 1 = min_dist s v" and min_dist_t: "min_dist u t = min_dist v t + 1" by auto
-  from \<open>connected s u\<close> obtain p where "isPath s p u" "length p = min_dist s u"
-    using dist_def min_dist_is_dist by blast
-  moreover from \<open>connected v t\<close> obtain p' where "isPath v p' t" "length p' = min_dist v t"
-    using dist_def min_dist_is_dist by blast
-  ultimately have "isShortestPath s (p@[(u, v)]@p') t"
-    using \<open>(u, v) \<in> l'.E\<close> tmp isShortestPath_min_dist_def isPath_append by fastforce
+  from \<open>(u, v) \<in> l'.E\<close> have "(u, v) \<in> l.E" using l'_sub.E_ss by blast
+  moreover from \<open>connected s u\<close> obtain p where "isShortestPath s p u" using obtain_shortest_path by blast
+  moreover from \<open>connected v t\<close> obtain p' where "isShortestPath v p' t" using obtain_shortest_path by blast
+  ultimately have "l.isPath s (p @ [(u, v)] @ p') t" using shortest_s_path_remains_path shortestPath_is_path isPath_append
+  moreover then have "length (p @ [(u, v)] @ p') = min_dist s t" sorry
+  moreover have "length (p @ [(u, v)] @ p') = min_dist s t"
+  proof -
+    (* from \<open>isPath s p u\<close> \<open>(u, v) \<in> l'.E\<close> have "isPath s (p@[(u, v)]) v" using isPath_append by auto *)
+    from \<open>isPath s (p @ [(u, v)] @ p') t\<close> have "l.isPath s (p @ [(u, v)] @ p') t" sorry
+    then show "length (p @ [(u, v)] @ p') = min_dist s t" using path_adds_to_source_dist by fastforce
+  qed
+  ultimately have "isShortestPath s (p @ [(u, v)] @ p') t" unfolding isShortestPath_min_dist_def by blast
+  (*with p_len p'_len have "isShortestPath s (p@[(u, v)]@p') t" using isShortestPath_min_dist_def path_adds_to_source_dist l'_sub.sg_paths_are_base_paths
+    using \<open>(u, v) \<in> l'.E\<close> path_adds_to_source_dist isShortestPath_min_dist_def isPath_append*)
   then show "(u, v) \<in> \<Union> (set ` shortestSTPaths s t)" unfolding shortestSTPaths_def by fastforce
 next
   fix u v
@@ -274,6 +321,38 @@ next
     using shortestSTPaths_def by auto
   then show "(u, v) \<in> l'.E" using shortest_s_t_path_remains_path l'.isPath_edgeset by blast
 qed
+
+(*
+theorem s_t_layering_is_shortest_s_t_paths_union:
+  "isPathUnion s_t_layering (shortestSTPaths s t)" unfolding isPathUnion_def
+proof (rule pair_set_eqI)
+  fix u v
+  assume "(u, v) \<in> l'.E"
+  then have "connected s u" "connected v t" and min_dist_s: "min_dist s u + 1 = min_dist s v" and min_dist_t: "min_dist u t = min_dist v t + 1" by auto
+  from \<open>connected s u\<close> obtain p where "isPath s p u" and p_len:"length p = min_dist s u"
+    using dist_def min_dist_is_dist by blast
+  from \<open>connected v t\<close> obtain p' where "isPath v p' t" and p'_len: "length p' = min_dist v t"
+    using dist_def min_dist_is_dist by blast
+  from \<open>isPath s p u\<close> \<open>(u, v) \<in> l'.E\<close> \<open>isPath v p' t\<close> have "isPath s (p @ [(u, v)] @ p') t"
+    using isPath_append by auto
+  moreover have "length (p @ [(u, v)] @ p') = min_dist s t"
+  proof -
+    (* from \<open>isPath s p u\<close> \<open>(u, v) \<in> l'.E\<close> have "isPath s (p@[(u, v)]) v" using isPath_append by auto *)
+    from \<open>isPath s (p @ [(u, v)] @ p') t\<close> have "l.isPath s (p @ [(u, v)] @ p') t" sorry
+    then show "length (p @ [(u, v)] @ p') = min_dist s t" using path_adds_to_source_dist by fastforce
+  qed
+  ultimately have "isShortestPath s (p @ [(u, v)] @ p') t" unfolding isShortestPath_min_dist_def by blast
+  (*with p_len p'_len have "isShortestPath s (p@[(u, v)]@p') t" using isShortestPath_min_dist_def path_adds_to_source_dist l'_sub.sg_paths_are_base_paths
+    using \<open>(u, v) \<in> l'.E\<close> path_adds_to_source_dist isShortestPath_min_dist_def isPath_append*)
+  then show "(u, v) \<in> \<Union> (set ` shortestSTPaths s t)" unfolding shortestSTPaths_def by fastforce
+next
+  fix u v
+  assume "(u, v) \<in> \<Union> (set ` shortestSTPaths s t)"
+  then obtain p where "isShortestPath s p t" and "(u, v) \<in> set p"
+    using shortestSTPaths_def by auto
+  then show "(u, v) \<in> l'.E" using shortest_s_t_path_remains_path l'.isPath_edgeset by blast
+qed
+*)
 end
 
 end
