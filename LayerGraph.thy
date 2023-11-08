@@ -128,12 +128,15 @@ proof -
     with assms have "(v, w) \<in> E"
       using isPath_edgeset shortestPath_is_path by blast
     then show "(v, w) \<in> l.E"
-      using isShortestPath_level_edge[OF assms \<open>(v, w) \<in> set p\<close>] l_edge_iff by simp (* TODO prettify *)
+      using isShortestPath_level_edge[OF assms \<open>(v, w) \<in> set p\<close>] l_edge_iff by simp
   qed
   moreover from assms have "isLinked s p u"
     using shortestPath_is_path isLinked_if_isPath by blast
   ultimately show "l.isPath s p u" using l.isPath_alt by simp
 qed
+
+lemma l_vertices_connected_in_l: "u \<in> l.V \<Longrightarrow> l.connected s u" unfolding l.connected_def
+  using l_vertices_connected_in_base obtain_shortest_path shortest_s_path_remains_path by meson
 
 lemma shortest_s_path_remains_shortest: "isShortestPath s p u \<Longrightarrow> l.isShortestPath s p u"
   using shortest_s_path_remains_path l_sub.shortest_paths_remain_if_contained by blast
@@ -241,6 +244,7 @@ lemma l'_vertices_dual_connected_in_base: "u \<in> l'.V \<Longrightarrow> connec
   unfolding l'.V_def
   using connected_append_edge by blast
 
+(*
 lemma shortest_t_path_remains_path:
   assumes "connected s u" "isShortestPath u p t"
   shows "l'.isPath u p t"
@@ -262,20 +266,17 @@ proof -
     using shortestPath_is_path isLinked_if_isPath by blast
   ultimately show "l'.isPath s p t" using l'.isPath_alt by simp
 qed
+*)
 
 lemma shortest_s_t_path_remains_path: (* TODO redo as corollary *)
   assumes "isShortestPath s p t"
   shows "l'.isPath s p t"
 proof -
-  from assms have assms': "l.isShortestPath s p t" by (rule shortest_s_path_remains_shortest)
   have "(set p) \<subseteq> l'.E"
   proof clarify
     fix v w
     assume "(v, w) \<in> set p"
-    with assms have "(v, w) \<in> E"
-      using isPath_edgeset shortestPath_is_path by blast
-    thm isShortestPath_level_edge[OF assms \<open>(v, w) \<in> set p\<close>]
-    thm l.isShortestPath_level_edge[OF assms' \<open>(v, w) \<in> set p\<close>]
+    with assms have "(v, w) \<in> E" using isPath_edgeset shortestPath_is_path by blast
     then show "(v, w) \<in> l'.E"
       using isShortestPath_level_edge[OF assms \<open>(v, w) \<in> set p\<close>] l'_edge_iff by simp
   qed
@@ -283,6 +284,26 @@ proof -
     using shortestPath_is_path isLinked_if_isPath by blast
   ultimately show "l'.isPath s p t" using l'.isPath_alt by simp
 qed
+
+lemma path_adds_to_target_dist: "l'.isPath u p v \<Longrightarrow> min_dist u t = length p + min_dist v t"
+  by (induction rule: l'.isPath_custom_induct) auto
+
+lemma l'_vertices_dual_connected_in_l': "u \<in> l'.V \<Longrightarrow> l'.connected s u \<and> l'.connected u t" sorry
+(*proof -
+  assume "u \<in> l'.V"
+  then obtain v where "(u, v) \<in> l'.E \<or> (v, u) \<in> l'.E" unfolding l'.V_def by blast
+  then show ?thesis
+  proof
+    assume "(u, v) \<in> l'.E"
+    then obtain p p' where "isShortestPath s p u" "isShortestPath v p' t"
+      using obtain_shortest_path by (meson l'_edgeE)
+  qed
+qed*)
+
+
+(*proof
+  assume "u \<in> l'.V"
+  then show "l'.connected s u" unfolding using l_vertices_connected_in_l l'_sub.sg_paths_are_base_paths*)
 
 lemma shortest_s_t_path_remains_shortest: "isShortestPath s p t \<Longrightarrow> l'.isShortestPath s p t"
   using shortest_s_path_remains_path shortest_s_t_path_remains_path l_sub.shortest_paths_remain_if_contained l'_sub.shortest_paths_remain_if_contained by blast
@@ -292,27 +313,18 @@ lemma shortest_s_t_path_remains_shortest: "isShortestPath s p t \<Longrightarrow
 thm isShortestPath_min_dist_def
 (*lemma tmp': *)
 (*lemma tmp: "(u, v) \<in> l'.E \<Longrightarrow> min_dist s u + 1 + min_dist v t = min_dist s t" sorry*)
+thm path_adds_to_source_dist
 
 theorem s_t_layering_is_shortest_s_t_paths_union:
   "isPathUnion s_t_layering (shortestSTPaths s t)" unfolding isPathUnion_def
 proof (rule pair_set_eqI)
   fix u v
   assume "(u, v) \<in> l'.E"
-  then have "connected s u" "connected v t" and min_dist_s: "min_dist s u + 1 = min_dist s v" and min_dist_t: "min_dist u t = min_dist v t + 1" by auto
-  from \<open>(u, v) \<in> l'.E\<close> have "(u, v) \<in> l.E" using l'_sub.E_ss by blast
-  moreover from \<open>connected s u\<close> obtain p where "isShortestPath s p u" using obtain_shortest_path by blast
-  moreover from \<open>connected v t\<close> obtain p' where "isShortestPath v p' t" using obtain_shortest_path by blast
-  ultimately have "l.isPath s (p @ [(u, v)] @ p') t" using shortest_s_path_remains_path shortestPath_is_path isPath_append
-  moreover then have "length (p @ [(u, v)] @ p') = min_dist s t" sorry
-  moreover have "length (p @ [(u, v)] @ p') = min_dist s t"
-  proof -
-    (* from \<open>isPath s p u\<close> \<open>(u, v) \<in> l'.E\<close> have "isPath s (p@[(u, v)]) v" using isPath_append by auto *)
-    from \<open>isPath s (p @ [(u, v)] @ p') t\<close> have "l.isPath s (p @ [(u, v)] @ p') t" sorry
-    then show "length (p @ [(u, v)] @ p') = min_dist s t" using path_adds_to_source_dist by fastforce
-  qed
-  ultimately have "isShortestPath s (p @ [(u, v)] @ p') t" unfolding isShortestPath_min_dist_def by blast
-  (*with p_len p'_len have "isShortestPath s (p@[(u, v)]@p') t" using isShortestPath_min_dist_def path_adds_to_source_dist l'_sub.sg_paths_are_base_paths
-    using \<open>(u, v) \<in> l'.E\<close> path_adds_to_source_dist isShortestPath_min_dist_def isPath_append*)
+  then have "l'.connected s u" "l'.connected v t" using l'_vertices_dual_connected_in_l' l'.V_def by auto
+  then obtain p p' where "l'.isShortestPath s p u" "l'.isShortestPath v p' t" using l'.obtain_shortest_path by meson
+  with \<open>(u, v) \<in> l'.E\<close> have "l.isPath s (p @ [(u, v)] @ p') t" using l'.shortestPath_is_path l'.isPath_append l'_sub.sg_paths_are_base_paths by simp
+  moreover then have "length (p @ [(u, v)] @ p') = min_dist s t" using path_adds_to_source_dist by fastforce
+  ultimately have "isShortestPath s (p @ [(u, v)] @ p') t" unfolding isShortestPath_min_dist_def using l_sub.sg_paths_are_base_paths by blast
   then show "(u, v) \<in> \<Union> (set ` shortestSTPaths s t)" unfolding shortestSTPaths_def by fastforce
 next
   fix u v
