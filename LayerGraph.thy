@@ -230,6 +230,10 @@ definition s_t_layering :: "'capacity graph"
 
 sublocale l': Graph s_t_layering .
 
+
+(* TODO do this for the source dist as well, then simplify subgraph proof *)
+lemma l'_edge_reduces_t_dist: "(u, v) \<in> l'.E \<Longrightarrow> min_dist u t = min_dist v t + 1" sorry
+
 sublocale l'_sub: Subgraph s_t_layering s_layering (* TODO adapt this so we immediately get the transitive properties *)
   unfolding Subgraph_def isSubgraph_def
 proof clarify
@@ -262,20 +266,29 @@ lemma l'_edge_iff: "(u, v) \<in> l'.E \<longleftrightarrow> (u, v) \<in> E \<and
 
 (* TODO place in a different location *)
 lemma path_adds_to_source_dist': "l'.isPath u p v \<Longrightarrow> min_dist s u + length p = min_dist s v"
-  apply (induction rule: l'.isPath_custom_induct)
-  using l'_sub.E_ss l_edge_iff by auto
+  using l'_sub.sg_paths_are_base_paths path_adds_to_source_dist by simp
 
-(*lemma path_adds_to_target_dist': "l'.isPath u p v \<Longrightarrow> min_dist u t = length p + min_dist v t"
+lemma path_adds_to_target_dist': "l'.isPath u p v \<Longrightarrow> min_dist u t = length p + min_dist v t"
+  by (induction rule: l'.isPath_custom_induct) (auto simp: l'_edge_reduces_t_dist)
+
+(*
 proof (induction rule: l'.isPath_custom_induct)
   case (SelfPath u)
   then show ?case by simp
 next
   case (EdgePath u v p w)
+  then have "min_dist u t = min_dist v t + 1" sorry
+  with EdgePath show ?case by simp
+  proof (simp, rule le_antisym)
+    show "min_dist u t \<le> Suc (length p + min_dist w t)" sorry
+    show "Suc (length p + min_dist w t) \<le> min_dist u t" sorry
+  qed
   thm EdgePath.IH
   then have "min_dist s u + 1 + min_dist v t = min_dist s t" by blast
   with EdgePath.IH have "min_dist s u + 1 + length p + min_dist w t = min_dist s t" by simp
   with EdgePath show ?case sorry
-qed*)
+qed
+*)
 
 lemma l'_vertexE[elim]:
   assumes "u \<in> l'.V"
