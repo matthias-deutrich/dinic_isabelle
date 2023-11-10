@@ -99,6 +99,13 @@ definition isPathUnion :: "_ graph \<Rightarrow> path set \<Rightarrow> bool"
 
 context Graph
 begin
+(* TODO check if exists *)
+lemma vertex_cases[consumes 1]:
+  assumes "u \<in> V"
+  obtains (outgoing) v where "(u, v) \<in> E"
+    | (incoming) v where "(v, u) \<in> E"
+  using V_def assms by auto
+
 definition allShortestPaths :: "node set \<Rightarrow> node set \<Rightarrow> path set"
   where "allShortestPaths s_set t_set \<equiv> {p. \<exists>s \<in> s_set. \<exists>t \<in> t_set. isShortestPath s p t}"
 

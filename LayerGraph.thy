@@ -258,6 +258,117 @@ proof
   from layering_not_z show "min_dist s u + 1 + min_dist v t = min_dist s t" unfolding s_t_layering_def case_prod_conv by meson
 qed
 
+(* TODO place in a different location *)
+lemma path_adds_to_source_dist': "l'.isPath u p v \<Longrightarrow> min_dist s u + length p = min_dist s v"
+  apply (induction rule: l'.isPath_custom_induct)
+  using l'_sub.E_ss l_edge_iff by auto
+
+(*lemma path_adds_to_target_dist': "l'.isPath u p v \<Longrightarrow> min_dist u t = length p + min_dist v t"
+proof (induction rule: l'.isPath_custom_induct)
+  case (SelfPath u)
+  then show ?case by simp
+next
+  case (EdgePath u v p w)
+  thm EdgePath.IH
+  then have "min_dist s u + 1 + min_dist v t = min_dist s t" by blast
+  with EdgePath.IH have "min_dist s u + 1 + length p + min_dist w t = min_dist s t" by simp
+  with EdgePath show ?case sorry
+qed*)
+
+thm l'.vertex_cases
+find_theorems "(?a :: nat) = ?b"
+find_theorems "?a \<le> ?b \<Longrightarrow> ?a \<ge> ?b \<Longrightarrow> ?a = ?b"
+find_theorems "(?a < ?b \<Longrightarrow> False) \<Longrightarrow> (?a > ?b \<Longrightarrow> False) \<Longrightarrow> (?a :: nat) = ?b"
+(* TODO make vertex cases *)
+lemma l'_vertexE[elim]:
+  assumes "u \<in> l'.V"
+  obtains "u \<in> V"
+    and "connected s u" "connected u t"
+    and "min_dist s u + min_dist u t = min_dist s t"
+proof
+  from assms show "u \<in> V" using l_sub.V_ss l'_sub.V_ss by blast
+  from assms show "connected s u" "connected u t"
+    using l'.V_def by blast+
+  from assms show "min_dist s u + min_dist u t = min_dist s t"
+  proof (rule l'.vertex_cases)
+    fix v
+    assume "(u, v) \<in> l'.E"
+    then obtain p where "isPath v p t" "min_dist s u + 1 + length p = min_dist s t"
+      using obtain_shortest_path isShortestPath_min_dist_def l'_edgeE by metis
+    with \<open>(u, v) \<in> l'.E\<close> have "isPath u ((u, v) # p) t" by auto
+    have "length p + 1 = min_dist u t"
+    proof (rule le_antisym)
+      show "length p + 1 \<le> min_dist u t"
+      proof (rule ccontr)
+        assume "\<not> length p + 1 \<le> min_dist u t"
+        with \<open>connected u t\<close> obtain p' where "isPath u p' t" "length p' \<le> length p"
+          using obtain_shortest_path (* TODO cleanup *)
+          by (metis Graph.isShortestPath_alt Graph.isShortestPath_def Suc_eq_plus1 linorder_not_le not_less_eq)
+        with \<open>connected s u\<close> have "min_dist s t \<le> min_dist s u + length p'" (* Check if all properties are still needed wiht p' *)
+          by (meson dist_trans min_dist_is_dist min_dist_minD isPath_distD)
+        with \<open>min_dist s u + 1 + length p = min_dist s t\<close> \<open>length p' \<le> length p\<close> show False by simp
+      qed
+      from \<open>isPath u ((u, v) # p) t\<close> show "min_dist u t \<le> length p + 1"
+        by (metis isPath_distD min_dist_minD Suc_eq_plus1 length_Cons)
+    qed
+    with \<open>min_dist s u + 1 + length p = min_dist s t\<close> show ?thesis by simp
+  next
+    fix v
+    assume "(v, u) \<in> l'.E"
+    then show ?thesis sorry
+  qed
+qed
+
+(*
+proof
+  from assms show "u \<in> V" using l_sub.V_ss l'_sub.V_ss by blast
+  from assms show "connected s u" "connected u t"
+    using l'.V_def by blast+
+  from assms show "min_dist s u + min_dist u t = min_dist s t"
+  proof (rule l'.vertex_cases)
+    fix v
+    assume "(u, v) \<in> l'.E"
+    then obtain p p' where "isPath s p u" "isPath v p' t" "length p + 1 + length p' = min_dist s t"
+      using obtain_shortest_path isShortestPath_min_dist_def l'_edgeE by metis
+    with \<open>(u, v) \<in> l'.E\<close> have "isPath u ((u, v) # p') t" by auto
+    moreover have "length p' + 1 = min_dist u t"
+    proof (rule le_antisym)
+      show "length p' + 1 \<le> min_dist u t"
+      proof (rule ccontr)
+        assume "\<not> length p' + 1 \<le> min_dist u t"
+        with \<open>connected u t\<close> obtain p'' where "isPath u p'' t" "length p'' \<le> length p'"
+          using obtain_shortest_path (* TODO cleanup *)
+          by (metis Graph.isShortestPath_alt Graph.isShortestPath_def Suc_eq_plus1 linorder_not_le not_less_eq)
+        with \<open>isPath s p u\<close> have "min_dist s t \<le> length p + length p'"
+          by (smt (verit, ccfv_threshold) add.commute add.left_commute dist_trans isPath_distD le_iff_add min_dist_minD)
+        with \<open>length p + 1 + length p' = min_dist s t\<close> show False by simp
+      qed
+      from \<open>isPath u ((u, v) # p') t\<close> show "min_dist u t \<le> length p' + 1"
+        by (metis isPath_distD min_dist_minD Suc_eq_plus1 length_Cons)
+    qed
+    moreover from \<open>(u, v) \<in> l'.E\<close> have ""
+    ultimately show ?thesis
+      
+      assume "length p' + 1 \<noteq> min_dist u t"
+      with \<open>isPath u ((u, v) # p') t\<close> have "min_dist u t \<le> length p' + 1"
+      qed
+*)
+
+(*
+assume "u \<in> l'.V"
+  then obtain v where "(u, v) \<in> l'.E \<or> (v, u) \<in> l'.E" unfolding l'.V_def by blast
+  then have "min_dist s u + min_dist u t = min_dist s t"
+  proof
+    assume "(u, v) \<in> l'.E"
+    then show ?thesis
+      by (smt (verit, best) ab_semigroup_add_class.add_ac(1) l'.connected_append_edge l'.connected_edgeRtc l'.connected_refl l'.rtc_isPath l'_edgeE l'_sub.E_ss l_edge_iff path_adds_to_source_dist' path_adds_to_target_dist' subsetD)
+  next
+    assume "(v, u) \<in> l'.E"
+    then show ?thesis
+      by (smt (verit, best) ab_semigroup_add_class.add_ac(1) l'.connected_append_edge l'.connected_edgeRtc l'.connected_refl l'.rtc_isPath l'_edgeE l'_sub.E_ss l_edge_iff path_adds_to_source_dist' path_adds_to_target_dist' subsetD)
+  qed
+*)
+
 lemma l'_edge_iff: "(u, v) \<in> l'.E \<longleftrightarrow> (u, v) \<in> E \<and> connected s u \<and> connected v t \<and> min_dist s u + 1 + min_dist v t = min_dist s t" (* TODO necessary? *)
   using E_def' l'.E_def' s_t_layering_def by auto
 
@@ -307,22 +418,8 @@ proof -
   ultimately show "l'.isPath s p t" using l'.isPath_alt by simp
 qed
 
-lemma path_adds_to_source_dist': "l'.isPath u p v \<Longrightarrow> min_dist s u + length p = min_dist s v"
-  apply (induction rule: l'.isPath_custom_induct)
-  using l'_sub.E_ss l_edge_iff by auto
-
 thm l'_edge_iff
-lemma path_adds_to_target_dist': "l'.isPath u p v \<Longrightarrow> min_dist u t = length p + min_dist v t"
-proof (induction rule: l'.isPath_custom_induct)
-  case (SelfPath u)
-  then show ?case by simp
-next
-  case (EdgePath u v p w)
-  thm EdgePath.IH
-  then have "min_dist s u + 1 + min_dist v t = min_dist s t" by blast
-  with EdgePath.IH have "min_dist s u + 1 + length p + min_dist w t = min_dist s t" by simp
-  with EdgePath show ?case sorry
-qed
+
 
 (*
 lemma tmp': "(u, v) \<in> l'.E \<Longrightarrow> \<exists>p p'. isShortestPath s (p @ [(u, v)] @ p') t"
@@ -436,6 +533,21 @@ next
 qed*)
 
 thm l'.V_def
+
+lemma l'_vertices_dual_connected_in_l': "u \<in> l'.V \<Longrightarrow> l'.connected s u \<and> l'.connected u t"
+proof
+  assume "u \<in> l'.V"
+  then have "connected s u" "connected u t" "min_dist s u + min_dist u t = min_dist s t" by auto
+  then obtain p p' where "isPath s p u" "isPath u p' t" "length p + length p' = min_dist s t"
+    using obtain_shortest_path isShortestPath_min_dist_def by (metis (no_types, lifting))
+  then have "isShortestPath s (p @ p') t" using isPath_append isShortestPath_min_dist_def by auto
+  moreover from \<open>isPath s p u\<close> \<open>isPath u p' t\<close> have "isLinked s p u" "isLinked u p' t"
+    using isLinked_if_isPath by auto
+  ultimately show "l'.connected s u" "l'.connected u t" unfolding l'.connected_def
+    using shortest_s_t_path_remains_path l'.isPath_alt l'.isPath_append by meson+
+qed
+
+(*
 lemma l'_vertices_dual_connected_in_l': "u \<in> l'.V \<Longrightarrow> l'.connected s u \<and> l'.connected u t"
 proof
   assume "u \<in> l'.V"
@@ -452,6 +564,8 @@ proof
   qed
   oops
 qed
+
+*)
   (*using tmp l'.V_def (* TODO cleanup *)
   by (smt (verit, del_insts) l'.connected_append_edge l'.connected_prepend_edge mem_Collect_eq)*)
 
