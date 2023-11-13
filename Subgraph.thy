@@ -16,6 +16,7 @@ interpretation subgraph: order isSubgraph isTrueSubgraph
   apply metis
   apply force+
   done
+thm subgraph.order_trans
 
 
 locale CapacityLeSubgraph = g': Graph c' + g: Graph c for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +

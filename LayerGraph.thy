@@ -2,22 +2,25 @@ theory LayerGraph
   imports Subgraph
 begin
 
+definition s_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> 'capacity graph"
+  where "s_layering c s \<equiv> \<lambda>(u, v).
+    if Graph.connected c s u \<and> Graph.min_dist c s u + 1 = Graph.min_dist c s v then
+      c (u, v)
+    else
+      0"
+
+lemma s_layering_subgraph: "isSubgraph (s_layering c s) c"
+  unfolding isSubgraph_def s_layering_def by simp
+
 locale InducedSourceLayering = Graph c for c :: "'capacity::linordered_idom graph" +
   fixes s :: node
   assumes s_node[simp, intro!]: "s \<in> V"
 begin
 
-definition s_layering :: "'capacity graph"
-  where "s_layering \<equiv> \<lambda>(u, v).
-    if connected s u \<and> min_dist s u + 1 = min_dist s v then
-      c (u, v)
-    else
-      0"
+sublocale l: Graph "s_layering c s" .
 
-sublocale l: Graph s_layering .
-
-sublocale l_sub: Subgraph s_layering c
-  unfolding Subgraph_def isSubgraph_def s_layering_def by simp
+sublocale l_sub: Subgraph "s_layering c s" c
+  unfolding Subgraph_def by (rule s_layering_subgraph)
 
 (* TODO check if this is a good idea, and if "connected s v" should also be a property *)
 lemma l_edgeE[elim]:
@@ -26,14 +29,14 @@ lemma l_edgeE[elim]:
     and "connected s u" "connected s v" "min_dist s u + 1 = min_dist s v"
 proof
   from assms show "(u, v) \<in> E" using l_sub.E_ss by blast
-  from assms have layering_not_z: "s_layering (u, v) \<noteq> 0" using l.E_def by blast
+  from assms have layering_not_z: "s_layering c s (u, v) \<noteq> 0" using l.E_def by blast
   then show "connected s u" unfolding s_layering_def by (smt case_prod_conv)
   then show "connected s v" using  \<open>(u, v) \<in> E\<close> by (rule connected_append_edge)
   from layering_not_z show "min_dist s u + 1 = min_dist s v" unfolding s_layering_def by (smt case_prod_conv)
 qed
 
 lemma l_edge_iff: "(u, v) \<in> l.E \<longleftrightarrow> (u, v) \<in> E \<and> connected s u \<and> min_dist s u + 1 = min_dist s v"
-  using E_def' l.E_def' s_layering_def by auto
+  using E_def' l.E_def' s_layering_def by (smt (verit, best) mem_Collect_eq prod.simps(2))
 
 lemma l_vertices_connected_in_base: "u \<in> l.V \<Longrightarrow> connected s u" (* TODO necessary? *)
   unfolding l.V_def
@@ -91,7 +94,7 @@ next
 qed
 
 theorem s_layering_is_shortest_s_paths_union:
-  "isPathUnion s_layering (shortestSPaths s V)" unfolding isPathUnion_def
+  "isPathUnion (s_layering c s) (shortestSPaths s V)" unfolding isPathUnion_def
 proof (rule pair_set_eqI)
   fix u v
   assume "(u, v) \<in> l.E"
@@ -111,20 +114,39 @@ next
 qed
 end \<comment> \<open>InducedSourceLayering\<close>
 
+definition s_t_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> 'capacity graph"
+  where "s_t_layering c s t \<equiv> \<lambda>(u, v).
+    if Graph.connected c s u \<and> Graph.connected c v t \<and> Graph.min_dist c s u + 1 + Graph.min_dist c v t = Graph.min_dist c s t then
+      c (u, v)
+    else
+      0"
+
+lemma s_t_layering_subgraph: "isSubgraph (s_t_layering c s t) (s_layering c s)"
+  unfolding isSubgraph_def
+proof clarify
+  fix u v
+  assume 0: "s_t_layering c s t (u, v) \<noteq> 0"
+  then have "s_t_layering c s t (u, v) = c (u, v)" "Graph.connected c s u" "Graph.connected c v t"
+    "Graph.min_dist c s u + 1 + Graph.min_dist c v t = Graph.min_dist c s t"
+    unfolding s_t_layering_def case_prod_conv by meson+
+  then have "s_layering c s (u, v) = c (u, v)" unfolding s_layering_def
+    by (smt (verit, best) Graph.min_dist_is_dist Graph.zero_cap_simp Suc_eq_plus1 case_prod_conv Graph.dist_suc Graph.min_dist_split(1))
+  with \<open>s_t_layering c s t (u, v) = c (u, v)\<close> show "s_t_layering c s t (u, v) = s_layering c s (u, v)" by simp
+qed (* TODO cleanup *)
+
 locale InducedSourceTargetLayering = InducedSourceLayering c s for c :: "'capacity::linordered_idom graph" and s +
   fixes t :: node
   assumes t_node[simp, intro!]: "t \<in> V"
   (*assumes s_not_t[simp, intro!]: "s \<noteq> t"*) (* TODO check if necessary *)
 begin
 
-definition s_t_layering :: "'capacity graph"
-  where "s_t_layering \<equiv> \<lambda>(u, v).
-    if connected s u \<and> connected v t \<and> min_dist s u + 1 + min_dist v t = min_dist s t then
-      c (u, v)
-    else
-      0"
+sublocale l': Graph "s_t_layering c s t" .
 
-sublocale l': Graph s_t_layering .
+sublocale l'_sub_l: Subgraph "s_t_layering c s t" "s_layering c s" unfolding Subgraph_def
+  using s_t_layering_subgraph .
+
+sublocale l'_sub_c: Subgraph "s_t_layering c s t" c unfolding Subgraph_def
+  using s_layering_subgraph s_t_layering_subgraph subgraph.order_trans by blast
 
 lemma l'_edgeE:
   assumes "(u, v) \<in> l'.E"
@@ -138,14 +160,14 @@ proof
   from assms show "connected s u"
     by (smt (verit) case_prod_conv l'.E_def' mem_Collect_eq s_t_layering_def)
   with \<open>(u, v) \<in> E\<close> show  "connected s v" using connected_append_edge by blast
-  from assms have layering_not_z: "s_t_layering (u, v) \<noteq> 0" using l'.E_def by blast
+  from assms have layering_not_z: "s_t_layering c s t (u, v) \<noteq> 0" using l'.E_def by blast
   then show "connected v t" unfolding s_t_layering_def by (smt case_prod_conv)
   with \<open>(u, v) \<in> E\<close> show "connected u t" by (rule connected_prepend_edge)
   from layering_not_z show "min_dist s u + 1 + min_dist v t = min_dist s t" unfolding s_t_layering_def case_prod_conv by meson
 qed
 
 lemma l'_edge_iff: "(u, v) \<in> l'.E \<longleftrightarrow> (u, v) \<in> E \<and> connected s u \<and> connected v t \<and> min_dist s u + 1 + min_dist v t = min_dist s t"
-  using E_def' l'.E_def' s_t_layering_def by auto
+  using E_def' l'.E_def' s_t_layering_def by (smt (verit, ccfv_SIG) mem_Collect_eq prod.simps(2))
 
 lemma obtain_shortest_st_path_via_edge:
   assumes "(u, v) \<in> l'.E"
@@ -191,25 +213,13 @@ lemma l'_path_adds_dist:
     and "min_dist v t + length p = min_dist u t"
   using assms by (induction rule: l'.isPath_custom_induct) (simp_all add: l'_edge_increments_dist[symmetric])
 
-sublocale l'_sub: Subgraph s_t_layering s_layering (* TODO adapt this so we immediately get the transitive properties *)
-  unfolding Subgraph_def isSubgraph_def
-proof clarify
-  fix u v
-  assume 0: "s_t_layering (u, v) \<noteq> 0"
-  then have "s_t_layering (u, v) = c (u, v)" "connected s u" "connected v t" "min_dist s u + 1 + min_dist v t = min_dist s t"
-    unfolding s_t_layering_def case_prod_conv by meson+
-  then have "s_layering (u, v) = c (u, v)" unfolding s_layering_def
-    by (smt (verit, best) min_dist_is_dist zero_cap_simp Suc_eq_plus1 case_prod_conv dist_suc min_dist_split(1))
-  with \<open>s_t_layering (u, v) = c (u, v)\<close> show "s_t_layering (u, v) = s_layering (u, v)" by simp
-qed (* TODO cleanup with previous lemmata *)
-
 lemma l'_vertexE[elim]:
   assumes "u \<in> l'.V"
   obtains "u \<in> V"
     and "connected s u" "connected u t"
     and "min_dist s u + min_dist u t = min_dist s t"
 proof
-  from assms show "u \<in> V" using l_sub.V_ss l'_sub.V_ss by blast
+  from assms show "u \<in> V" using l'_sub_c.V_ss by blast
   from assms show "connected s u" "connected u t"
     using l'.V_def l'_edgeE by blast+
   from assms show "min_dist s u + min_dist u t = min_dist s t"
@@ -247,10 +257,10 @@ proof
 qed
 
 lemma shortest_s_t_path_remains_shortest: "isShortestPath s p t \<Longrightarrow> l'.isShortestPath s p t"
-  using shortest_s_path_remains_path shortest_s_t_path_remains_path l_sub.shortest_paths_remain_if_contained l'_sub.shortest_paths_remain_if_contained by blast
+  using shortest_s_path_remains_path shortest_s_t_path_remains_path l'_sub_c.shortest_paths_remain_if_contained by blast
 
 theorem s_t_layering_is_shortest_s_t_paths_union:
-  "isPathUnion s_t_layering (shortestSTPaths s t)" unfolding isPathUnion_def
+  "isPathUnion (s_t_layering c s t) (shortestSTPaths s t)" unfolding isPathUnion_def
 proof (rule pair_set_eqI)
   fix u v
   assume "(u, v) \<in> l'.E"
