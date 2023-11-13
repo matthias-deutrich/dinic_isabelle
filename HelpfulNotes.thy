@@ -14,4 +14,6 @@ text \<open>"interpretation" only works for the current context, "sublocale" is 
 text \<open>Use the following and/or congruence rules in case the simplifier simplifies too much, especially for locale assumptions.\<close>
 declare [[show_abbrevs=false]]
 declare [[show_abbrevs=true]]
+
+text \<open>Use "using [[rule_trace]] apply rule" to find which rule is being applied by the standard proof method.\<close>
 end

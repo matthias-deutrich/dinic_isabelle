@@ -136,8 +136,8 @@ qed (* TODO cleanup *)
 
 locale InducedSourceTargetLayering = InducedSourceLayering c s for c :: "'capacity::linordered_idom graph" and s +
   fixes t :: node
-  assumes t_node[simp, intro!]: "t \<in> V"
-  (*assumes s_not_t[simp, intro!]: "s \<noteq> t"*) (* TODO check if necessary *)
+  (* assumes t_node[simp, intro!]: "t \<in> V" *)
+  (* assumes s_not_t[simp, intro!]: "s \<noteq> t" *) (* TODO check if necessary *)
 begin
 
 sublocale l': Graph "s_t_layering c s t" .
@@ -272,6 +272,6 @@ next
   then obtain p where "isShortestPath s p t" and "(u, v) \<in> set p" using shortestSTPaths_def by auto
   then show "(u, v) \<in> l'.E" using shortest_s_t_path_remains_path l'.isPath_edgeset by blast
 qed
-end
+end \<comment> \<open>InducedSourceTargetLayering\<close>
 
 end

@@ -40,6 +40,9 @@ lemma sg_paths_are_base_paths: "g'.isPath u p v \<Longrightarrow> g.isPath u p v
   using E_ss by auto
 (* TODO use transfer_path *)
 
+lemma sg_connected_remains_base_connected: "g'.connected u v \<Longrightarrow> g.connected u v"
+  unfolding Graph.connected_def using sg_paths_are_base_paths by blast
+
 lemma shortest_paths_remain_if_contained: "\<lbrakk>g'.isPath u p v; g.isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
   using sg_paths_are_base_paths by (meson Graph.isShortestPath_def)
 end
