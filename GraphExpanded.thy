@@ -78,6 +78,32 @@ next
   then have "isLinked u p v" "(set p) \<subseteq> E" by blast+
   then show "isPath u p v" by (induction rule: isLinked.induct) simp_all
 qed
+
+
+(* TODO check if exists *)
+lemma vertex_cases[consumes 1]:
+  assumes "u \<in> V"
+  obtains (outgoing) v where "(u, v) \<in> E"
+    | (incoming) v where "(v, u) \<in> E"
+  using V_def assms by auto
+
+text \<open>This lemma makes it more convenient to work with split_shortest_path in a common use case.\<close>
+thm split_shortest_path
+lemma split_shortest_path_around_edge:
+  assumes "isShortestPath s (p @ (u, v) # p') t"
+  shows "isShortestPath s p u" "isShortestPath u ((u, v) # p') t"
+    and "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t"
+proof -
+  from assms obtain w where "isShortestPath s p w" "isShortestPath w ((u, v) # p') t" using split_shortest_path by blast
+  moreover from this have "w = u" unfolding isShortestPath_def by simp
+  ultimately show "isShortestPath s p u" "isShortestPath u ((u, v) # p') t" by auto
+next
+  from assms obtain w where "isShortestPath s (p @ [(u, v)]) w" "isShortestPath w p' t" using split_shortest_path
+    by (metis append.assoc append_Cons append_Nil)
+  moreover from this have "w = v" unfolding isShortestPath_def
+    using isPath_tail by simp
+  ultimately show "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t" by auto
+qed
 end
 
 lemma isLinked_if_isPath: "Graph.isPath c u p v \<Longrightarrow> isLinked u p v"
@@ -99,13 +125,6 @@ definition isPathUnion :: "_ graph \<Rightarrow> path set \<Rightarrow> bool"
 
 context Graph
 begin
-(* TODO check if exists *)
-lemma vertex_cases[consumes 1]:
-  assumes "u \<in> V"
-  obtains (outgoing) v where "(u, v) \<in> E"
-    | (incoming) v where "(v, u) \<in> E"
-  using V_def assms by auto
-
 definition allShortestPaths :: "node set \<Rightarrow> node set \<Rightarrow> path set"
   where "allShortestPaths s_set t_set \<equiv> {p. \<exists>s \<in> s_set. \<exists>t \<in> t_set. isShortestPath s p t}"
 
