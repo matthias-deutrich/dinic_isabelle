@@ -36,7 +36,7 @@ lemma E_ss: "E' \<subseteq> E" using c'_sg_c unfolding g.E_def g'.E_def isSubgra
 lemma V_ss: "V' \<subseteq> V" unfolding g.V_def g'.V_def using E_ss by blast
 
 lemma sg_paths_are_base_paths: "g'.isPath u p v \<Longrightarrow> g.isPath u p v"
-  apply (induction rule: g'.isPath_custom_induct)
+  apply (induction rule: g'.isPath_front_induct)
   using E_ss by auto
 (* TODO use transfer_path *)
 
