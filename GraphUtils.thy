@@ -1,4 +1,4 @@
-theory GraphExpanded
+theory GraphUtils
 imports "Flow_Networks.Graph"
 begin
 
@@ -14,24 +14,28 @@ context Graph
 begin
 text \<open>This rule allows us to use isPath as if it were an inductive predicate,
 which is sometimes more convenient\<close>
-lemma isPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
+lemma isPath_front_induct'[consumes 1, case_names SelfPath EdgePath]:
   "\<lbrakk>isPath u' p' v'; \<And>u. P u [] u; \<And>u v p w. \<lbrakk>(u, v) \<in> E; isPath v p w; P v p w\<rbrakk> \<Longrightarrow> P u ((u, v) # p) w\<rbrakk> \<Longrightarrow> P u' p' v'"
   by (induction p' arbitrary: u') auto
 
+(* TODO is this better? if so, clean up the first*)
+lemma isPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
+  "\<lbrakk>isPath u' p' t; \<And>u. P u [] u; \<And>u v p. \<lbrakk>(u, v) \<in> E; isPath v p t; P v p t\<rbrakk> \<Longrightarrow> P u ((u, v) # p) t\<rbrakk> \<Longrightarrow> P u' p' t"
+  by (induction p' arbitrary: u') auto
+
 lemma isPath_back_induct[consumes 1, case_names SelfPath EdgePath]:
-  "\<lbrakk>isPath u' p' v'; \<And>u. P u [] u; \<And>u p v w. \<lbrakk>(v, w) \<in> E; isPath u p v; P u p v\<rbrakk> \<Longrightarrow> P u (p @ [(v, w)]) w\<rbrakk> \<Longrightarrow> P u' p' v'"
-  apply (induction p'  arbitrary: v' rule: rev_induct, simp)
-  using isPath_bwd_cases append1_eq_conv by metis
+  "\<lbrakk>isPath s p' v'; \<And>u. P u [] u; \<And>p u v. \<lbrakk>(u, v) \<in> E; isPath s p u; P s p u\<rbrakk> \<Longrightarrow> P s (p @ [(u, v)]) v\<rbrakk> \<Longrightarrow> P s p' v'"
+  by (induction p'  arbitrary: v' rule: rev_induct) (auto simp: isPath_tail)
 
 lemma connected_front_induct[consumes 1, case_names Self Edge]:
-  "\<lbrakk>connected u' v'; \<And>u. P u u; \<And>u v w. \<lbrakk>(u, v) \<in> E; connected v w; P v w\<rbrakk> \<Longrightarrow> P u w\<rbrakk> \<Longrightarrow> P u' v'"
+  "\<lbrakk>connected w t; \<And>u. P u u; \<And>u v. \<lbrakk>(u, v) \<in> E; connected v t; P v t\<rbrakk> \<Longrightarrow> P u t\<rbrakk> \<Longrightarrow> P w t"
   unfolding connected_def
   apply clarify
   apply (induct_tac rule: isPath_front_induct)
   by blast+
 
 lemma connected_back_induct[consumes 1, case_names Self Edge]:
-  "\<lbrakk>connected u' v'; \<And>u. P u u; \<And>u v w. \<lbrakk>(v, w) \<in> E; connected u v; P u v\<rbrakk> \<Longrightarrow> P u w\<rbrakk> \<Longrightarrow> P u' v'"
+  "\<lbrakk>connected s w; \<And>u. P u u; \<And>u v. \<lbrakk>(u, v) \<in> E; connected s u; P s u\<rbrakk> \<Longrightarrow> P s v\<rbrakk> \<Longrightarrow> P s w"
   unfolding connected_def
   apply clarify
   apply (induct_tac rule: isPath_back_induct)
@@ -154,13 +158,5 @@ lemma distinct_nodes_in_V_if_connected:
   shows "u \<in> V" "v \<in> V" (* TODO is there a better way to prove multiple props at once? *)
   using assms isPath_fwd_cases isPath_bwd_cases unfolding connected_def V_def by fastforce+
 end
-
-thm Graph.isPath.elims
-thm Graph.isPath_fwd_cases
-lemma (in Graph) "isPath u p v \<Longrightarrow> p \<noteq> [] \<Longrightarrow> u \<in> V" (* TODO use or remove *)
-  using V_def isPath_fwd_cases by fastforce
-
-
-
 
 end

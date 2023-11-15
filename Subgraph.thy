@@ -1,5 +1,5 @@
 theory Subgraph
-imports GraphExpanded
+imports GraphUtils
 begin
 
 definition isSubgraph :: "_ graph \<Rightarrow> _ graph \<Rightarrow> bool"

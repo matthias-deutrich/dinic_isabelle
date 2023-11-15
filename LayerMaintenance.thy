@@ -45,17 +45,23 @@ lemma rightPassAbstract_is_c_if_s_connected[simp]:
   "connected s u \<Longrightarrow> right_pass (u, v) = c (u, v)"
   unfolding rightPassAbstract_def by simp
 
-lemma t_connected_edges_remain: "(u, v) \<in> E \<Longrightarrow> connected v t \<Longrightarrow> (u, v) \<in> right_pass_graph.E" sorry
+lemma s_connected_edges_remain: "(u, v) \<in> E \<Longrightarrow> connected s u \<Longrightarrow> (u, v) \<in> right_pass_graph.E"
+  using E_def' right_pass_graph.zero_cap_simp by fastforce
 
 lemma rightPassAbstract_keeps_s_paths:
   "isPath s p u \<Longrightarrow> right_pass_graph.isPath s p u"
-proof (induction rule: isPath_front_induct)
+proof (induction rule: isPath_back_induct)
   case (SelfPath u)
   then show ?case by (simp add: Graph.isPath.simps)
 next
-  case (EdgePath u v p w)
-  then show ?case sorry
+  case (EdgePath p u v)
+  then show ?case
+    by (simp add: Graph.connected_edgeRtc Graph.isPath_append_edge isPath_rtc s_connected_edges_remain)
 qed
+
+corollary rightPassAbstract_keeps_s_connected:
+  "connected s u \<Longrightarrow> right_pass_graph.connected s u"
+  using rightPassAbstract_keeps_s_paths Graph.connected_def by blast
 
 lemma rightPassAbstract_distinct_connected_iff:
   assumes "u \<noteq> v"
@@ -99,7 +105,22 @@ lemma leftPassAbstract_is_c_if_s_connected[simp]:
   unfolding leftPassAbstract_def by simp
 
 lemma t_connected_edges_remain: "(u, v) \<in> E \<Longrightarrow> connected v t \<Longrightarrow> (u, v) \<in> left_pass_graph.E"
-  using E_def' Graph.zero_cap_simp by fastforce
+  using E_def' left_pass_graph.zero_cap_simp by fastforce
+
+lemma leftPassAbstract_keeps_t_paths':
+  "isPath u p t \<Longrightarrow> left_pass_graph.isPath u p t"
+proof (induction p arbitrary: u)
+  case Nil
+  then show ?case by simp
+next
+  case (Cons e p)
+  (*then show ?case using connected_def t_connected_edges_remain isPath_fwd_cases
+    by (metis Graph.isPath_head prod.exhaust_sel)*)
+  then obtain v where "(u, v) \<in> E" "isPath v p t" using isPath_fwd_cases by blast
+  then have "(u, v) \<in> left_pass_graph.E" using connected_def t_connected_edges_remain by blast
+  with Cons \<open>isPath v p t\<close> show ?case
+    by (metis Graph.isPath_head isPath_fwd_cases list.distinct(1) list.inject)
+qed
 
 lemma leftPassAbstract_keeps_t_paths:
   "isPath u p t \<Longrightarrow> left_pass_graph.isPath u p t"
@@ -107,7 +128,10 @@ proof (induction rule: isPath_front_induct)
   case (SelfPath u)
   then show ?case by (simp add: Graph.isPath.simps)
 next
-  case (EdgePath u v p w)
+  case (EdgePath u v p)
+  then show ?case using connected_def t_connected_edges_remain sledgehammer
+    using left_pass_graph.isPath.simps(2) by blast
+    by fastforce
   have "(u, v) \<in> left_pass_graph.E"
     apply (rule t_connected_edges_remain)
     using EdgePath(1) apply simp
