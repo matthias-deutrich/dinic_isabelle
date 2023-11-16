@@ -284,4 +284,21 @@ lemma stl_path_length_bounded: "stl.isPath u p v \<Longrightarrow> length p \<le
 (* TODO show finiteness *)
 end \<comment> \<open>ST_Graph\<close>
 
+locale Distance_Bounded_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes b :: nat
+  assumes bounded: "dist u n v \<Longrightarrow> n \<le> b"
+begin
+lemma path_lengths_bounded: "isPath u p v \<Longrightarrow> length p \<le> b" using bounded dist_def by blast
+end
+
+(* TODO needed? *)
+(*locale Bounded_ST_Graph = ST_Graph c s t + Distance_Bounded_Graph c b for c :: "'capacity::linordered_idom graph" and s t b*)
+
+context ST_Graph
+begin
+sublocale stl: Distance_Bounded_Graph "st_layering c s t" "min_dist s t"
+  unfolding Distance_Bounded_Graph_def
+  using stl.dist_def stl_path_length_bounded by metis
+end
+
 end
