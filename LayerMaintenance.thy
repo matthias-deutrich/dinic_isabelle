@@ -74,6 +74,10 @@ next
 qed
 end \<comment> \<open>S_Graph\<close>
 
+
+(*locale Finite_S_Graph = Finite_Graph c + S_Graph c s
+  for c :: "'capacity::linordered_idom graph" and s*)
+
 subsection \<open>Left Pass\<close>
 
 definition leftPassAbstract :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> 'capacity graph"
@@ -163,13 +167,32 @@ abbreviation "cleaned \<equiv> cleaningAbstract c s t"
 
 sublocale cleaned_graph: Graph cleaned .
 
-
+(* TODO *)
 end
 
+(* TODO check whether this already exists somewhere *)
+definition removeEdge :: "_ graph \<Rightarrow> edge \<Rightarrow> _ graph" where
+  "removeEdge c e \<equiv> c(e := 0)"
+
+find_consts "'a set \<Rightarrow> 'a list"
+find_consts "'a list \<Rightarrow> 'a set"
+thm list.induct
+(* How to define recursive functions over sets *)
+
+fun rightPassConcrete :: "_ graph \<Rightarrow> edge list \<Rightarrow> _ graph" where
+  "rightPassConcrete c [] = c"
+| "rightPassConcrete c ((u, v) # es) =
+    (if Graph.incoming c u = {}
+    then c
+    else rightPassConcrete c es)"
 
 
 
 
+
+
+
+(* TODO cleanup *)
 lemma cleaningAbstract_is_c_if_doubly_connected[simp]:
   "Graph.connected c s u \<Longrightarrow> Graph.connected c v t \<Longrightarrow> cleaningAbstract c s t (u, v) = c (u, v)"
   unfolding cleaningAbstract_def by simp

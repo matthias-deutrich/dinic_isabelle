@@ -107,7 +107,59 @@ next
 qed
 end
 
+section \<open>Acyclic and distance-bounded graphs\<close>
+(* TODO what here is really necessary? *)
 
+context Graph
+begin
+definition isCycle :: "node \<Rightarrow> path \<Rightarrow> bool"
+  where "isCycle u p \<equiv> isPath u p u \<and> p \<noteq> []"
+
+lemma cycle_induces_arbitrary_length_paths: "isCycle u p \<Longrightarrow> \<exists>p'. isPath u p' u \<and> length p' \<ge> n"
+proof (induction n)
+  case (Suc n)
+  then obtain p' where "isPath u p' u" "length p' \<ge> n" by blast
+  moreover from Suc.prems have "isPath u p u" "length p \<ge> 1" unfolding isCycle_def by (simp_all add: Suc_leI)
+  ultimately have "isPath u (p @ p') u" "length (p @ p') \<ge> Suc n" using isPath_append by auto
+  then show ?case by blast
+qed (auto simp: isCycle_def)
+
+(* NOTE: this proof is similar to the one for isSPath_pathLE, see if we can't reuse some things *)
+lemma split_non_simple_path:
+  assumes "isPath s p t"
+  assumes "\<not> isSimplePath s p t"
+  obtains p\<^sub>1 p\<^sub>2 p\<^sub>3 u where "p = p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3" "isPath s p\<^sub>1 u" "isCycle u p\<^sub>2" "isPath u p\<^sub>3 t"
+proof -
+  from assms have "\<not> distinct(pathVertices_fwd s p)" unfolding isSimplePath_fwd by blast
+  then obtain pv\<^sub>1 pv\<^sub>2 pv\<^sub>3 u where "pathVertices_fwd s p = pv\<^sub>1 @ u # pv\<^sub>2 @ u # pv\<^sub>3" by (auto dest: not_distinct_decomp)
+(* NOTE: there is a direct proof, but the automation requires a great deal of help *)
+(*
+  then obtain p\<^sub>1 p\<^sub>2 p\<^sub>3 where "p = p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3" "isPath s p\<^sub>1 u" "isPath u p\<^sub>2 u" "isPath u p\<^sub>3 t" "pathVertices_fwd u p\<^sub>2 = u # pv\<^sub>2 @ [u]"
+    using split_path_at_vertex_complete[OF assms(1), of pv\<^sub>1 u "pv\<^sub>2 @ u # pv\<^sub>3"] split_path_at_vertex_complete[of u _ t "u # pv\<^sub>2" u pv\<^sub>3] by by (metis Cons_eq_appendI) *)
+  with \<open>isPath s p t\<close> obtain p\<^sub>1 p' where "p = p\<^sub>1 @ p'" "isPath s p\<^sub>1 u" "isPath u p' t" "pathVertices_fwd u p' = u # pv\<^sub>2 @ u # pv\<^sub>3"
+    using split_path_at_vertex_complete by metis
+  then obtain p\<^sub>2 p\<^sub>3 where "p = p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3" "isPath u p\<^sub>2 u" "isPath u p\<^sub>3 t" "pathVertices_fwd u p\<^sub>2 = u # pv\<^sub>2 @ [u]"
+    using split_path_at_vertex_complete by (metis Cons_eq_appendI)
+  with \<open>isPath s p\<^sub>1 u\<close> show ?thesis using that isCycle_def by fastforce
+qed
+end
+
+locale Acyclic_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  assumes acyclic: "\<nexists>u p. isCycle u p"
+begin
+lemma paths_are_simple: "isPath s p t \<Longrightarrow> isSimplePath s p t"
+  using split_non_simple_path acyclic by auto
+end
+
+locale Distance_Bounded_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes b :: nat
+  assumes bounded: "dist u n v \<Longrightarrow> n \<le> b"
+begin
+lemma path_lengths_bounded: "isPath u p v \<Longrightarrow> length p \<le> b" using bounded dist_def by blast
+
+sublocale Acyclic_Graph unfolding Acyclic_Graph_def
+  using cycle_induces_arbitrary_length_paths path_lengths_bounded not_less_eq_eq by blast
+end
 
 
 
