@@ -265,7 +265,7 @@ end
 
 
 
-context Distance_Bounded_Graph
+(*context Distance_Bounded_Graph
 begin
 
 fun continuePath :: "('ord :: linorder ) \<Rightarrow> path \<Rightarrow> node \<Rightarrow> path" where
@@ -291,22 +291,6 @@ fun rightPassConcrete :: "_ graph \<Rightarrow> edge list \<Rightarrow> _ graph"
 | "rightPassConcrete c ((u, v) # es) =
     (if Graph.incoming c u = {}
     then c
-    else rightPassConcrete c es)"
+    else rightPassConcrete c es)"*)
 
-
-
-
-
-
-
-(* TODO cleanup *)
-
-
-
-
-lemma right_left_pass_is_cleaning: "cleaningAbstract c s t = rightPassAbstract (leftPassAbstract c t) s" sorry
-
-corollary right_left_pass_com: "leftPassAbstract (rightPassAbstract c s) t = rightPassAbstract (leftPassAbstract c t) s"
-  using left_right_pass_is_cleaning right_left_pass_is_cleaning by metis
-(* TODO maybe make commutativity property prettier *)
 end
