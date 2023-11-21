@@ -133,8 +133,7 @@ proof -
   from assms have "\<not> distinct(pathVertices_fwd s p)" unfolding isSimplePath_fwd by blast
   then obtain pv\<^sub>1 pv\<^sub>2 pv\<^sub>3 u where "pathVertices_fwd s p = pv\<^sub>1 @ u # pv\<^sub>2 @ u # pv\<^sub>3" by (auto dest: not_distinct_decomp)
 (* NOTE: there is a direct proof, but the automation requires a great deal of help *)
-(*
-  then obtain p\<^sub>1 p\<^sub>2 p\<^sub>3 where "p = p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3" "isPath s p\<^sub>1 u" "isPath u p\<^sub>2 u" "isPath u p\<^sub>3 t" "pathVertices_fwd u p\<^sub>2 = u # pv\<^sub>2 @ [u]"
+(*then obtain p\<^sub>1 p\<^sub>2 p\<^sub>3 where "p = p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3" "isPath s p\<^sub>1 u" "isPath u p\<^sub>2 u" "isPath u p\<^sub>3 t" "pathVertices_fwd u p\<^sub>2 = u # pv\<^sub>2 @ [u]"
     using split_path_at_vertex_complete[OF assms(1), of pv\<^sub>1 u "pv\<^sub>2 @ u # pv\<^sub>3"] split_path_at_vertex_complete[of u _ t "u # pv\<^sub>2" u pv\<^sub>3] by by (metis Cons_eq_appendI) *)
   with \<open>isPath s p t\<close> obtain p\<^sub>1 p' where "p = p\<^sub>1 @ p'" "isPath s p\<^sub>1 u" "isPath u p' t" "pathVertices_fwd u p' = u # pv\<^sub>2 @ u # pv\<^sub>3"
     using split_path_at_vertex_complete by metis
@@ -159,6 +158,17 @@ lemma path_lengths_bounded: "isPath u p v \<Longrightarrow> length p \<le> b" us
 
 sublocale Acyclic_Graph unfolding Acyclic_Graph_def
   using cycle_induces_arbitrary_length_paths path_lengths_bounded not_less_eq_eq by blast
+end
+
+locale Distance_Bounded_Graph_Ord = Distance_Bounded_Graph c b + le: ordering less_eq less
+  for c :: "'capacity::linordered_idom graph" and b :: nat
+    (*and less_eq less :: "edge \<Rightarrow> edge \<Rightarrow> bool"*)(* TODO order, how to determine type and keep infix. What kind of ordering do we want (no total preorder)*)
+begin
+thm Least_def
+fun findMaximalPath :: "node \<Rightarrow> path" where
+  "findMaximalPath u = undefined"
+(* TODO  how to choose arbitrary element *)
+(* IDEA: use sorting function as parameter, which may be lexicographic sort of neighbours or max capacity *)
 end
 
 

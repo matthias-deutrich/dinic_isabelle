@@ -13,6 +13,9 @@ definition rightPassAbstract :: "'capacity::linordered_idom graph \<Rightarrow> 
     else
       0"
 
+lemma right_pass_subgraph: "isSubgraph (rightPassAbstract c s) c"
+  unfolding isSubgraph_def rightPassAbstract_def by simp
+
 lemma rightPassAbstract_nz_iff: "rightPassAbstract c s (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u"
   unfolding rightPassAbstract_def by simp
 
@@ -23,7 +26,7 @@ abbreviation "right_pass \<equiv> rightPassAbstract c s"
 sublocale rp_graph: Graph right_pass .
 
 sublocale rp_sg: Subgraph right_pass c
-  unfolding Subgraph_def isSubgraph_def rightPassAbstract_def by simp
+  by unfold_locales (rule right_pass_subgraph)
 
 lemma rp_is_c_if_s_connected[simp]:
   "connected s u \<Longrightarrow> right_pass (u, v) = c (u, v)"
@@ -87,6 +90,9 @@ definition leftPassAbstract :: "'capacity::linordered_idom graph \<Rightarrow> n
     else
       0"
 
+lemma left_pass_subgraph: "isSubgraph (leftPassAbstract c s) c"
+  unfolding isSubgraph_def leftPassAbstract_def by simp
+
 lemma leftPassAbstract_nz_iff: "leftPassAbstract c t (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c v t"
   unfolding leftPassAbstract_def by simp
 
@@ -97,7 +103,7 @@ abbreviation "left_pass \<equiv> leftPassAbstract c t"
 sublocale lp_graph: Graph left_pass .
 
 sublocale lp_sg: Subgraph left_pass c
-  unfolding Subgraph_def isSubgraph_def leftPassAbstract_def by simp
+  by unfold_locales (rule left_pass_subgraph)
 
 lemma lp_is_c_if_s_connected[simp]:
   "connected v t \<Longrightarrow> left_pass (u, v) = c (u, v)"
@@ -157,6 +163,12 @@ definition cleaningAbstract :: "'capacity::linordered_idom graph \<Rightarrow> n
     else
       0"
 
+lemma cleaning_right_subgraph: "isSubgraph (cleaningAbstract c s t) (rightPassAbstract c s)"
+  unfolding isSubgraph_def rightPassAbstract_def cleaningAbstract_def by simp
+
+lemma cleaning_left_subgraph: "isSubgraph (cleaningAbstract c s t) (leftPassAbstract c t)"
+  unfolding isSubgraph_def leftPassAbstract_def cleaningAbstract_def by simp
+
 lemma cleaningAbstract_nz_iff:
   "cleaningAbstract c s t (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u \<and> Graph.connected c v t"
   unfolding cleaningAbstract_def by simp
@@ -165,9 +177,104 @@ context ST_Graph
 begin
 abbreviation "cleaned \<equiv> cleaningAbstract c s t"
 
-sublocale cleaned_graph: Graph cleaned .
+sublocale cl_graph: Graph cleaned .
+
+sublocale cl_right_sg: Subgraph cleaned right_pass
+  by unfold_locales (rule cleaning_right_subgraph)
+
+sublocale cl_left_sg: Subgraph cleaned left_pass
+  by unfold_locales (rule cleaning_left_subgraph)
+
+sublocale cl_sg: Subgraph cleaned c unfolding Subgraph_def
+  using cleaning_right_subgraph right_pass_subgraph subgraph.order_trans by blast
+
+lemma cl_is_c_if_st_connected[simp]: "connected s u \<Longrightarrow> connected v t \<Longrightarrow> cleaned (u, v) = c (u, v)"
+  unfolding cleaningAbstract_def by simp
+
+lemma cl_edges_st_connected: "(u, v) \<in> cl_graph.E \<Longrightarrow> connected s u"
+  and "(u, v) \<in> cl_graph.E \<Longrightarrow> connected v t"
+  using cl_graph.E_def cleaningAbstract_nz_iff by blast+
+
+lemma cl_vertices_st_connected: "u \<in> cl_graph.V \<Longrightarrow> connected s u"
+  and "u \<in> cl_graph.V \<Longrightarrow> connected u t"
+  using cl_right_sg.V_ss cl_left_sg.V_ss rp_vertices_s_connected lp_vertices_t_connected by auto
+
+lemma st_connected_edges_remain: "(u, v) \<in> E \<Longrightarrow> connected s u \<Longrightarrow> connected v t \<Longrightarrow> (u, v) \<in> cl_graph.E"
+  using E_def' cl_graph.zero_cap_simp by fastforce
+
+(*lemma cl_keeps_st_paths:
+  "isPath s p t \<Longrightarrow> cl_graph.isPath s p t"
+proof (induction rule: isPath_back_induct)
+  case (SelfPath u)
+  then show ?case by (simp add: Graph.isPath.simps)
+next
+  case (EdgePath p u v)
+  then show ?case
+    using st_connected_edges_remain cl_graph.isPath_append_edge connected_def
+qed*)
 
 (* TODO *)
+end
+
+context ST_Graph
+begin
+lemma left_right_pass_is_cleaning: "cleaned = leftPassAbstract right_pass t"
+proof (rule ext, unfold split_paired_all)
+  fix u v
+  (*interpret g: Graph c .*) (* TODO why does this not work *)
+  show "cleaned (u, v) = leftPassAbstract right_pass t (u, v)"
+  proof (cases "cleaned (u, v) = 0", clarsimp)
+    case True
+    then have "c (u, v) = 0 \<or> \<not> connected s u \<or> \<not> connected v t" unfolding cleaningAbstract_def by auto
+    then show "leftPassAbstract right_pass t (u, v) = 0"
+      by (auto simp: leftPassAbstract_def rightPassAbstract_def rp_sg.sg_connected_remains_base_connected)
+  next
+    case False
+    then have "(u, v) \<in> E" and st_connected: "connected s u" "connected v t"
+      using cl_graph.E_def cl_sg.E_ss cleaningAbstract_nz_iff by blast+
+    then have "connected s v" using connected_append_edge by blast
+    with st_connected have "rp_graph.connected v t"
+      by (cases "v = t") (simp_all add: S_Graph.rp_distinct_connected_iff)
+    with st_connected show ?thesis by (simp add: T_Graph.lp_is_c_if_s_connected)
+  qed
+qed
+
+lemma right_left_pass_com: "leftPassAbstract right_pass t = rightPassAbstract left_pass s"
+proof (rule ext, unfold split_paired_all)
+  fix u v
+  show "leftPassAbstract right_pass t (u, v) = rightPassAbstract left_pass s (u, v)"
+    by (metis Graph.connected_refl S_Graph.rp_is_c_if_s_connected cl_is_c_if_st_connected cleaningAbstract_nz_iff connected_prepend_edge leftPassAbstract_nz_iff left_right_pass_is_cleaning lp_distinct_connected_iff lp_is_c_if_s_connected rightPassAbstract_nz_iff zero_cap_simp)
+qed (* TODO prettiffy *)
+
+corollary right_left_pass_is_cleaning: "cleaned = rightPassAbstract left_pass s"
+  using left_right_pass_is_cleaning right_left_pass_com by simp
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+context Distance_Bounded_Graph
+begin
+
+fun continuePath :: "('ord :: linorder ) \<Rightarrow> path \<Rightarrow> node \<Rightarrow> path" where
+  "continuePath ord p u =
+    (if outgoing u = {} then p
+    else let e = (LEAST e. e \<in> (outgoing u)) in continuePath ord (p @ [e]) (snd e))"
+
+fun findMaximalPath :: "'ord::linorder \<Rightarrow> node \<Rightarrow> path" where
+  "findMaximalPath ord u = (if outgoing u = {} then [] else [])"
 end
 
 (* TODO check whether this already exists somewhere *)
@@ -193,49 +300,13 @@ fun rightPassConcrete :: "_ graph \<Rightarrow> edge list \<Rightarrow> _ graph"
 
 
 (* TODO cleanup *)
-lemma cleaningAbstract_is_c_if_doubly_connected[simp]:
-  "Graph.connected c s u \<Longrightarrow> Graph.connected c v t \<Longrightarrow> cleaningAbstract c s t (u, v) = c (u, v)"
-  unfolding cleaningAbstract_def by simp
 
-context Graph
-begin
-lemma left_right_pass_is_cleaning: "cleaningAbstract c s t = leftPassAbstract (rightPassAbstract c s) t"
-proof (rule ext, unfold split_paired_all)
-  fix u v
-  (*interpret g: Graph c .*) (* TODO why does this not work *)
-  show "cleaningAbstract c s t (u, v) = leftPassAbstract (rightPassAbstract c s) t (u, v)"
-  proof (cases "cleaningAbstract c s t (u, v) = 0", clarsimp)
-    case True
-    then have "c (u, v) = 0 \<or> \<not> connected s u \<or> \<not> connected v t" unfolding cleaningAbstract_def by auto
-    then show "leftPassAbstract (rightPassAbstract c s) t (u, v) = 0"
-    proof (elim disjE)
-      assume "c (u, v) = 0"
-      then show ?thesis unfolding leftPassAbstract_def rightPassAbstract_def by simp
-    next
-      assume "\<not> connected s u"
-      then show ?thesis unfolding leftPassAbstract_def rightPassAbstract_def by simp
-    next
-      assume "\<not> connected v t"
-      then have "\<not> Graph.connected (rightPassAbstract c s) v t"
-        using rp_sg.sg_connected_remains_base_connected sorry by blast
-      then show ?thesis unfolding leftPassAbstract_def by simp
-    qed
-  next
-    case False
-    then have "(u, v) \<in> E" and st_connected: "connected s u" "connected v t"
-      unfolding cleaningAbstract_def
-      by (smt (verit) case_prod_conv zero_cap_simp)+
-    then have "connected s v" using connected_append_edge by blast
-    with st_connected have "Graph.connected (rightPassAbstract c s) v t"
-      using rp_connected_iff sorry by blast 
-    with st_connected show ?thesis by simp
-  qed
-qed
+
+
 
 lemma right_left_pass_is_cleaning: "cleaningAbstract c s t = rightPassAbstract (leftPassAbstract c t) s" sorry
 
 corollary right_left_pass_com: "leftPassAbstract (rightPassAbstract c s) t = rightPassAbstract (leftPassAbstract c t) s"
   using left_right_pass_is_cleaning right_left_pass_is_cleaning by metis
 (* TODO maybe make commutativity property prettier *)
-end \<comment> \<open>Graph\<close>
 end
