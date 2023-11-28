@@ -17,6 +17,7 @@ interpretation subgraph: order isSubgraph isTrueSubgraph
   apply force+
   done
 thm subgraph.order_trans
+thm subgraph.order_refl
 
 
 locale CapacityLeSubgraph = g': Graph c' + g: Graph c for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +
@@ -45,6 +46,10 @@ lemma sg_connected_remains_base_connected: "g'.connected u v \<Longrightarrow> g
 
 lemma shortest_paths_remain_if_contained: "\<lbrakk>g'.isPath u p v; g.isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
   using sg_paths_are_base_paths by (meson Graph.isShortestPath_def)
+
+(* TODO is this the right location for this? *)
+lemma sg_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distance_Bounded_Graph c' b"
+  using sg_paths_are_base_paths by (metis Distance_Bounded_Graph_def Graph.dist_def)
 end
 
 sublocale Subgraph \<subseteq> CapacityLeSubgraph

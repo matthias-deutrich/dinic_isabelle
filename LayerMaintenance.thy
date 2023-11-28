@@ -6,7 +6,7 @@ begin
 
 subsection \<open>Right Pass\<close>
 
-definition rightPassAbstract :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> 'capacity graph"
+definition rightPassAbstract :: "_ graph \<Rightarrow> node \<Rightarrow> _ graph"
   where "rightPassAbstract c s \<equiv> \<lambda>(u, v).
     if Graph.connected c s u then
       c (u, v)
@@ -83,7 +83,7 @@ end \<comment> \<open>S_Graph\<close>
 
 subsection \<open>Left Pass\<close>
 
-definition leftPassAbstract :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> 'capacity graph"
+definition leftPassAbstract :: "_ graph \<Rightarrow> node \<Rightarrow> _ graph"
   where "leftPassAbstract c t \<equiv> \<lambda>(u, v).
     if Graph.connected c v t then
       c (u, v)
@@ -156,7 +156,7 @@ end \<comment> \<open>T_Graph\<close>
 
 subsection \<open>Cleaning\<close>
 
-definition cleaningAbstract :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> 'capacity graph"
+definition cleaningAbstract :: "_ graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> _ graph"
   where "cleaningAbstract c s t \<equiv> \<lambda>(u, v).
     if Graph.connected c s u \<and> Graph.connected c v t then
       c (u, v)

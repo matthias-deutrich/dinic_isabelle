@@ -158,8 +158,39 @@ lemma path_lengths_bounded: "isPath u p v \<Longrightarrow> length p \<le> b" us
 
 sublocale Acyclic_Graph unfolding Acyclic_Graph_def
   using cycle_induces_arbitrary_length_paths path_lengths_bounded not_less_eq_eq by blast
+
+thm less_induct
+(* TODO cleanup this hot mess *)
+lemma tmp: "length p \<le> b \<Longrightarrow> isPath u p v \<Longrightarrow> \<exists>u' p'. isPath u' p' v \<and> incoming u' = {}"
+proof (induction "b - length p" arbitrary: u p)
+  case 0
+  then have "length p = b" by simp
+  have "incoming u = {}"
+  proof (rule ccontr)
+    assume "incoming u \<noteq> {}"
+    then obtain w where "(w, u) \<in> E" unfolding incoming_def by blast
+    with \<open>isPath u p v\<close> have "isPath w ((w, u) # p) v" by simp
+    with \<open>length p = b\<close> show False using path_lengths_bounded by fastforce
+  qed
+  with 0 show ?case by blast
+next
+  case (Suc x)
+  then show ?case
+  proof (cases "incoming u = {}")
+    case True
+    with Suc show ?thesis by blast
+  next
+    case False
+    then obtain w where "(w, u) \<in> E" unfolding incoming_def by blast
+    with Suc(1)[of "(w, u) # p"] Suc(2-4) show ?thesis by simp
+  qed
+qed
+
+lemma obtain_front_terminal_path: obtains u p where "isPath u p v" "incoming u = {}"
+  using tmp by (meson isPath.simps(1) path_lengths_bounded) (* TODO *)
 end
 
+(*
 locale Distance_Bounded_Graph_Ord = Distance_Bounded_Graph c b + le: ordering less_eq less
   for c :: "'capacity::linordered_idom graph" and b :: nat
     (*and less_eq less :: "edge \<Rightarrow> edge \<Rightarrow> bool"*)(* TODO order, how to determine type and keep infix. What kind of ordering do we want (no total preorder)*)
@@ -170,6 +201,7 @@ fun findMaximalPath :: "node \<Rightarrow> path" where
 (* TODO  how to choose arbitrary element *)
 (* IDEA: use sorting function as parameter, which may be lexicographic sort of neighbours or max capacity *)
 end
+*)
 
 
 
