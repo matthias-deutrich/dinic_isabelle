@@ -215,10 +215,22 @@ next
   ultimately show "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t" by auto
 qed
 
-lemma distinct_nodes_in_V_if_connected:
+lemma distinct_nodes_have_in_out_if_connected:
   assumes "connected u v" "u \<noteq> v"
-  shows "u \<in> V" "v \<in> V" (* TODO is there a better way to prove multiple props at once? *)
-  using assms isPath_fwd_cases isPath_bwd_cases unfolding connected_def V_def by fastforce+
+  shows "outgoing u \<noteq> {}" "incoming v \<noteq> {}"
+proof -
+  from assms obtain p where PATH: "isPath u p v" "p \<noteq> []" unfolding connected_def by fastforce
+  then obtain w where "(u, w) \<in> E" using isPath_fwd_cases by blast
+  then show "outgoing u \<noteq> {}" unfolding outgoing_def by blast
+  from PATH obtain w' where "(w', v) \<in> E" using isPath_bwd_cases by blast
+  then show "incoming v \<noteq> {}" unfolding incoming_def by blast
+qed
+
+corollary distinct_nodes_in_V_if_connected:
+  assumes "connected u v" "u \<noteq> v"
+  shows "u \<in> V" "v \<in> V"
+  using assms distinct_nodes_have_in_out_if_connected
+  unfolding V_def outgoing_def incoming_def by fastforce+
 end
 
 end

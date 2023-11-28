@@ -93,6 +93,18 @@ next
   then show "connected s u" by (rule sl_vertices_connected_in_base)
 qed
 
+lemma only_s_without_sl_incoming: "u \<in> sl.V \<Longrightarrow> sl.incoming u = {} \<Longrightarrow> u = s"
+  using sl_vertices_connected_in_sl sl.distinct_nodes_have_in_out_if_connected by blast
+
+(*lemma tmp: "sl.isPath u p v \<Longrightarrow> sl.incoming u = {} \<Longrightarrow> u = s"
+  apply (erule sl.isPath_fwd_cases) sledgehammer
+
+lemma only_s_paths_without_stl_incoming: "sl.isPath u p v \<Longrightarrow> sl.incoming u = {} \<Longrightarrow> sl.isPath s p v"
+  apply (erule sl.isPath_fwd_cases)
+  apply simp
+
+  using only_s_without_sl_incoming*)
+
 theorem s_layering_is_shortest_s_paths_union:
   "isPathUnion (s_layering c s) (shortestSPaths s V)" unfolding isPathUnion_def
 proof (rule pair_set_eqI)
@@ -248,6 +260,9 @@ proof -
   ultimately show "stl.isPath s p t" using stl.isPath_alt by simp
 qed
 
+corollary stl_maintains_st_connected: "connected s t \<Longrightarrow> stl.connected s t"
+  using obtain_shortest_path shortest_st_path_remains_path stl.connected_def by metis
+
 lemma stl_vertices_dual_connected_in_stl: "u \<in> stl.V \<Longrightarrow> stl.connected s u \<and> stl.connected u t"
 proof
   assume "u \<in> stl.V"
@@ -263,6 +278,21 @@ qed
 
 lemma shortest_st_path_remains_shortest: "isShortestPath s p t \<Longrightarrow> stl.isShortestPath s p t"
   using shortest_s_path_remains_path shortest_st_path_remains_path stl_sub_c.shortest_paths_remain_if_contained by blast
+
+lemma only_s_without_stl_incoming: "u \<in> stl.V \<Longrightarrow> stl.incoming u = {} \<Longrightarrow> u = s"
+  using stl_vertices_dual_connected_in_stl stl.distinct_nodes_have_in_out_if_connected by blast
+
+lemma only_t_without_stl_outgoing: "u \<in> stl.V \<Longrightarrow> stl.outgoing u = {} \<Longrightarrow> u = t"
+  using stl_vertices_dual_connected_in_stl stl.distinct_nodes_have_in_out_if_connected by blast
+
+(* TODO necessary? *)
+lemma only_s_paths_without_stl_incoming:
+  "u \<in> stl.V \<Longrightarrow> stl.incoming u = {} \<Longrightarrow> stl.isPath u p v \<Longrightarrow> stl.isPath s p v"
+  using only_s_without_stl_incoming by blast
+
+lemma only_t_paths_without_stl_outgoing:
+  "v \<in> stl.V \<Longrightarrow> stl.outgoing v = {} \<Longrightarrow> stl.isPath u p v \<Longrightarrow> stl.isPath u p t"
+  using only_t_without_stl_outgoing by blast
 
 theorem st_layering_is_shortest_st_paths_union:
   "isPathUnion (st_layering c s t) (shortestSTPaths s t)" unfolding isPathUnion_def
