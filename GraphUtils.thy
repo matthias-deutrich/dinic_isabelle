@@ -188,6 +188,9 @@ qed
 
 lemma obtain_front_terminal_path: obtains u p where "isPath u p v" "incoming u = {}"
   using tmp by (meson isPath.simps(1) path_lengths_bounded) (* TODO *)
+
+corollary obtain_front_terminal_connected: obtains u where "connected u v" "incoming u = {}"
+  using obtain_front_terminal_path connected_def by metis
 end
 
 (*

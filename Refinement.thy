@@ -121,9 +121,25 @@ definition rightPassRefine :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ g
 (*definition non_s_nodes_outside_Q_have_in :: "node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
   where "non_s_nodes_outside_Q_have_in s \<equiv> \<lambda>(c, Q). \<forall>u \<in> Graph.V c - Q - {s}. Graph.incoming c u \<noteq> {}"*)
 
-definition rightPass_invar :: "_graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
-  where "rightPass_invar c s \<equiv> \<lambda>(c', Q). isSubgraph c' c \<and> (\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {})"
-(* TODO include subgraph *)
+(*
+definition rightPass_invar :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
+  where "rightPass_invar c s \<equiv> \<lambda>(c', Q). isSubgraph c' c
+                                \<and> (\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {})"
+*)
+
+
+(*
+definition rightPass_invar :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
+  where "rightPass_invar c s \<equiv> \<lambda>(c', Q). isSubgraph c' c
+                                \<and> rightPassAbstract c s = rightPassAbstract c' s
+                                \<and> (\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {})"
+*)
+
+definition rightPass_invar :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
+  where "rightPass_invar c s \<equiv> \<lambda>(c', Q). isSubgraph c' c
+                                \<and> (\<forall>u v. Graph.connected c s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v))
+                                \<and> (\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {})"
+(* TODO check whether subgraph is necessary *)
 
 thm rightPassAbstract_def
 thm Graph.outgoing'_def
@@ -135,8 +151,9 @@ find_theorems "(?a \<noteq> 0 \<Longrightarrow> ?a = ?b) \<Longrightarrow> (?b \
 context Distance_Bounded_Graph
 begin
 
-lemma rightPassRefine_correct:
+theorem rightPassRefine_correct:
   (* TODO make sure the assumptions are correct *)
+  (* TODO split into multiple lemma *)
   assumes "s \<notin> Q" and NODE_HAS_IN: "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
   shows "rightPassRefine c Q \<le> RETURN (rightPassAbstract c s)"
   unfolding rightPassRefine_def
@@ -145,28 +162,47 @@ proof (intro WHILE_rule[where I="rightPass_invar c s"] refine_vcg, clarsimp_all)
 next
   fix c' :: "'capacity graph"
   fix Q u
-  assume "rightPass_invar c s (c', Q)" "u \<in> Q"
-  show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar c s (removeEdges c' (Graph.outgoing c' u), Q - {u} \<union> snd ` Graph.outgoing c' u)" sorry
-  show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_invar c s (c', Q - {u})" sorry
+  assume "rightPass_invar c s (c', Q)" (*TODO needed? *)"u \<in> Q"
+  then have SUB: "isSubgraph c' c"
+    and S_CON: "\<And>u v. connected s u \<Longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
+    and NODE_HAS_IN': "\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {}"
+    unfolding rightPass_invar_def by simp_all
+  then show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_invar c s (c', Q - {u})"
+    unfolding rightPass_invar_def by blast
+  show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar c s (removeEdges c' (Graph.outgoing c' u), Q - {u} \<union> snd ` Graph.outgoing c' u)"
+  proof -
+    (* TODO is distance bounded needed? *)
+    (*interpret g': Distance_Bounded_Graph c' b using SUB Subgraph.intro Subgraph.sg_Distance_Bounded Distance_Bounded_Graph_axioms by blast*)
+    interpret g': Graph c' .
+    assume "g'.incoming u = {}"
+    then show "rightPass_invar c s (removeEdges c' (g'.outgoing u), Q - {u} \<union> snd ` g'.outgoing u)" sorry
+  qed
 next
   fix c' :: "'capacity  graph"
   assume "rightPass_invar c s (c', {})"
-  then have "isSubgraph c' c" "\<forall>u \<in> Graph.V c' - {s}. Graph.incoming c' u \<noteq> {}"
+  then have SUB: "isSubgraph c' c"
+    and S_CON: "\<And>u v. connected s u \<Longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
+    and NODE_HAS_IN': "\<forall>u \<in> Graph.V c' - {s}. Graph.incoming c' u \<noteq> {}"
     unfolding rightPass_invar_def by simp_all
-  then interpret c'_sub_c: Subgraph c' c by unfold_locales
-  interpret g': Distance_Bounded_Graph c' b
-    using c'_sub_c.sg_Distance_Bounded Distance_Bounded_Graph_axioms by blast (* TODO necessary* *)
-  show "rightPassAbstract c s = c'" unfolding rightPass_invar_def
-  (*proof (intro ext, clarify)*)
+  show "rightPassAbstract c s = c'"
   proof (intro subgraph.order_antisym, unfold isSubgraph_def, clarsimp_all)
     fix u v
     assume "rightPassAbstract c s (u, v) \<noteq> 0"
-    then show "rightPassAbstract c s (u, v) = c' (u, v)" sorry (* TODO this will fail, assumption about maintaining s-connected nodes missing *)
+    with S_CON show "rightPassAbstract c s (u, v) = c' (u, v)"
+      using rightPassAbstract_nz_iff S_Graph.rp_is_c_if_s_connected by metis
   next
+    interpret g': Distance_Bounded_Graph c' b
+      using SUB Subgraph.intro Subgraph.sg_Distance_Bounded Distance_Bounded_Graph_axioms by blast
     fix u v
     assume "c' (u, v) \<noteq> 0"
-    then obtain w p where "Graph.isPath c' w p u" "Graph.incoming c' w = {}" using g'.obtain_front_terminal_path by blast
-    then show "c' (u, v) = rightPassAbstract c s (u, v)" sorry
+    then have "u \<in> g'.V" unfolding Graph.V_def Graph.E_def by blast
+    obtain w where W_CON: "g'.connected w u" and W_NO_IN: "g'.incoming w = {}" using g'.obtain_front_terminal_connected by blast
+    from W_CON \<open>u \<in> g'.V\<close> have "w \<in> g'.V" by (meson g'.connected_inV_iff)
+    with W_NO_IN NODE_HAS_IN' have "w = s" by blast
+    with W_CON have "rightPassAbstract c s (u, v) = c (u, v)"
+      using SUB Subgraph.intro Subgraph.sg_connected_remains_base_connected S_Graph.rp_is_c_if_s_connected by blast
+    also from SUB \<open>c' (u, v) \<noteq> 0\<close> have "... = c' (u, v)" unfolding isSubgraph_def by metis
+    finally show "c' (u, v) = rightPassAbstract c s (u, v)" by simp
   qed
 qed
 end
