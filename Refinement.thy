@@ -201,7 +201,7 @@ proof (intro WHILE_rule[where I="rightPass_invar c s"] refine_vcg, clarsimp_all)
 next
   fix c' :: "'capacity graph"
   fix Q u
-  assume "rightPass_invar c s (c', Q)" (*TODO needed? *)"u \<in> Q"
+  assume "rightPass_invar c s (c', Q)" "u \<in> Q"
   then have SUB: "isSubgraph c' c"
     and "s \<notin> Q"
     and S_CON: "\<And>u v. connected s u \<Longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
@@ -216,7 +216,7 @@ next
     interpret g': Graph c' .
     interpret g'': Graph "removeEdges c' (g'.outgoing u)" .
     (* abbreviation "c'' = removeEdges c' (g'.outgoing u)" *)
-    assume "g'.incoming u = {}"
+    assume U_NO_IN: "g'.incoming u = {}"
     have "isSubgraph (removeEdges c' (g'.outgoing u)) c"
       using g'.removeEdges_subgraph SUB subgraph.order_trans by blast
     moreover have "s \<notin> Q - {u} \<union> snd ` g'.outgoing u"
@@ -230,8 +230,17 @@ next
     proof (clarify, intro conjI)
       fix v w
       assume "connected s v"
-      then have "g'.connected s v" "c' (v, w) = c (v, w)" using S_CON by simp_all
+      then have "g'.connected s v" and C'_EQ_C: "c' (v, w) = c (v, w)" using S_CON by simp_all
       then obtain p where "g'.isPath s p v" unfolding g'.connected_def by blast
+      from \<open>u \<in> Q\<close> \<open>s \<notin> Q\<close> have "u \<noteq> s" by blast
+      with \<open>g'.connected s v\<close> U_NO_IN have "u \<noteq> v"
+        using g'.distinct_nodes_have_in_out_if_connected(2) by blast
+      with \<open>g'.isPath s p v\<close> have "set p \<inter> g'.outgoing u = {}" sorry
+      (*from \<open>g'.isPath s p v\<close> \<open>u \<noteq> s\<close> have "u \<notin> set (g'.pathVertices s p)" using U_NO_IN
+        by (metis Graph.distinct_nodes_have_in_out_if_connected(2) g'.connected_def g'.pathVertices_fwd g'.split_path_at_vertex)*) (* TODO *)
+      (*ultimately have "u \<noteq> v"*)
+      
+      
       show "g''.connected s v" sorry
       have "v \<noteq> u" sorry
       then have "removeEdges c' (g'.outgoing u) (v, w) = c' (v, w)"
