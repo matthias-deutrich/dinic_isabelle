@@ -162,6 +162,68 @@ find_theorems "(?a \<noteq> 0 \<Longrightarrow> ?a = ?b) \<Longrightarrow> (?b \
 context Distance_Bounded_Graph
 begin
 
+lemma rightPassRefine_step: (* TODO abbreviations, move out of Distance_Bounded, simple corollary for invar *)
+  assumes S_NO_IN: "incoming s = {}"
+    and "u \<in> Q"
+    and SUB: "isSubgraph c' c"
+    and "s \<notin> Q"
+    and S_CON: "\<forall>u v. connected s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
+    and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {}"
+    and U_NO_IN: "Graph.incoming c' u = {}"
+  shows "isSubgraph (removeEdges c' (Graph.outgoing c' u)) c"
+    and "s \<notin> Q - {u} \<union> snd ` Graph.outgoing c' u"
+    and "(\<forall>v w. connected s v \<longrightarrow> Graph.connected (removeEdges c' (Graph.outgoing c' u)) s v \<and> (removeEdges c' (Graph.outgoing c' u)) (v, w) = c (v, w))"
+    and "(\<forall>v \<in> Graph.V (removeEdges c' (Graph.outgoing c' u)) - (Q - {u} \<union> snd ` Graph.outgoing c' u) - {s}. Graph.incoming (removeEdges c' (Graph.outgoing c' u)) v \<noteq> {})"
+proof -
+  interpret g': Graph c' .
+  interpret g'': Graph "removeEdges c' (g'.outgoing u)" .
+
+  show "isSubgraph (removeEdges c' (g'.outgoing u)) c"
+    using g'.removeEdges_subgraph SUB subgraph.order_trans by blast
+
+  from SUB S_NO_IN have "g'.incoming s = {}" unfolding Graph.incoming_def
+    using Subgraph.E_ss Subgraph.intro by fastforce
+  then have "s \<notin> snd ` g'.outgoing u" unfolding g'.incoming_def g'.outgoing_def by fastforce
+  with \<open>s \<notin> Q\<close> show "s \<notin> Q - {u} \<union> snd ` g'.outgoing u" by blast
+
+  show "(\<forall>v w. connected s v \<longrightarrow> g''.connected s v \<and> (removeEdges c' (g'.outgoing u)) (v, w) = c (v, w))"
+  proof (clarify, intro conjI)
+    from \<open>u \<in> Q\<close> \<open>s \<notin> Q\<close> have "u \<noteq> s" by blast
+    fix v w
+    assume "connected s v"
+    then have CON': "g'.connected s v" and C'_EQ_C: "c' (v, w) = c (v, w)" using S_CON by simp_all
+    then obtain p where PATH': "g'.isPath s p v" unfolding g'.connected_def by blast
+    with \<open>u \<noteq> s\<close> U_NO_IN have "u \<notin> set (g'.pathVertices s p)"
+      by (metis g'.distinct_nodes_have_in_out_if_connected(2) g'.connected_def g'.pathVertices_fwd g'.split_path_at_vertex)
+    with PATH' have "set p \<inter> g'.outgoing u = {}"
+      using g'.outgoing_edges_not_on_path g'.pathVertices_fwd by fastforce
+    with PATH' have "g''.isPath s p v" unfolding Graph.isPath_alt using g'.removeEdges_E by blast
+    then show "g''.connected s v" using g''.connected_def by blast
+    from \<open>u \<noteq> s\<close> CON' U_NO_IN have "u \<noteq> v" using g'.distinct_nodes_have_in_out_if_connected(2) by blast
+    then have "removeEdges c' (g'.outgoing u) (v, w) = c' (v, w)"
+      unfolding g'.outgoing_def removeEdges_def by simp
+    then show "removeEdges c' (g'.outgoing u) (v, w) = c (v, w)" using C'_EQ_C by simp
+  qed
+
+  show "(\<forall>v \<in> g''.V - (Q - {u} \<union> snd ` g'.outgoing u) - {s}. g''.incoming v \<noteq> {})"
+  proof clarsimp (*(intro ballI memb_imp_not_empty, clarsimp)*)
+    fix v
+    assume "v \<in> g''.V" "v \<noteq> s" "v \<notin> snd ` g'.outgoing u" "v \<in> Q \<longrightarrow> v = u" "g''.incoming v = {}"
+    from \<open>v \<in> g''.V\<close> SUB have "v \<in> g'.V"
+      using g'.removeEdges_subgraph Subgraph.V_ss Subgraph.intro by blast
+    have "v \<notin> Q"
+    proof clarify
+      assume "v \<in> Q"
+      with \<open>v \<in> Q \<longrightarrow> v = u\<close> have "v = u" by blast
+      then show False (* TODO cleanup *)
+        by (smt (verit, del_insts) DiffE Graph.incoming_def Graph.vertex_cases \<open>g''.incoming v = {}\<close> \<open>v \<in> g''.V\<close> emptyE g'.outgoing_alt g'.removeEdges_E imageI mem_Collect_eq rev_ImageI singletonI)
+    qed
+    with \<open>v \<in> g'.V\<close> \<open>v \<noteq> s\<close> NODE_HAS_IN obtain u' where "(u', v) \<in> g'.E" unfolding g'.incoming_def by blast
+    with \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u', v) \<in> g''.E" using g'.removeEdges_E by auto
+    with \<open>g''.incoming v = {}\<close> show False unfolding g''.incoming_def by blast
+  qed
+qed
+
 lemma rightPassRefine_final:
   assumes SUB: "isSubgraph c' c"
     and S_CON: "\<And>u v. connected s u \<Longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
@@ -212,63 +274,22 @@ next
   assume "rightPass_invar c s (c', Q)" "u \<in> Q"
   then have SUB: "isSubgraph c' c"
     and "s \<notin> Q"
-    and S_CON: "\<And>u v. connected s u \<Longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
+    and S_CON: "\<forall>u v. connected s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
     and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {}"
     unfolding rightPass_invar_def by simp_all
   then show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_invar c s (c', Q - {u})"
     unfolding rightPass_invar_def by blast
   show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar c s (removeEdges c' (Graph.outgoing c' u), Q - {u} \<union> snd ` Graph.outgoing c' u)"
-  proof -
+    unfolding rightPass_invar_def using rightPassRefine_step[OF S_NO_IN \<open>u \<in> Q\<close> SUB \<open>s \<notin> Q\<close> S_CON NODE_HAS_IN] by simp
+next
+  fix c' :: "'capacity  graph"
+  assume "rightPass_invar c s (c', {})"
+  then show "rightPassAbstract c s = c'" unfolding rightPass_invar_def using rightPassRefine_final by simp
+qed
+end
     (* TODO is distance bounded needed? *)
     (*interpret g': Distance_Bounded_Graph c' b using SUB Subgraph.intro Subgraph.sg_Distance_Bounded Distance_Bounded_Graph_axioms by blast*)
-    interpret g': Graph c' .
-    interpret g'': Graph "removeEdges c' (g'.outgoing u)" .
-    (* abbreviation "c'' = removeEdges c' (g'.outgoing u)" *)
-    assume U_NO_IN: "g'.incoming u = {}"
-    have "isSubgraph (removeEdges c' (g'.outgoing u)) c"
-      using g'.removeEdges_subgraph SUB subgraph.order_trans by blast
-    moreover have "s \<notin> Q - {u} \<union> snd ` g'.outgoing u"
-    proof -
-      from SUB S_NO_IN have "g'.incoming s = {}" unfolding Graph.incoming_def
-        using Subgraph.E_ss Subgraph.intro by fastforce
-      then have "s \<notin> snd ` g'.outgoing u" unfolding g'.incoming_def g'.outgoing_def by fastforce
-      with \<open>s \<notin> Q\<close> show ?thesis by blast
-    qed
-    moreover have "(\<forall>v w. connected s v \<longrightarrow> g''.connected s v \<and> (removeEdges c' (g'.outgoing u)) (v, w) = c (v, w))"
-    proof (clarify, intro conjI)
-      from \<open>u \<in> Q\<close> \<open>s \<notin> Q\<close> have "u \<noteq> s" by blast
-      fix v w
-      assume "connected s v"
-      then have CON': "g'.connected s v" and C'_EQ_C: "c' (v, w) = c (v, w)" using S_CON by simp_all
-      then obtain p where PATH': "g'.isPath s p v" unfolding g'.connected_def by blast
-      with \<open>u \<noteq> s\<close> U_NO_IN have "u \<notin> set (g'.pathVertices s p)"
-        by (metis g'.distinct_nodes_have_in_out_if_connected(2) g'.connected_def g'.pathVertices_fwd g'.split_path_at_vertex)
-      with PATH' have "set p \<inter> g'.outgoing u = {}"
-        using g'.outgoing_edges_not_on_path g'.pathVertices_fwd by fastforce
-      with PATH' have "g''.isPath s p v" unfolding Graph.isPath_alt using g'.removeEdges_E by blast
-      then show "g''.connected s v" using g''.connected_def by blast
-      from \<open>u \<noteq> s\<close> CON' U_NO_IN have "u \<noteq> v" using g'.distinct_nodes_have_in_out_if_connected(2) by blast
-      then have "removeEdges c' (g'.outgoing u) (v, w) = c' (v, w)"
-        unfolding g'.outgoing_def removeEdges_def by simp
-      then show "removeEdges c' (g'.outgoing u) (v, w) = c (v, w)" using C'_EQ_C by simp
-    qed
-    moreover have "(\<forall>v \<in> g''.V - (Q - {u} \<union> snd ` g'.outgoing u) - {s}. g''.incoming v \<noteq> {})"
-    proof clarsimp (*(intro ballI memb_imp_not_empty, clarsimp)*)
-      fix v
-      assume "v \<in> g''.V" "v \<noteq> s" "v \<notin> snd ` g'.outgoing u" "v \<in> Q \<longrightarrow> v = u" "g''.incoming v = {}"
-      from \<open>v \<in> g''.V\<close> SUB have "v \<in> g'.V"
-        using g'.removeEdges_subgraph Subgraph.V_ss Subgraph.intro by blast
-      (*from \<open>v \<in> Q \<longrightarrow> v = u\<close>*) have "v \<notin> Q"
-      proof clarify
-        assume "v \<in> Q"
-        with \<open>v \<in> Q \<longrightarrow> v = u\<close> have "v = u" by blast
-        then show False (* TODO cleanup *)
-          by (smt (verit, del_insts) DiffE Graph.incoming_def Graph.vertex_cases \<open>g''.incoming v = {}\<close> \<open>v \<in> g''.V\<close> emptyE g'.outgoing_alt g'.removeEdges_E imageI mem_Collect_eq rev_ImageI singletonI)
-      qed
-      with \<open>v \<in> g'.V\<close> \<open>v \<noteq> s\<close> NODE_HAS_IN obtain u' where "(u', v) \<in> g'.E" unfolding g'.incoming_def by blast
-      with \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u', v) \<in> g''.E" using g'.removeEdges_E by auto
-      with \<open>g''.incoming v = {}\<close> show False unfolding g''.incoming_def by blast
-    qed
+    
 (*
       assume "v \<notin> snd ` g'.outgoing u" "v \<noteq> s"
       have "v \<notin> Q" sorry
@@ -310,14 +331,6 @@ next
       then show False sorry
     qed
 *)
-    ultimately show "rightPass_invar c s (removeEdges c' (g'.outgoing u), Q - {u} \<union> snd ` g'.outgoing u)" unfolding rightPass_invar_def by simp
-  qed
-next
-  fix c' :: "'capacity  graph"
-  assume "rightPass_invar c s (c', {})"
-  then show "rightPassAbstract c s = c'" unfolding rightPass_invar_def using rightPassRefine_final by simp
-qed
-end
 
 \<comment> \<open>RightPass\<close>
 
