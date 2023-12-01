@@ -188,6 +188,14 @@ next
 qed (* TODO cleanup *)
 
 find_theorems "?x \<notin> ?A \<Longrightarrow> ?x \<notin> ?B \<Longrightarrow> ?x \<notin> ?A \<union> ?B"
+find_theorems "(\<And>x. x \<notin> ?S) \<Longrightarrow> ?S = {}"
+find_theorems "_ \<Longrightarrow> ?S = {}"
+find_theorems "(\<And>x. x \<in> ?S \<Longrightarrow> ?P x) \<Longrightarrow> \<forall>x \<in> ?S. ?P x"
+thm ballI
+find_theorems "?x \<in> ?S - ?T \<Longrightarrow> (?x \<in> ?S \<Longrightarrow> ?x \<notin> T \<Longrightarrow> ?P ?x) \<Longrightarrow> ?P ?x"
+find_theorems "?x \<in> ?S - ?T \<Longrightarrow> _"
+thm DiffE
+find_theorems "_ \<Longrightarrow> ?S \<noteq> {}"
 
 theorem rightPassRefine_correct:
   (* TODO make sure the assumptions are correct *)
@@ -228,26 +236,80 @@ next
     qed
     moreover have "(\<forall>v w. connected s v \<longrightarrow> g''.connected s v \<and> (removeEdges c' (g'.outgoing u)) (v, w) = c (v, w))"
     proof (clarify, intro conjI)
+      from \<open>u \<in> Q\<close> \<open>s \<notin> Q\<close> have "u \<noteq> s" by blast
       fix v w
       assume "connected s v"
-      then have "g'.connected s v" and C'_EQ_C: "c' (v, w) = c (v, w)" using S_CON by simp_all
-      then obtain p where "g'.isPath s p v" unfolding g'.connected_def by blast
-      from \<open>u \<in> Q\<close> \<open>s \<notin> Q\<close> have "u \<noteq> s" by blast
-      with \<open>g'.connected s v\<close> U_NO_IN have "u \<noteq> v"
-        using g'.distinct_nodes_have_in_out_if_connected(2) by blast
-      with \<open>g'.isPath s p v\<close> have "set p \<inter> g'.outgoing u = {}" sorry
-      (*from \<open>g'.isPath s p v\<close> \<open>u \<noteq> s\<close> have "u \<notin> set (g'.pathVertices s p)" using U_NO_IN
-        by (metis Graph.distinct_nodes_have_in_out_if_connected(2) g'.connected_def g'.pathVertices_fwd g'.split_path_at_vertex)*) (* TODO *)
-      (*ultimately have "u \<noteq> v"*)
-      
-      
-      show "g''.connected s v" sorry
-      have "v \<noteq> u" sorry
+      then have CON': "g'.connected s v" and C'_EQ_C: "c' (v, w) = c (v, w)" using S_CON by simp_all
+      then obtain p where PATH': "g'.isPath s p v" unfolding g'.connected_def by blast
+      with \<open>u \<noteq> s\<close> U_NO_IN have "u \<notin> set (g'.pathVertices s p)"
+        by (metis g'.distinct_nodes_have_in_out_if_connected(2) g'.connected_def g'.pathVertices_fwd g'.split_path_at_vertex)
+      with PATH' have "set p \<inter> g'.outgoing u = {}"
+        using g'.outgoing_edges_not_on_path g'.pathVertices_fwd by fastforce
+      with PATH' have "g''.isPath s p v" unfolding Graph.isPath_alt using g'.removeEdges_E by blast
+      then show "g''.connected s v" using g''.connected_def by blast
+      from \<open>u \<noteq> s\<close> CON' U_NO_IN have "u \<noteq> v" using g'.distinct_nodes_have_in_out_if_connected(2) by blast
       then have "removeEdges c' (g'.outgoing u) (v, w) = c' (v, w)"
         unfolding g'.outgoing_def removeEdges_def by simp
-      show "removeEdges c' (g'.outgoing u) (v, w) = c (v, w)" sorry
+      then show "removeEdges c' (g'.outgoing u) (v, w) = c (v, w)" using C'_EQ_C by simp
     qed
-    moreover have "(\<forall>v \<in> g''.V - (Q - {u} \<union> snd ` g'.outgoing u) - {s}. g''.incoming v \<noteq> {})" sorry
+    moreover have "(\<forall>v \<in> g''.V - (Q - {u} \<union> snd ` g'.outgoing u) - {s}. g''.incoming v \<noteq> {})"
+    proof clarsimp (*(intro ballI memb_imp_not_empty, clarsimp)*)
+      fix v
+      assume "v \<in> g''.V" "v \<noteq> s" "v \<notin> snd ` g'.outgoing u" "v \<in> Q \<longrightarrow> v = u" "g''.incoming v = {}"
+      from \<open>v \<in> g''.V\<close> SUB have "v \<in> g'.V"
+        using g'.removeEdges_subgraph Subgraph.V_ss Subgraph.intro by blast
+      (*from \<open>v \<in> Q \<longrightarrow> v = u\<close>*) have "v \<notin> Q"
+      proof clarify
+        assume "v \<in> Q"
+        with \<open>v \<in> Q \<longrightarrow> v = u\<close> have "v = u" by blast
+        then show False (* TODO cleanup *)
+          by (smt (verit, del_insts) DiffE Graph.incoming_def Graph.vertex_cases \<open>g''.incoming v = {}\<close> \<open>v \<in> g''.V\<close> emptyE g'.outgoing_alt g'.removeEdges_E imageI mem_Collect_eq rev_ImageI singletonI)
+      qed
+      with \<open>v \<in> g'.V\<close> \<open>v \<noteq> s\<close> NODE_HAS_IN obtain u' where "(u', v) \<in> g'.E" unfolding g'.incoming_def by blast
+      with \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u', v) \<in> g''.E" using g'.removeEdges_E by auto
+      with \<open>g''.incoming v = {}\<close> show False unfolding g''.incoming_def by blast
+    qed
+(*
+      assume "v \<notin> snd ` g'.outgoing u" "v \<noteq> s"
+      have "v \<notin> Q" sorry
+      with \<open>v \<in> g'.V\<close> \<open>v \<noteq> s\<close> NODE_HAS_IN obtain u' where "(u', v) \<in> g'.E" unfolding g'.incoming_def by blast
+      with \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u', v) \<in> g''.E" using g'.removeEdges_E by auto
+      then show "(u', v) \<in> g''.incoming v"
+      proof (cases "v \<in> Q")
+        case True
+        then show ?thesis sorry
+      next
+        case False
+        with \<open>v \<in> g'.V\<close> \<open>v \<noteq> s\<close> NODE_HAS_IN show ?thesis try0
+      qed
+      then show "(u, v) \<in> g''.incoming v" (* TODO *)
+      proof (cases "v \<in> Q")
+        case True
+        with \<open>v \<in> Q \<longrightarrow> v = u\<close> have "v = u" by simp
+        then show ?thesis sorry
+      next
+        case False
+         obtain u' where "(u', v) \<in> g'.E"
+          
+        with \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u', v) \<in> g''.E" using g'.removeEdges_E by auto
+        then show ?thesis sorry
+      qed
+    (*proof (intro ballI)
+      fix v
+      assume "v \<in>
+      apply clarsimp using NODE_HAS_IN sorry*) (*memb_imp_not_empty*)
+      (*apply (intro ballI, elim DiffE)*)
+    proof (intro ballI)
+      fix v
+      assume ""
+      thm NODE_HAS_IN
+      fix v
+      assume "v \<in> g''.V" "v \<noteq> s" "v \<notin> snd ` g'.outgoing u" "v \<in> Q \<longrightarrow> v = u" "g''.incoming v = {}"
+      (*from \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u, v) \<notin> g'.E"
+        by (metis Image_singleton_iff g'.outgoing_alt imageI img_snd)*)
+      then show False sorry
+    qed
+*)
     ultimately show "rightPass_invar c s (removeEdges c' (g'.outgoing u), Q - {u} \<union> snd ` g'.outgoing u)" unfolding rightPass_invar_def by simp
   qed
 next

@@ -8,6 +8,8 @@ lemma pair_set_eqI:
 "\<lbrakk>\<And>a b. (a, b) \<in> A \<Longrightarrow> (a, b) \<in> B; \<And>a b. (a, b) \<in> B \<Longrightarrow> (a, b) \<in> A\<rbrakk> \<Longrightarrow> A = B"
   by (rule set_eqI, unfold split_paired_all, rule iffI)
 
+lemma set_emptyI: "(\<And>x. x \<notin> S) \<Longrightarrow> S = {}" by blast (* TODO necessary? *)
+
 section \<open>Custom induction rules\<close>
 (* TODO check which of these are useful and prettify proofs *)
 context Graph
@@ -267,5 +269,6 @@ corollary distinct_nodes_in_V_if_connected:
   using assms distinct_nodes_have_in_out_if_connected
   unfolding V_def outgoing_def incoming_def by fastforce+
 end
+
 
 end
