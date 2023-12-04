@@ -156,25 +156,42 @@ locale Distance_Bounded_Graph = Graph c for c :: "'capacity::linordered_idom gra
   fixes b :: nat
   assumes bounded: "dist u n v \<Longrightarrow> n \<le> b"
 begin
-lemma path_lengths_bounded: "isPath u p v \<Longrightarrow> length p \<le> b" using bounded dist_def by blast
+lemma path_length_bounded: "isPath u p v \<Longrightarrow> length p \<le> b" using bounded dist_def by blast
 
 sublocale Acyclic_Graph unfolding Acyclic_Graph_def
-  using cycle_induces_arbitrary_length_paths path_lengths_bounded not_less_eq_eq by blast
+  using cycle_induces_arbitrary_length_paths path_length_bounded not_less_eq_eq by blast
 
-thm less_induct
-(* TODO cleanup this hot mess *)
-lemma tmp: "length p \<le> b \<Longrightarrow> isPath u p v \<Longrightarrow> \<exists>u' p'. isPath u' p' v \<and> incoming u' = {}"
-proof (induction "b - length p" arbitrary: u p)
-  case 0
-  then have "length p = b" by simp
-  have "incoming u = {}"
+thm classical
+thm ccontr
+
+lemma b_length_paths_are_terminal:
+  assumes PATH: "isPath u p v" and LEN: "length p = b"
+  shows "incoming u = {}" "outgoing v = {}"
+proof -
+  show "incoming u = {}"
   proof (rule ccontr)
     assume "incoming u \<noteq> {}"
     then obtain w where "(w, u) \<in> E" unfolding incoming_def by blast
-    with \<open>isPath u p v\<close> have "isPath w ((w, u) # p) v" by simp
-    with \<open>length p = b\<close> show False using path_lengths_bounded by fastforce
+    with PATH have "isPath w ((w, u) # p) v" by simp
+    with LEN show False using path_length_bounded by fastforce
   qed
-  with 0 show ?case by blast
+
+  show "outgoing v = {}"
+  proof (rule ccontr)
+    assume "outgoing v \<noteq> {}"
+    then obtain w where "(v, w) \<in> E" unfolding outgoing_def by blast
+    with PATH have "isPath u (p @ [(v, w)]) w" by (rule isPath_append_edge)
+    with LEN show False using path_length_bounded by fastforce
+  qed
+qed
+
+(* TODO can this proof be done without the ugly precondition? *)
+lemma ex_front_terminal_path: "isPath u p v \<Longrightarrow> \<exists>u' p'. isPath u' p' v \<and> incoming u' = {}"
+proof (induction "b - length p" arbitrary: u p)
+  case 0
+  then have "length p = b" using path_length_bounded by fastforce
+  with \<open>isPath u p v\<close> have "incoming u = {}" by (rule b_length_paths_are_terminal)
+  with \<open>isPath u p v\<close> show ?case by blast
 next
   case (Suc x)
   then show ?case
@@ -184,29 +201,41 @@ next
   next
     case False
     then obtain w where "(w, u) \<in> E" unfolding incoming_def by blast
-    with Suc(1)[of "(w, u) # p"] Suc(2-4) show ?thesis by simp
+    with Suc(1)[of "(w, u) # p"] Suc(2-3) show ?thesis by simp
   qed
 qed
 
 lemma obtain_front_terminal_path: obtains u p where "isPath u p v" "incoming u = {}"
-  using tmp by (meson isPath.simps(1) path_lengths_bounded) (* TODO *)
+  using ex_front_terminal_path by (meson Graph.isPath.simps(1))
 
 corollary obtain_front_terminal_connected: obtains u where "connected u v" "incoming u = {}"
   using obtain_front_terminal_path connected_def by metis
-end
 
-(*
-locale Distance_Bounded_Graph_Ord = Distance_Bounded_Graph c b + le: ordering less_eq less
-  for c :: "'capacity::linordered_idom graph" and b :: nat
-    (*and less_eq less :: "edge \<Rightarrow> edge \<Rightarrow> bool"*)(* TODO order, how to determine type and keep infix. What kind of ordering do we want (no total preorder)*)
-begin
-thm Least_def
-fun findMaximalPath :: "node \<Rightarrow> path" where
-  "findMaximalPath u = undefined"
-(* TODO  how to choose arbitrary element *)
-(* IDEA: use sorting function as parameter, which may be lexicographic sort of neighbours or max capacity *)
+lemma ex_back_terminal_path: "isPath u p v \<Longrightarrow> \<exists>v' p'. isPath u p' v' \<and> outgoing v' = {}"
+proof (induction "b - length p" arbitrary: v p)
+  case 0
+  then have "length p = b" using path_length_bounded by fastforce
+  with \<open>isPath u p v\<close> have "outgoing v = {}" by (rule b_length_paths_are_terminal)
+  with \<open>isPath u p v\<close> show ?case by blast
+next
+  case (Suc x)
+  then show ?case
+  proof (cases "outgoing v = {}")
+    case True
+    with Suc show ?thesis by blast
+  next
+    case False
+    then obtain w where "(v, w) \<in> E" unfolding outgoing_def by blast
+    with Suc(1)[of "p @ [(v, w)]"] Suc(2-3) show ?thesis using isPath_append_edge by fastforce
+  qed
+qed
+
+lemma obtain_back_terminal_path: obtains v p where "isPath u p v" "outgoing v = {}"
+  using ex_back_terminal_path by (meson Graph.isPath.simps(1))
+
+corollary obtain_back_terminal_connected: obtains v where "connected u v" "outgoing v = {}"
+  using obtain_back_terminal_path connected_def by metis
 end
-*)
 
 
 

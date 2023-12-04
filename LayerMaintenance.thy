@@ -250,47 +250,4 @@ corollary right_left_pass_is_cleaning: "cleaned = rightPassAbstract left_pass s"
   using left_right_pass_is_cleaning right_left_pass_com by simp
 end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(*context Distance_Bounded_Graph
-begin
-
-fun continuePath :: "('ord :: linorder ) \<Rightarrow> path \<Rightarrow> node \<Rightarrow> path" where
-  "continuePath ord p u =
-    (if outgoing u = {} then p
-    else let e = (LEAST e. e \<in> (outgoing u)) in continuePath ord (p @ [e]) (snd e))"
-
-fun findMaximalPath :: "'ord::linorder \<Rightarrow> node \<Rightarrow> path" where
-  "findMaximalPath ord u = (if outgoing u = {} then [] else [])"
-end
-
-(* TODO check whether this already exists somewhere *)
-definition removeEdge :: "_ graph \<Rightarrow> edge \<Rightarrow> _ graph" where
-  "removeEdge c e \<equiv> c(e := 0)"
-
-find_consts "'a set \<Rightarrow> 'a list"
-find_consts "'a list \<Rightarrow> 'a set"
-thm list.induct
-(* How to define recursive functions over sets *)
-
-fun rightPassConcrete :: "_ graph \<Rightarrow> edge list \<Rightarrow> _ graph" where
-  "rightPassConcrete c [] = c"
-| "rightPassConcrete c ((u, v) # es) =
-    (if Graph.incoming c u = {}
-    then c
-    else rightPassConcrete c es)"*)
-
 end

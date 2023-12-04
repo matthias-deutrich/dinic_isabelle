@@ -190,8 +190,10 @@ proof (clarify, intro conjI)
     proof
       assume "v \<in> Q"
       with \<open>v \<in> Q \<longrightarrow> v = u\<close> have "v = u" by blast
-      then show False (* TODO cleanup *)
-        by (smt (verit, del_insts) DiffE Graph.incoming_def Graph.vertex_cases \<open>g''.incoming v = {}\<close> \<open>v \<in> g''.V\<close> emptyE g'.outgoing_alt g'.removeEdges_E imageI mem_Collect_eq rev_ImageI singletonI)
+      (* NOTE: \<open>g''.incoming v = {}\<close> is not needed, since we could get it from U_NO_IN, might be more elegant, but also more verbose *)
+      with \<open>v \<in> g''.V\<close> \<open>g''.incoming v = {}\<close> obtain w where "(u, w) \<in> g''.E"
+        unfolding g''.incoming_def by (auto elim: g''.vertex_cases)
+      then show False using g'.removeEdges_E g'.outgoing_alt by fastforce
     qed
     with \<open>v \<in> g'.V\<close> \<open>v \<noteq> s\<close> NODE_HAS_IN obtain u' where "(u', v) \<in> g'.E" unfolding g'.incoming_def by blast
     with \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u', v) \<in> g''.E" using g'.removeEdges_E by blast
