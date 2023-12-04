@@ -17,6 +17,9 @@ definition pathFindingRefine :: "node \<Rightarrow> path nres" where
     RETURN p
   }"
 
+find_theorems "WHILE\<^sub>T" (* TODO *)
+find_theorems wellorder_class
+
 definition pathFinding_invar :: "node \<Rightarrow> (path \<times> node) \<Rightarrow> bool" where
   "pathFinding_invar s \<equiv> \<lambda>(p, u). isPath s p u"
 
@@ -70,6 +73,59 @@ proof (rule nrec.leq_trans[OF stl.pathFinding_finds_maximal_path], rule SPEC_rul
 qed (* TODO prettify *)
 end \<comment> \<open>ST_Graph\<close>
 
+subsubsection \<open>Total correctness\<close>
+
+context Distance_Bounded_Graph
+begin
+
+definition pathFindingRefine' :: "node \<Rightarrow> path nres" where
+  "pathFindingRefine' s \<equiv> do {
+    (p, _) \<leftarrow> WHILE\<^sub>T\<^bsup>pathFinding_invar s\<^esup> (\<lambda>(p, u). outgoing u \<noteq> {}) (\<lambda>(p, u). do {
+      e \<leftarrow> SPEC (\<lambda>e. e \<in> outgoing u);
+      let p = p @ [e];
+      let u = snd e;
+      RETURN (p, u)
+    }) ([], s);
+    RETURN p
+  }"
+
+(* definition custom_wf :: "(path \<times> path) set" where "custom_wf \<equiv> {(p1, p2) |p1 p2. length p1 \<le> length p2}" *)
+definition custom_wf :: "(path \<times> path) set"
+  where "custom_wf \<equiv> {(p1, p2) |p1 p2. (\<exists>u v. isPath u p1 v) \<and> (\<exists>u v. isPath u p2 v) \<and> length p1 > length p2}"
+
+thm wf_def
+thm wf_measure
+thm wf_subset
+find_theorems "_ \<Longrightarrow> wf ?x"
+find_consts "'a rel \<Rightarrow> 'a list rel"
+find_consts "'a rel \<Rightarrow> 'b rel \<Rightarrow> ('a \<times> 'b) rel"
+thm lex_prod_def
+find_consts "('a \<times> 'b) \<Rightarrow> ('b \<times> 'a)"
+thm prod.swap_def
+thm inv_image_def
+
+(*lemma "wf custom_wf"
+proof (rule wfUNIVI)
+  fix P x
+  assume "\<forall>x. (\<forall>y. (y, x) \<in> custom_wf \<longrightarrow> P y) \<longrightarrow> P x"
+  then show "P x"
+  proof
+  apply (rule wfUNIVI)
+
+lemma pathFinding_finds_maximal_path': "pathFindingRefine' s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
+  unfolding pathFindingRefine'_def
+  apply (intro refine_vcg)
+     apply (subgoal_tac "wf (inv_image finite_psubset fst)", assumption)
+    (*apply (auto intro: pathFinding_invar_step)*)
+  unfolding pathFinding_invar_def (*by auto*)*)
+
+end
+
+
+
+
+
+
 \<comment> \<open>PathFinding\<close>
 
 subsection \<open>RightPass\<close>
@@ -92,8 +148,8 @@ end
 (* TODO refine removeEdges and use the refined version *)
 
 (* This is the exact definition, using the edge set*)
-definition rightPassRefine' :: "_ graph \<Rightarrow> edge set \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine' c Q \<equiv> do {
+definition rightPassRefine_original :: "_ graph \<Rightarrow> edge set \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine_original c Q \<equiv> do {
     (c, _) \<leftarrow> WHILE (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
       e \<leftarrow> SPEC (\<lambda>e. e \<in> Q);
       let Q = Q - {e};
@@ -255,6 +311,79 @@ next
   assume "rightPass_invar c s (c', {})"
   then show "rightPassAbstract c s = c'" unfolding rightPass_invar_def using rightPassRefine_final by simp
 qed
+end
+
+
+
+
+
+
+thm wf_def
+thm wf_measure
+thm wf_subset
+find_theorems "_ \<Longrightarrow> wf ?x"
+find_consts "'a rel \<Rightarrow> 'a list rel"
+find_consts "'a rel \<Rightarrow> 'b rel \<Rightarrow> ('a \<times> 'b) rel"
+thm lex_prod_def
+find_consts "('a \<times> 'b) \<Rightarrow> ('b \<times> 'a)"
+thm prod.swap_def
+thm inv_image_def
+
+(*definition rightPassRefine' :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine' c Q \<equiv> do {
+    (c, _) \<leftarrow> WHILE\<^sub>T\<^bsup>rightPass_invar c s\<^esup> (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
+      u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
+      let Q = Q - {u};
+      if Graph.incoming c u = {} then do {
+        let R = Graph.outgoing c u;
+        let Q = Q \<union> (snd ` R);
+        let c = removeEdges c R;
+        RETURN (c, Q)}
+      else RETURN (c, Q)
+    }) (c, Q);
+    RETURN c
+  }"*)
+
+definition rightPassRefine' :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine' c Q \<equiv> do {
+    (c, _) \<leftarrow> WHILET (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
+      u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
+      let Q = Q - {u};
+      if Graph.incoming c u = {} then do {
+        let R = Graph.outgoing c u;
+        let Q = Q \<union> (snd ` R);
+        let c = removeEdges c R;
+        RETURN (c, Q)}
+      else RETURN (c, Q)
+    }) (c, Q);
+    RETURN c
+  }"
+
+definition tmp_wf :: "(_ graph \<times> node set) rel"
+  where "tmp_wf \<equiv> {(x, y). isTrueSubgraph x y} <*lex*> finite_psubset" (* TODO replace emptyset *)
+
+interpretation subgraph: wellorder isSubgraph isTrueSubgraph sorry
+thm subgraph.wf
+
+lemma tmp_wf_wf: "wf tmp_wf" unfolding tmp_wf_def (*by (auto intro: subgraph.wf)*)
+  apply (intro wf_lex_prod)
+   apply (rule subgraph.wf)
+  apply (rule wf_finite_psubset)
+  done
+
+(* TODO *)
+locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
+(*Finite_Graph c + Distance_Bounded_Graph c b
+  for c :: "'capacity::linordered_idom graph" and b*)
+begin
+theorem rightPassRefine'_correct:
+  assumes S_NO_IN: "incoming s = {}"
+    and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
+  shows "rightPassRefine' c Q \<le> RETURN (rightPassAbstract c s)"
+  unfolding rightPassRefine'_def
+proof (intro WHILET_rule[where I="rightPass_invar c s"] refine_vcg, clarsimp_all)
+  show "wf tmp_wf" by (rule tmp_wf_wf) oops
+
 end
 
 
