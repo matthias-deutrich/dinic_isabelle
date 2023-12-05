@@ -377,26 +377,33 @@ lemma (in Finite_Graph) rightPassRefine'_step:
   shows "rightPass_invar' c s (c'', Q') \<and> ((c'', Q'), (c', Q)) \<in> GraphWorkingSet_rel"
   unfolding rightPass_invar'_def
 proof (clarify, intro conjI)
-  interpret g': Graph c' .
   from INVAR' have INVAR: "rightPass_invar c s (c', Q)" and "finite Q"
     unfolding rightPass_invar'_def by auto
+  then interpret g': Finite_Graph c' unfolding rightPass_invar_def Finite_Graph_def
+    using Subgraph.V_ss Subgraph.intro finite_V finite_subset by fast
 
   from S_NO_IN \<open>u \<in> Q\<close> U_NO_IN INVAR show "rightPass_invar c s (c'', Q')"
     unfolding c''_def Q'_def by (rule rightPassRefine_step)
 
-  from INVAR have "g'.E \<subseteq> E" unfolding rightPass_invar_def using Subgraph.E_ss Subgraph.intro by blast
-  then have "finite g'.E" using finite_E finite_subset by blast
-  with \<open>finite Q\<close> show "finite Q'" unfolding Q'_def using g'.Efin_imp_Vfin by blast
+  from \<open>finite Q\<close> show "finite Q'" unfolding Q'_def by blast
 
-  have "isProperSubgraph c'' c'" sorry (* TODO this is currently a problem, since u is no longer in g'.E *)
-  then show "((c'', Q'), c', Q) \<in> GraphWorkingSet_rel" unfolding GraphWorkingSet_rel_def
-    by (simp add: Proper_Subgraph.intro \<open>finite g'.E\<close> finiteProperSubgraph_def g'.Finite_Graph_EI) (* TODO *)
+  show "((c'', Q'), c', Q) \<in> GraphWorkingSet_rel"
+  proof (cases "g'.outgoing u = {}")
+    case True
+    then have "c'' = c'" unfolding c''_def removeEdges_def by simp
+    moreover from True have "Q' = Q - {u}" unfolding Q'_def by simp
+    moreover note \<open>u \<in> Q\<close> \<open>finite Q\<close>
+    ultimately show ?thesis unfolding GraphWorkingSet_rel_def by auto
+  next
+    case False
+    then have "Proper_Subgraph c'' c'" unfolding c''_def
+      using g'.removeEdges_psg g'.outgoing_edges Proper_Subgraph.intro by blast
+    then show ?thesis unfolding GraphWorkingSet_rel_def finiteProperSubgraph_def
+      using g'.Finite_Graph_axioms by simp
+  qed
 qed
 
-(* TODO *)
 locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
-(*Finite_Graph c + Distance_Bounded_Graph c b
-  for c :: "'capacity::linordered_idom graph" and b*)
 begin
 theorem rightPassRefine'_correct:
   assumes S_NO_IN: "incoming s = {}"
@@ -422,24 +429,16 @@ next
 
   let ?c'' = "removeEdges c' (Graph.outgoing c' u)"
   let ?Q' = "Q - {u} \<union> snd ` Graph.outgoing c' u"
-  show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar' c s (?c'', ?Q') \<and> ((?c'', ?Q'), (c', Q)) \<in> GraphWorkingSet_rel"
-  proof
-    assume U_NO_IN: "Graph.incoming c' u = {}"
-    then show "rightPass_invar' c s (?c'', ?Q')" unfolding rightPass_invar'_def
-    proof (clarify, intro conjI)
-      from S_NO_IN step_assms U_NO_IN show "rightPass_invar c s (?c'', ?Q')"
-        unfolding rightPass_invar'_def using rightPassRefine_step by simp
-
-      have "finite (Graph.outgoing c' u)" sorry
-      with \<open>finite Q\<close> show "finite ?Q'" by blast
-    qed
-
-
-  qed
+  from SUB interpret g': Finite_Graph c'
+    by (meson Graph.Finite_Graph_EI Subgraph.E_ss Subgraph.intro finite_E finite_subset)
+  have "Finite_Graph ?c''" using g'.removeEdges_E g'.finite_E Graph.Finite_Graph_EI finite_Diff by metis
+  with S_NO_IN step_assms show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar' c s (?c'', ?Q') \<and> ((?c'', ?Q'), (c', Q)) \<in> GraphWorkingSet_rel"
+    using rightPassRefine'_step by blast
 next
   fix c'
-  assume "rightPass_invar c s (c', {})"
-  then show "rightPassAbstract c s = c'" unfolding rightPass_invar_def using rightPassRefine_final by simp
+  assume "rightPass_invar' c s (c', {})"
+  then show "rightPassAbstract c s = c'" unfolding rightPass_invar'_def rightPass_invar_def
+    using rightPassRefine_final by simp
 qed
 
 end
