@@ -138,11 +138,15 @@ definition removeEdges :: "_ graph \<Rightarrow> edge set \<Rightarrow> _ graph"
 
 context Graph
 begin
-lemma removeEdges_subgraph: "isSubgraph (removeEdges c S) c"
-  unfolding removeEdges_def isSubgraph_def by presburger
-
 lemma removeEdges_E: "Graph.E (removeEdges c S) = E - S"
   unfolding removeEdges_def Graph.E_def by auto
+
+lemma removeEdges_sg: "isSubgraph (removeEdges c S) c"
+  unfolding removeEdges_def isSubgraph_def by presburger
+
+lemma removeEdges_psg: "\<exists>e. e \<in> S \<inter> E \<Longrightarrow> isProperSubgraph (removeEdges c S) c"
+  unfolding isProperSubgraph_def using removeEdges_sg 
+  by (simp add: Graph.E_def' removeEdges_def)
 end
 
 (* TODO refine removeEdges and use the refined version *)
@@ -189,34 +193,40 @@ definition rightPass_invar :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph
                                 \<and> (\<forall>u v. Graph.connected c s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v))
                                 \<and> (\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {})"
 
+
+(* TODO check use of c''_def / Q'_def *)
 lemma (in Graph) rightPassRefine_step:
   assumes S_NO_IN: "incoming s = {}"
     and "u \<in> Q"
     and U_NO_IN: "Graph.incoming c' u = {}"
     and INVAR: "rightPass_invar c s (c', Q)"
-  shows "rightPass_invar c s (removeEdges c' (Graph.outgoing c' u), Q - {u} \<union> snd ` Graph.outgoing c' u)"
+  defines "c'' \<equiv> removeEdges c' (Graph.outgoing c' u)"
+    and "Q' \<equiv> Q - {u} \<union> snd ` Graph.outgoing c' u"
+  shows "rightPass_invar c s (c'', Q')"
+  (*shows "rightPass_invar c s (removeEdges c' (Graph.outgoing c' u), Q - {u} \<union> snd ` Graph.outgoing c' u)"
+    (is "rightPass_invar c s (?c'', ?Q')")*)
   unfolding rightPass_invar_def
 proof (clarify, intro conjI)
   interpret g': Graph c' .
-  interpret g'': Graph "removeEdges c' (g'.outgoing u)" .
+  interpret g'': Graph c'' .
   from INVAR have SUB: "isSubgraph c' c"
     and "s \<notin> Q"
     and S_CON: "\<And>u v. connected s u \<Longrightarrow> g'.connected s u \<and> c' (u, v) = c (u, v)"
     and NODE_HAS_IN: "\<forall>u \<in> g'.V - Q - {s}. g'.incoming  u \<noteq> {}"
     unfolding rightPass_invar_def by simp_all
 
-  show "isSubgraph (removeEdges c' (g'.outgoing u)) c"
-    using g'.removeEdges_subgraph SUB subgraph.order_trans by blast
+  show "isSubgraph c'' c" unfolding c''_def
+    using g'.removeEdges_sg SUB subgraph.order_trans by blast
 
-  show "s \<notin> Q - {u} \<union> snd ` g'.outgoing u"
+  show "s \<notin> Q'"
   proof -
     from S_NO_IN SUB have "g'.incoming s = {}" unfolding Graph.incoming_def
       using Subgraph.E_ss Subgraph.intro by blast
     then have "s \<notin> snd ` g'.outgoing u" unfolding g'.incoming_def g'.outgoing_def by fastforce
-    with \<open>s \<notin> Q\<close> show "?thesis" by blast
+    with \<open>s \<notin> Q\<close> show "?thesis" unfolding Q'_def by blast
   qed
 
-  show "(\<forall>v w. connected s v \<longrightarrow> g''.connected s v \<and> (removeEdges c' (g'.outgoing u)) (v, w) = c (v, w))"
+  show "(\<forall>v w. connected s v \<longrightarrow> g''.connected s v \<and> c'' (v, w) = c (v, w))"
   proof (clarify, intro conjI)
     from \<open>u \<in> Q\<close> \<open>s \<notin> Q\<close> have "u \<noteq> s" by blast
     fix v w
@@ -227,21 +237,21 @@ proof (clarify, intro conjI)
       by (metis g'.distinct_nodes_have_in_out_if_connected(2) g'.connected_def g'.pathVertices_fwd g'.split_path_at_vertex)
     with PATH' have "set p \<inter> g'.outgoing u = {}"
       using g'.outgoing_edges_not_on_path g'.pathVertices_fwd by fastforce
-    with PATH' have "g''.isPath s p v" unfolding Graph.isPath_alt using g'.removeEdges_E by blast
+    with PATH' have "g''.isPath s p v" unfolding Graph.isPath_alt c''_def using g'.removeEdges_E by blast
     then show "g''.connected s v" using g''.connected_def by blast
 
     from \<open>u \<noteq> s\<close> CON' U_NO_IN have "u \<noteq> v" using g'.distinct_nodes_have_in_out_if_connected(2) by blast
-    then have "removeEdges c' (g'.outgoing u) (v, w) = c' (v, w)"
-      unfolding g'.outgoing_def removeEdges_def by simp
-    then show "removeEdges c' (g'.outgoing u) (v, w) = c (v, w)" using C'_EQ_C by simp
+    then have "c'' (v, w) = c' (v, w)"
+      unfolding g'.outgoing_def removeEdges_def c''_def by simp
+    then show "c'' (v, w) = c (v, w)" using C'_EQ_C by simp
   qed
 
-  show "(\<forall>v \<in> g''.V - (Q - {u} \<union> snd ` g'.outgoing u) - {s}. g''.incoming v \<noteq> {})"
+  show "(\<forall>v \<in> g''.V - Q' - {s}. g''.incoming v \<noteq> {})" unfolding Q'_def
   proof clarsimp (* TODO can you remove lemmas from clarify? *)
     fix v
     assume "v \<in> g''.V" "v \<noteq> s" "v \<notin> snd ` g'.outgoing u" "v \<in> Q \<longrightarrow> v = u" "g''.incoming v = {}"
-    from \<open>v \<in> g''.V\<close> have "v \<in> g'.V"
-      using g'.removeEdges_subgraph Subgraph.V_ss Subgraph.intro by blast
+    from \<open>v \<in> g''.V\<close> have "v \<in> g'.V" unfolding c''_def
+      using g'.removeEdges_sg Subgraph.V_ss Subgraph.intro by blast
     have "v \<notin> Q"
     proof
       assume "v \<in> Q"
@@ -249,10 +259,10 @@ proof (clarify, intro conjI)
       (* NOTE: \<open>g''.incoming v = {}\<close> is not needed, since we could get it from U_NO_IN, might be more elegant, but also more verbose *)
       with \<open>v \<in> g''.V\<close> \<open>g''.incoming v = {}\<close> obtain w where "(u, w) \<in> g''.E"
         unfolding g''.incoming_def by (auto elim: g''.vertex_cases)
-      then show False using g'.removeEdges_E g'.outgoing_alt by fastforce
+      then show False unfolding c''_def using g'.removeEdges_E g'.outgoing_alt by fastforce
     qed
     with \<open>v \<in> g'.V\<close> \<open>v \<noteq> s\<close> NODE_HAS_IN obtain u' where "(u', v) \<in> g'.E" unfolding g'.incoming_def by blast
-    with \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u', v) \<in> g''.E" using g'.removeEdges_E by blast
+    with \<open>v \<notin> snd ` g'.outgoing u\<close> have "(u', v) \<in> g''.E" unfolding c''_def using g'.removeEdges_E by blast
     with \<open>g''.incoming v = {}\<close> show False unfolding g''.incoming_def by blast
   qed
 qed
@@ -293,21 +303,17 @@ theorem rightPassRefine_correct:
 proof (intro WHILE_rule[where I="rightPass_invar c s"] refine_vcg, clarsimp_all)
   show "rightPass_invar c s (c, Q)" unfolding rightPass_invar_def using Q_START by blast
 next
-  fix c' :: "'capacity graph"
-  fix Q u
+  fix c' Q u
   assume step_assms: "rightPass_invar c s (c', Q)" "u \<in> Q"
-  then have SUB: "isSubgraph c' c"
-    and "s \<notin> Q"
-    and S_CON: "\<forall>u v. connected s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
-    and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {}"
-    unfolding rightPass_invar_def by simp_all
   then show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_invar c s (c', Q - {u})"
     unfolding rightPass_invar_def by blast
 
-  from S_NO_IN step_assms show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar c s (removeEdges c' (Graph.outgoing c' u), Q - {u} \<union> snd ` Graph.outgoing c' u)"
+  let ?c'' = "removeEdges c' (Graph.outgoing c' u)"
+  let ?Q' = "Q - {u} \<union> snd ` Graph.outgoing c' u"
+  from S_NO_IN step_assms show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar c s (?c'', ?Q')"
     using rightPassRefine_step by simp
 next
-  fix c' :: "'capacity  graph"
+  fix c'
   assume "rightPass_invar c s (c', {})"
   then show "rightPassAbstract c s = c'" unfolding rightPass_invar_def using rightPassRefine_final by simp
 qed
@@ -344,123 +350,48 @@ proof (rule wf_subset)
     unfolding finiteProperSubgraph_def inv_image_def finite_psubset_def
     using Proper_Subgraph.E_pss Finite_Graph.finite_E by blast
 qed
-      
-      
-      
-      
-      
-      using wf_finite_psubset unfolding finite_psubset_def
 
-proof(rule wf_subset[OF wf_finite_psubset])
-  oops
+definition GraphWorkingSet_rel :: "(_ graph \<times> _ set) rel"
+  where "GraphWorkingSet_rel \<equiv> finiteProperSubgraph <*lex*> finite_psubset"
 
-definition edge_card :: "_ graph \<Rightarrow> nat" where "edge_card \<equiv> card \<circ> Graph.E"
+lemma wf_GraphWorkingSet_rel: "wf GraphWorkingSet_rel" unfolding GraphWorkingSet_rel_def
+  using wf_finiteProperSubgraph by auto
 
-thm wf_finite_psubset
-thm wf_subset
-thm wf_subset[OF wf_finite_psubset]
-thm finite_psubset_def
+definition rightPass_invar' :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
+  where "rightPass_invar' c s \<equiv> \<lambda>(c', Q). rightPass_invar c s (c', Q)
+                                \<and> finite Q" (* TODO *)
 
-thm inv_image_def
-thm inv_image_def[of finite_psubset Graph.E]
-thm wf_inv_image
-thm wf_inv_image[OF wf_finite_psubset, of Graph.E]
-thm wf_finite_psubset[THEN wf_subset, of finiteProperSubgraph]
-
-
-
-
-thm wf_finite_psubset
-(* TODO cleanup, maybe directly use wf_finite_psubset *)
-lemma wf_finiteProperSubgraph': "wf finiteProperSubgraph"
-  unfolding finiteProperSubgraph_def
-proof(rule wf_measure[THEN wf_subset])
-  show "{(c', c). isProperSubgraph c' c \<and> Finite_Graph c} \<subseteq> measure edge_card"
-    unfolding measure_def less_than_def inv_image_def less_eq
-  proof clarify
-    fix c' c :: "'capacity::linordered_idom graph"
-    assume "isProperSubgraph c' c" "Finite_Graph c"
-    then show "edge_card c' < edge_card c" unfolding edge_card_def
-    proof clarsimp
-      from \<open>Finite_Graph c\<close> have "finite (Graph.E c)" by (rule Finite_Graph.finite_E)
-      moreover from \<open>isProperSubgraph c' c\<close> have "Graph.E c' \<subset> Graph.E c"
-        using Proper_Subgraph.E_pss Proper_Subgraph.intro by blast
-      ultimately show "card (Graph.E c') < card (Graph.E c)" by (meson psubset_card_mono)
-    qed
-  qed
-qed
-
-
-thm wf_def
-thm wf_measure
-thm measure_def
-thm wf_subset
-thm wf_measure[THEN wf_subset]
-find_theorems "_ \<Longrightarrow> wf ?x"
-find_consts "'a rel \<Rightarrow> 'a list rel"
-find_consts "'a rel \<Rightarrow> 'b rel \<Rightarrow> ('a \<times> 'b) rel"
-thm lex_prod_def
-find_consts "('a \<times> 'b) \<Rightarrow> ('b \<times> 'a)"
-thm prod.swap_def
-thm inv_image_def
-thm psubset_card_mono
-
-thm less_eq
-
-lemma "wf finite_psubset"
-  apply (unfold finite_psubset_def)
-  apply (rule wf_measure [THEN wf_subset])
-  unfolding measure_def
-  unfolding less_than_def
-  unfolding inv_image_def
-  unfolding less_eq
-  apply auto
-  apply (fast elim!: psubset_card_mono)
-  done
-
-thm p2rel_def
-
-definition isProperSubgraph_rel :: "_ graph rel"
-  where "isProperSubgraph_rel \<equiv> {(x, y). isProperSubgraph x y}"
-
-
-
-
-thm Finite_Graph.finite_E
-
-
-
-
-
-
-(*definition rightPassRefine' :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine' c Q \<equiv> do {
-    (c, _) \<leftarrow> WHILE\<^sub>T\<^bsup>rightPass_invar c s\<^esup> (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
-      u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
-      let Q = Q - {u};
-      if Graph.incoming c u = {} then do {
-        let R = Graph.outgoing c u;
-        let Q = Q \<union> (snd ` R);
-        let c = removeEdges c R;
-        RETURN (c, Q)}
-      else RETURN (c, Q)
-    }) (c, Q);
-    RETURN c
-  }"*)
-
-
-
-definition tmp_wf :: "(_ graph \<times> node set) rel"
-  where "tmp_wf \<equiv> {(x, y). isProperSubgraph x y} <*lex*> finite_psubset" (* TODO replace emptyset *)
-
+(* TODO does this make sense?
 interpretation subgraph: wellorder isSubgraph isProperSubgraph sorry
 thm subgraph.wf
+*)
 
-lemma tmp_wf_wf: "wf tmp_wf" unfolding tmp_wf_def (*by (auto intro: subgraph.wf)*)
-  apply (intro wf_lex_prod)
-   apply (rule subgraph.wf)
-  apply (rule wf_finite_psubset)
-  done
+
+lemma (in Finite_Graph) rightPassRefine'_step:
+  assumes S_NO_IN: "incoming s = {}"
+    and "u \<in> Q"
+    and U_NO_IN: "Graph.incoming c' u = {}"
+    and INVAR': "rightPass_invar' c s (c', Q)"
+  defines "c'' \<equiv> removeEdges c' (Graph.outgoing c' u)"
+    and "Q' \<equiv> Q - {u} \<union> snd ` Graph.outgoing c' u"
+  shows "rightPass_invar' c s (c'', Q') \<and> ((c'', Q'), (c', Q)) \<in> GraphWorkingSet_rel"
+  unfolding rightPass_invar'_def
+proof (clarify, intro conjI)
+  interpret g': Graph c' .
+  from INVAR' have INVAR: "rightPass_invar c s (c', Q)" and "finite Q"
+    unfolding rightPass_invar'_def by auto
+
+  from S_NO_IN \<open>u \<in> Q\<close> U_NO_IN INVAR show "rightPass_invar c s (c'', Q')"
+    unfolding c''_def Q'_def by (rule rightPassRefine_step)
+
+  from INVAR have "g'.E \<subseteq> E" unfolding rightPass_invar_def using Subgraph.E_ss Subgraph.intro by blast
+  then have "finite g'.E" using finite_E finite_subset by blast
+  with \<open>finite Q\<close> show "finite Q'" unfolding Q'_def using g'.Efin_imp_Vfin by blast
+
+  have "isProperSubgraph c'' c'" sorry (* TODO this is currently a problem, since u is no longer in g'.E *)
+  then show "((c'', Q'), c', Q) \<in> GraphWorkingSet_rel" unfolding GraphWorkingSet_rel_def
+    by (simp add: Proper_Subgraph.intro \<open>finite g'.E\<close> finiteProperSubgraph_def g'.Finite_Graph_EI) (* TODO *)
+qed
 
 (* TODO *)
 locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
@@ -469,11 +400,47 @@ locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
 begin
 theorem rightPassRefine'_correct:
   assumes S_NO_IN: "incoming s = {}"
-    and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
+    and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
   shows "rightPassRefine' c Q \<le> RETURN (rightPassAbstract c s)"
   unfolding rightPassRefine'_def
-proof (intro WHILET_rule[where I="rightPass_invar c s"] refine_vcg, clarsimp_all)
-  show "wf tmp_wf" by (rule tmp_wf_wf) oops
+proof (intro WHILET_rule[where I="rightPass_invar' c s"] refine_vcg, clarsimp_all)
+  show "wf GraphWorkingSet_rel" by (rule wf_GraphWorkingSet_rel)
+next
+  show "rightPass_invar' c s (c, Q)" unfolding rightPass_invar_def rightPass_invar'_def
+    using Q_START by blast
+next
+  fix c' Q u
+  assume step_assms: "rightPass_invar' c s (c', Q)" "u \<in> Q"
+  then have SUB: "isSubgraph c' c"
+    and "s \<notin> Q"
+    and S_CON: "\<forall>u v. connected s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
+    and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {}"
+    and "finite Q"
+    unfolding rightPass_invar'_def rightPass_invar_def by simp_all
+  with \<open>u \<in> Q\<close> show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_invar' c s (c', Q - {u}) \<and> ((c', Q - {u}), (c', Q)) \<in> GraphWorkingSet_rel"
+    by (auto simp: rightPass_invar'_def rightPass_invar_def GraphWorkingSet_rel_def)
+
+  let ?c'' = "removeEdges c' (Graph.outgoing c' u)"
+  let ?Q' = "Q - {u} \<union> snd ` Graph.outgoing c' u"
+  show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar' c s (?c'', ?Q') \<and> ((?c'', ?Q'), (c', Q)) \<in> GraphWorkingSet_rel"
+  proof
+    assume U_NO_IN: "Graph.incoming c' u = {}"
+    then show "rightPass_invar' c s (?c'', ?Q')" unfolding rightPass_invar'_def
+    proof (clarify, intro conjI)
+      from S_NO_IN step_assms U_NO_IN show "rightPass_invar c s (?c'', ?Q')"
+        unfolding rightPass_invar'_def using rightPassRefine_step by simp
+
+      have "finite (Graph.outgoing c' u)" sorry
+      with \<open>finite Q\<close> show "finite ?Q'" by blast
+    qed
+
+
+  qed
+next
+  fix c'
+  assume "rightPass_invar c s (c', {})"
+  then show "rightPassAbstract c s = c'" unfolding rightPass_invar_def using rightPassRefine_final by simp
+qed
 
 end
 
