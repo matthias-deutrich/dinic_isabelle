@@ -5,13 +5,13 @@ begin
 definition isSubgraph :: "_ graph \<Rightarrow> _ graph \<Rightarrow> bool"
   where "isSubgraph c' c \<equiv> \<forall>e. c' e = c e \<or> c' e = 0"
 
-definition isTrueSubgraph :: "_ graph \<Rightarrow> _ graph \<Rightarrow> bool"
-  where "isTrueSubgraph c' c \<equiv> isSubgraph c' c \<and> (\<exists>e. c' e \<noteq> c e)"
+definition isProperSubgraph :: "_ graph \<Rightarrow> _ graph \<Rightarrow> bool"
+  where "isProperSubgraph c' c \<equiv> isSubgraph c' c \<and> (\<exists>e. c' e \<noteq> c e)"
 
 find_theorems "?P ?A ?B \<Longrightarrow> ?P ?B ?C \<Longrightarrow> ?P ?A ?C"
 
-interpretation subgraph: order isSubgraph isTrueSubgraph
-  unfolding isSubgraph_def isTrueSubgraph_def
+interpretation subgraph: order isSubgraph isProperSubgraph
+  unfolding isSubgraph_def isProperSubgraph_def
   apply unfold_locales
   apply metis
   apply force+
@@ -51,6 +51,23 @@ lemma shortest_paths_remain_if_contained: "\<lbrakk>g'.isPath u p v; g.isShortes
 lemma sg_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distance_Bounded_Graph c' b"
   using sg_paths_are_base_paths by (metis Distance_Bounded_Graph_def Graph.dist_def)
 end
+
+locale Proper_Subgraph = g': Graph c' + g: Graph c
+  for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +
+  assumes c'_psg_c: "isProperSubgraph c' c"
+begin
+sublocale Subgraph
+  using c'_psg_c unfolding isProperSubgraph_def Subgraph_def by blast
+
+lemma E_pss: "E' \<subset> E"
+proof (rule psubsetI)
+  from c'_psg_c obtain e where "c' e = 0" "c e \<noteq> 0"
+    unfolding isProperSubgraph_def isSubgraph_def by metis
+  then show "E' \<noteq> E" unfolding Graph.E_def' by blast
+  show "E' \<subseteq> E" by (rule E_ss)
+qed
+end
+
 
 sublocale Subgraph \<subseteq> CapacityLeSubgraph
   using c'_sg_c

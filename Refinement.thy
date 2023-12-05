@@ -315,34 +315,9 @@ end
 
 
 
+(* TODO starting from here, significant cleanup is required *)
 
-
-
-thm wf_def
-thm wf_measure
-thm wf_subset
-find_theorems "_ \<Longrightarrow> wf ?x"
-find_consts "'a rel \<Rightarrow> 'a list rel"
-find_consts "'a rel \<Rightarrow> 'b rel \<Rightarrow> ('a \<times> 'b) rel"
-thm lex_prod_def
-find_consts "('a \<times> 'b) \<Rightarrow> ('b \<times> 'a)"
-thm prod.swap_def
-thm inv_image_def
-
-(*definition rightPassRefine' :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine' c Q \<equiv> do {
-    (c, _) \<leftarrow> WHILE\<^sub>T\<^bsup>rightPass_invar c s\<^esup> (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
-      u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
-      let Q = Q - {u};
-      if Graph.incoming c u = {} then do {
-        let R = Graph.outgoing c u;
-        let Q = Q \<union> (snd ` R);
-        let c = removeEdges c R;
-        RETURN (c, Q)}
-      else RETURN (c, Q)
-    }) (c, Q);
-    RETURN c
-  }"*)
+subsubsection \<open>Total correctness\<close>
 
 definition rightPassRefine' :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
   "rightPassRefine' c Q \<equiv> do {
@@ -359,10 +334,126 @@ definition rightPassRefine' :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ 
     RETURN c
   }"
 
-definition tmp_wf :: "(_ graph \<times> node set) rel"
-  where "tmp_wf \<equiv> {(x, y). isTrueSubgraph x y} <*lex*> finite_psubset" (* TODO replace emptyset *)
+definition finiteProperSubgraph :: "_ graph rel"
+  where "finiteProperSubgraph \<equiv> {(c', c). Proper_Subgraph c' c \<and> Finite_Graph c}"
 
-interpretation subgraph: wellorder isSubgraph isTrueSubgraph sorry
+lemma wf_finiteProperSubgraph: "wf finiteProperSubgraph"
+proof (rule wf_subset)
+  show "wf (inv_image finite_psubset Graph.E)" by simp
+  show "finiteProperSubgraph \<subseteq> inv_image finite_psubset Graph.E"
+    unfolding finiteProperSubgraph_def inv_image_def finite_psubset_def
+    using Proper_Subgraph.E_pss Finite_Graph.finite_E by blast
+qed
+      
+      
+      
+      
+      
+      using wf_finite_psubset unfolding finite_psubset_def
+
+proof(rule wf_subset[OF wf_finite_psubset])
+  oops
+
+definition edge_card :: "_ graph \<Rightarrow> nat" where "edge_card \<equiv> card \<circ> Graph.E"
+
+thm wf_finite_psubset
+thm wf_subset
+thm wf_subset[OF wf_finite_psubset]
+thm finite_psubset_def
+
+thm inv_image_def
+thm inv_image_def[of finite_psubset Graph.E]
+thm wf_inv_image
+thm wf_inv_image[OF wf_finite_psubset, of Graph.E]
+thm wf_finite_psubset[THEN wf_subset, of finiteProperSubgraph]
+
+
+
+
+thm wf_finite_psubset
+(* TODO cleanup, maybe directly use wf_finite_psubset *)
+lemma wf_finiteProperSubgraph': "wf finiteProperSubgraph"
+  unfolding finiteProperSubgraph_def
+proof(rule wf_measure[THEN wf_subset])
+  show "{(c', c). isProperSubgraph c' c \<and> Finite_Graph c} \<subseteq> measure edge_card"
+    unfolding measure_def less_than_def inv_image_def less_eq
+  proof clarify
+    fix c' c :: "'capacity::linordered_idom graph"
+    assume "isProperSubgraph c' c" "Finite_Graph c"
+    then show "edge_card c' < edge_card c" unfolding edge_card_def
+    proof clarsimp
+      from \<open>Finite_Graph c\<close> have "finite (Graph.E c)" by (rule Finite_Graph.finite_E)
+      moreover from \<open>isProperSubgraph c' c\<close> have "Graph.E c' \<subset> Graph.E c"
+        using Proper_Subgraph.E_pss Proper_Subgraph.intro by blast
+      ultimately show "card (Graph.E c') < card (Graph.E c)" by (meson psubset_card_mono)
+    qed
+  qed
+qed
+
+
+thm wf_def
+thm wf_measure
+thm measure_def
+thm wf_subset
+thm wf_measure[THEN wf_subset]
+find_theorems "_ \<Longrightarrow> wf ?x"
+find_consts "'a rel \<Rightarrow> 'a list rel"
+find_consts "'a rel \<Rightarrow> 'b rel \<Rightarrow> ('a \<times> 'b) rel"
+thm lex_prod_def
+find_consts "('a \<times> 'b) \<Rightarrow> ('b \<times> 'a)"
+thm prod.swap_def
+thm inv_image_def
+thm psubset_card_mono
+
+thm less_eq
+
+lemma "wf finite_psubset"
+  apply (unfold finite_psubset_def)
+  apply (rule wf_measure [THEN wf_subset])
+  unfolding measure_def
+  unfolding less_than_def
+  unfolding inv_image_def
+  unfolding less_eq
+  apply auto
+  apply (fast elim!: psubset_card_mono)
+  done
+
+thm p2rel_def
+
+definition isProperSubgraph_rel :: "_ graph rel"
+  where "isProperSubgraph_rel \<equiv> {(x, y). isProperSubgraph x y}"
+
+
+
+
+thm Finite_Graph.finite_E
+
+
+
+
+
+
+(*definition rightPassRefine' :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine' c Q \<equiv> do {
+    (c, _) \<leftarrow> WHILE\<^sub>T\<^bsup>rightPass_invar c s\<^esup> (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
+      u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
+      let Q = Q - {u};
+      if Graph.incoming c u = {} then do {
+        let R = Graph.outgoing c u;
+        let Q = Q \<union> (snd ` R);
+        let c = removeEdges c R;
+        RETURN (c, Q)}
+      else RETURN (c, Q)
+    }) (c, Q);
+    RETURN c
+  }"*)
+
+
+
+definition tmp_wf :: "(_ graph \<times> node set) rel"
+  where "tmp_wf \<equiv> {(x, y). isProperSubgraph x y} <*lex*> finite_psubset" (* TODO replace emptyset *)
+
+interpretation subgraph: wellorder isSubgraph isProperSubgraph sorry
 thm subgraph.wf
 
 lemma tmp_wf_wf: "wf tmp_wf" unfolding tmp_wf_def (*by (auto intro: subgraph.wf)*)
