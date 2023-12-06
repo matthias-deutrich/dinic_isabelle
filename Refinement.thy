@@ -1,13 +1,13 @@
 theory Refinement
-  imports (*"Collections.Refine_Dflt_Only_ICF"*) "Refine_Monadic.Refine_Monadic" LayerMaintenance
+  imports "Refine_Monadic.Refine_Monadic" LayerMaintenance
 begin
 
 subsection \<open>PathFinding\<close>
 
 context Graph
 begin
-definition pathFindingRefine :: "node \<Rightarrow> path nres" where
-  "pathFindingRefine s \<equiv> do {
+definition pathFindingRefine_partial :: "node \<Rightarrow> path nres" where
+  "pathFindingRefine_partial s \<equiv> do {
     (p, _) \<leftarrow> WHILE (\<lambda>(p, u). outgoing u \<noteq> {}) (\<lambda>(p, u). do {
       e \<leftarrow> SPEC (\<lambda>e. e \<in> outgoing u);
       let p = p @ [e];
@@ -17,22 +17,52 @@ definition pathFindingRefine :: "node \<Rightarrow> path nres" where
     RETURN p
   }"
 
-find_theorems "WHILE\<^sub>T" (* TODO *)
-find_theorems wellorder_class
-
 definition pathFinding_invar :: "node \<Rightarrow> (path \<times> node) \<Rightarrow> bool" where
   "pathFinding_invar s \<equiv> \<lambda>(p, u). isPath s p u"
 
-lemma pathFinding_invar_step:
-  "\<lbrakk>e \<in> outgoing u; pathFinding_invar s (p, u)\<rbrakk> \<Longrightarrow> pathFinding_invar s (p @ [e], snd e)"
-  unfolding pathFinding_invar_def by (auto simp: isPath_tail outgoing_def)
-
-lemma pathFinding_finds_maximal_path: "pathFindingRefine s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
-  unfolding pathFindingRefine_def
+lemma pathFinding_finds_maximal_path: "pathFindingRefine_partial s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
+  unfolding pathFindingRefine_partial_def
   apply (intro WHILE_rule[where I="pathFinding_invar s"] refine_vcg)
-    apply (auto intro: pathFinding_invar_step)
-  unfolding pathFinding_invar_def by auto
+  unfolding pathFinding_invar_def outgoing_def by (auto simp: isPath_append_edge)
 end \<comment> \<open>Graph\<close>
+
+subsubsection \<open>Total correctness\<close>
+
+context Distance_Bounded_Graph
+begin
+
+(* TODO useful? then move *)
+lemma in_outgoingD: "(u', v) \<in> outgoing u \<Longrightarrow> (u, v) \<in> E \<and> u' = u" unfolding outgoing_def by blast
+
+definition pathFindingRefine_total :: "node \<Rightarrow> path nres" where
+  "pathFindingRefine_total s \<equiv> do {
+    (p, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(p, u). outgoing u \<noteq> {}) (\<lambda>(p, u). do {
+      e \<leftarrow> SPEC (\<lambda>e. e \<in> outgoing u);
+      let p = p @ [e];
+      let u = snd e;
+      RETURN (p, u)
+    }) ([], s);
+    RETURN p
+  }"
+
+definition bounded_path_measure :: "path rel" where "bounded_path_measure \<equiv> measure (\<lambda>p. b - length p)"
+
+lemma pathFinding_total_correct: "pathFindingRefine_total s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
+  unfolding pathFindingRefine_total_def
+proof (intro WHILET_rule[where I="pathFinding_invar s"] refine_vcg, clarsimp_all dest!: in_outgoingD)
+  show "wf (inv_image bounded_path_measure fst)" unfolding bounded_path_measure_def by blast
+next
+  fix p u v
+  assume STEP: "pathFinding_invar s (p, u)" "(u, v) \<in> E"
+  then have "isPath s p u" and PATH': "isPath s (p @ [(u, v)]) v"
+    unfolding pathFinding_invar_def by (simp_all add: isPath_append_edge)
+  then have "((p @ [(u, v)]), p) \<in> bounded_path_measure" unfolding bounded_path_measure_def
+    using path_length_bounded by fastforce
+  with PATH' show "pathFinding_invar s (p @ [(u, v)], v) \<and> ((p @ [(u, v)], v), p, u) \<in> inv_image bounded_path_measure fst"
+    unfolding pathFinding_invar_def by simp
+qed (auto simp: pathFinding_invar_def)
+
+end \<comment> \<open>Distance_Bounded_Graph\<close>
 
 context ST_Graph
 begin
@@ -51,82 +81,38 @@ thm SPEC_rule
 thm iSPEC_rule
 (* TODO why are there two? *)
 
-lemma pathFinding_finds_st_path:
+lemma back_terminal_s_path_is_st_path:
+  "stl.outgoing u = {} \<Longrightarrow> stl.connected s t\<Longrightarrow> stl.isPath s p u \<Longrightarrow> stl.isPath s p t"
+proof (drule stl_no_outD, elim disjE)
+  assume PATH: "stl.isPath s p u" and CON: "stl.connected s t" and "u \<notin> stl.V"
+  then have "s \<notin> stl.V" "p = []"
+    using stl.acyclic stl.isCycle_def
+    by (metis stl.connected_def stl.distinct_nodes_in_V_if_connected(2))+
+  with PATH CON show "stl.isPath s p t"
+    using Graph.distinct_nodes_in_V_if_connected(1) Graph.isPath.simps(1) by blast
+qed (auto intro: stl_sub_c.sg_paths_are_base_paths) (* TODO cleanup *)
+
+lemma pathFinding_partial_finds_st_path:
   assumes "connected s t"
-  shows "stl.pathFindingRefine s \<le> SPEC (\<lambda>p. isPath s p t)"
-proof (rule nrec.leq_trans[OF stl.pathFinding_finds_maximal_path], rule SPEC_rule)
-  fix p
-  assume "\<exists>u. stl.outgoing u = {} \<and> stl.isPath s p u"
-  then obtain u where NO_OUT: "stl.outgoing u = {}" and PATH: "stl.isPath s p u" by blast
-  then have "u = t \<or> u \<notin> stl.V" using stl_no_outD by simp
-  with PATH show "isPath s p t"
-  proof (elim disjE)
-    assume "u \<notin> stl.V"
-    with PATH have "u = s" "p = []"
-      using stl.acyclic stl.isCycle_def
-      by (metis stl.connected_def stl.distinct_nodes_in_V_if_connected(2))+
-    with NO_OUT have "s = t \<or> s \<notin> stl.V" using stl_no_outD by blast
-    with assms have "s = t"
-      using stl.distinct_nodes_in_V_if_connected stl_maintains_st_connected by blast
-    with \<open>p = []\<close> show ?thesis by simp
-  qed (auto intro: stl_sub_c.sg_paths_are_base_paths)
-qed (* TODO prettify *)
+  shows "stl.pathFindingRefine_partial s \<le> SPEC (\<lambda>p. isPath s p t)"
+  apply (rule nrec.leq_trans[OF stl.pathFinding_finds_maximal_path], rule SPEC_rule)
+  using stl_maintains_st_connected[OF \<open>connected s t\<close>] back_terminal_s_path_is_st_path stl_sub_c.sg_paths_are_base_paths by blast
+(* TODO cleanup *)
 end \<comment> \<open>ST_Graph\<close>
 
-subsubsection \<open>Total correctness\<close>
-
-context Distance_Bounded_Graph
+(* TODO refactor into new locale *)
+locale TMPLoc = ST_Graph + Distance_Bounded_Graph
 begin
-
-definition pathFindingRefine' :: "node \<Rightarrow> path nres" where
-  "pathFindingRefine' s \<equiv> do {
-    (p, _) \<leftarrow> WHILE\<^sub>T\<^bsup>pathFinding_invar s\<^esup> (\<lambda>(p, u). outgoing u \<noteq> {}) (\<lambda>(p, u). do {
-      e \<leftarrow> SPEC (\<lambda>e. e \<in> outgoing u);
-      let p = p @ [e];
-      let u = snd e;
-      RETURN (p, u)
-    }) ([], s);
-    RETURN p
-  }"
-
-(* definition custom_wf :: "(path \<times> path) set" where "custom_wf \<equiv> {(p1, p2) |p1 p2. length p1 \<le> length p2}" *)
-definition custom_wf :: "(path \<times> path) set"
-  where "custom_wf \<equiv> {(p1, p2) |p1 p2. (\<exists>u v. isPath u p1 v) \<and> (\<exists>u v. isPath u p2 v) \<and> length p1 > length p2}"
-
-thm wf_def
-thm wf_measure
-thm wf_subset
-find_theorems "_ \<Longrightarrow> wf ?x"
-find_consts "'a rel \<Rightarrow> 'a list rel"
-find_consts "'a rel \<Rightarrow> 'b rel \<Rightarrow> ('a \<times> 'b) rel"
-thm lex_prod_def
-find_consts "('a \<times> 'b) \<Rightarrow> ('b \<times> 'a)"
-thm prod.swap_def
-thm inv_image_def
-
-(*lemma "wf custom_wf"
-proof (rule wfUNIVI)
-  fix P x
-  assume "\<forall>x. (\<forall>y. (y, x) \<in> custom_wf \<longrightarrow> P y) \<longrightarrow> P x"
-  then show "P x"
-  proof
-  apply (rule wfUNIVI)
-
-lemma pathFinding_finds_maximal_path': "pathFindingRefine' s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
-  unfolding pathFindingRefine'_def
-  apply (intro refine_vcg)
-     apply (subgoal_tac "wf (inv_image finite_psubset fst)", assumption)
-    (*apply (auto intro: pathFinding_invar_step)*)
-  unfolding pathFinding_invar_def (*by auto*)*)
-
+lemma pathFinding_total_finds_st_path:
+  assumes "connected s t"
+  shows "stl.pathFindingRefine_total s \<le> SPEC (\<lambda>p. isPath s p t)"
+  apply (rule nrec.leq_trans[OF stl.pathFinding_total_correct], rule SPEC_rule)
+  using stl_maintains_st_connected[OF \<open>connected s t\<close>] back_terminal_s_path_is_st_path stl_sub_c.sg_paths_are_base_paths by blast
 end
 
-
-
-
-
-
 \<comment> \<open>PathFinding\<close>
+
+
 
 subsection \<open>RightPass\<close>
 
@@ -170,8 +156,8 @@ definition rightPassRefine_original :: "_ graph \<Rightarrow> edge set \<Rightar
 
 text \<open>This definition is slightly adapted in that it works on the set of edge tails,
       instead of on the edges themselves.\<close>
-definition rightPassRefine :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine c Q \<equiv> do {
+definition rightPassRefine_partial :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine_partial c Q \<equiv> do {
     (c, _) \<leftarrow> WHILE (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
       u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
       let Q = Q - {u};
@@ -187,25 +173,25 @@ definition rightPassRefine :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ g
 
 (* TODO check which definition is better *)
 
-definition rightPass_invar :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
-  where "rightPass_invar c s \<equiv> \<lambda>(c', Q). isSubgraph c' c
+definition rightPass_partial_invar :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
+  where "rightPass_partial_invar c s \<equiv> \<lambda>(c', Q). isSubgraph c' c
                                 \<and> s \<notin> Q
                                 \<and> (\<forall>u v. Graph.connected c s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v))
                                 \<and> (\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {})"
 
 
 (* TODO check use of c''_def / Q'_def *)
-lemma (in Graph) rightPassRefine_step:
+lemma (in Graph) rightPassRefine_partial_step:
   assumes S_NO_IN: "incoming s = {}"
     and "u \<in> Q"
     and U_NO_IN: "Graph.incoming c' u = {}"
-    and INVAR: "rightPass_invar c s (c', Q)"
+    and INVAR: "rightPass_partial_invar c s (c', Q)"
   defines "c'' \<equiv> removeEdges c' (Graph.outgoing c' u)"
     and "Q' \<equiv> Q - {u} \<union> snd ` Graph.outgoing c' u"
-  shows "rightPass_invar c s (c'', Q')"
-  (*shows "rightPass_invar c s (removeEdges c' (Graph.outgoing c' u), Q - {u} \<union> snd ` Graph.outgoing c' u)"
-    (is "rightPass_invar c s (?c'', ?Q')")*)
-  unfolding rightPass_invar_def
+  shows "rightPass_partial_invar c s (c'', Q')"
+  (*shows "rightPass_partial_invar c s (removeEdges c' (Graph.outgoing c' u), Q - {u} \<union> snd ` Graph.outgoing c' u)"
+    (is "rightPass_partial_invar c s (?c'', ?Q')")*)
+  unfolding rightPass_partial_invar_def
 proof (clarify, intro conjI)
   interpret g': Graph c' .
   interpret g'': Graph c'' .
@@ -213,7 +199,7 @@ proof (clarify, intro conjI)
     and "s \<notin> Q"
     and S_CON: "\<And>u v. connected s u \<Longrightarrow> g'.connected s u \<and> c' (u, v) = c (u, v)"
     and NODE_HAS_IN: "\<forall>u \<in> g'.V - Q - {s}. g'.incoming  u \<noteq> {}"
-    unfolding rightPass_invar_def by simp_all
+    unfolding rightPass_partial_invar_def by simp_all
 
   show "isSubgraph c'' c" unfolding c''_def
     using g'.removeEdges_sg SUB subgraph.order_trans by blast
@@ -295,39 +281,35 @@ next
   finally show "c' (u, v) = rightPassAbstract c s (u, v)" by simp
 qed (* TODO cleanup *)
 
-theorem rightPassRefine_correct:
+theorem rightPassRefine_partial_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
-  shows "rightPassRefine c Q \<le> RETURN (rightPassAbstract c s)"
-  unfolding rightPassRefine_def
-proof (intro WHILE_rule[where I="rightPass_invar c s"] refine_vcg, clarsimp_all)
-  show "rightPass_invar c s (c, Q)" unfolding rightPass_invar_def using Q_START by blast
+  shows "rightPassRefine_partial c Q \<le> RETURN (rightPassAbstract c s)"
+  unfolding rightPassRefine_partial_def
+proof (intro WHILE_rule[where I="rightPass_partial_invar c s"] refine_vcg, clarsimp_all)
+  show "rightPass_partial_invar c s (c, Q)" unfolding rightPass_partial_invar_def using Q_START by blast
 next
   fix c' Q u
-  assume step_assms: "rightPass_invar c s (c', Q)" "u \<in> Q"
-  then show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_invar c s (c', Q - {u})"
-    unfolding rightPass_invar_def by blast
+  assume step_assms: "rightPass_partial_invar c s (c', Q)" "u \<in> Q"
+  then show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_partial_invar c s (c', Q - {u})"
+    unfolding rightPass_partial_invar_def by blast
 
   let ?c'' = "removeEdges c' (Graph.outgoing c' u)"
   let ?Q' = "Q - {u} \<union> snd ` Graph.outgoing c' u"
-  from S_NO_IN step_assms show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar c s (?c'', ?Q')"
-    using rightPassRefine_step by simp
+  from S_NO_IN step_assms show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_partial_invar c s (?c'', ?Q')"
+    using rightPassRefine_partial_step by simp
 next
   fix c'
-  assume "rightPass_invar c s (c', {})"
-  then show "rightPassAbstract c s = c'" unfolding rightPass_invar_def using rightPassRefine_final by simp
+  assume "rightPass_partial_invar c s (c', {})"
+  then show "rightPassAbstract c s = c'" unfolding rightPass_partial_invar_def using rightPassRefine_final by simp
 qed
 end
 
-
-
-(* TODO starting from here, significant cleanup is required *)
-
 subsubsection \<open>Total correctness\<close>
 
-definition rightPassRefine' :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine' c Q \<equiv> do {
-    (c, _) \<leftarrow> WHILET (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
+definition rightPassRefine_total :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine_total c Q \<equiv> do {
+    (c, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
       u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
       let Q = Q - {u};
       if Graph.incoming c u = {} then do {
@@ -357,9 +339,9 @@ definition GraphWorkingSet_rel :: "(_ graph \<times> _ set) rel"
 lemma wf_GraphWorkingSet_rel: "wf GraphWorkingSet_rel" unfolding GraphWorkingSet_rel_def
   using wf_finiteProperSubgraph by auto
 
-definition rightPass_invar' :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
-  where "rightPass_invar' c s \<equiv> \<lambda>(c', Q). rightPass_invar c s (c', Q)
-                                \<and> finite Q" (* TODO *)
+definition rightPass_total_invar :: "_ graph \<Rightarrow> node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool"
+  where "rightPass_total_invar c s \<equiv> \<lambda>(c', Q). rightPass_partial_invar c s (c', Q)
+                                \<and> finite Q"
 
 (* TODO does this make sense?
 interpretation subgraph: wellorder isSubgraph isProperSubgraph sorry
@@ -367,23 +349,23 @@ thm subgraph.wf
 *)
 
 
-lemma (in Finite_Graph) rightPassRefine'_step:
+lemma (in Finite_Graph) rightPassRefine_total_step:
   assumes S_NO_IN: "incoming s = {}"
     and "u \<in> Q"
     and U_NO_IN: "Graph.incoming c' u = {}"
-    and INVAR': "rightPass_invar' c s (c', Q)"
+    and T_INVAR: "rightPass_total_invar c s (c', Q)"
   defines "c'' \<equiv> removeEdges c' (Graph.outgoing c' u)"
     and "Q' \<equiv> Q - {u} \<union> snd ` Graph.outgoing c' u"
-  shows "rightPass_invar' c s (c'', Q') \<and> ((c'', Q'), (c', Q)) \<in> GraphWorkingSet_rel"
-  unfolding rightPass_invar'_def
+  shows "rightPass_total_invar c s (c'', Q') \<and> ((c'', Q'), (c', Q)) \<in> GraphWorkingSet_rel"
+  unfolding rightPass_total_invar_def
 proof (clarify, intro conjI)
-  from INVAR' have INVAR: "rightPass_invar c s (c', Q)" and "finite Q"
-    unfolding rightPass_invar'_def by auto
-  then interpret g': Finite_Graph c' unfolding rightPass_invar_def Finite_Graph_def
+  from T_INVAR have P_INVAR: "rightPass_partial_invar c s (c', Q)" and "finite Q"
+    unfolding rightPass_total_invar_def by auto
+  then interpret g': Finite_Graph c' unfolding rightPass_partial_invar_def Finite_Graph_def
     using Subgraph.V_ss Subgraph.intro finite_V finite_subset by fast
 
-  from S_NO_IN \<open>u \<in> Q\<close> U_NO_IN INVAR show "rightPass_invar c s (c'', Q')"
-    unfolding c''_def Q'_def by (rule rightPassRefine_step)
+  from S_NO_IN \<open>u \<in> Q\<close> U_NO_IN P_INVAR show "rightPass_partial_invar c s (c'', Q')"
+    unfolding c''_def Q'_def by (rule rightPassRefine_partial_step)
 
   from \<open>finite Q\<close> show "finite Q'" unfolding Q'_def by blast
 
@@ -405,39 +387,36 @@ qed
 
 locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
 begin
-theorem rightPassRefine'_correct:
+theorem rightPassRefine_total_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine' c Q \<le> RETURN (rightPassAbstract c s)"
-  unfolding rightPassRefine'_def
-proof (intro WHILET_rule[where I="rightPass_invar' c s"] refine_vcg, clarsimp_all)
+  shows "rightPassRefine_total c Q \<le> RETURN (rightPassAbstract c s)"
+  unfolding rightPassRefine_total_def
+proof (intro WHILET_rule[where I="rightPass_total_invar c s"] refine_vcg, clarsimp_all)
   show "wf GraphWorkingSet_rel" by (rule wf_GraphWorkingSet_rel)
 next
-  show "rightPass_invar' c s (c, Q)" unfolding rightPass_invar_def rightPass_invar'_def
+  show "rightPass_total_invar c s (c, Q)" unfolding rightPass_partial_invar_def rightPass_total_invar_def
     using Q_START by blast
 next
   fix c' Q u
-  assume step_assms: "rightPass_invar' c s (c', Q)" "u \<in> Q"
+  assume step_assms: "rightPass_total_invar c s (c', Q)" "u \<in> Q"
   then have SUB: "isSubgraph c' c"
     and "s \<notin> Q"
     and S_CON: "\<forall>u v. connected s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
     and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {}"
     and "finite Q"
-    unfolding rightPass_invar'_def rightPass_invar_def by simp_all
-  with \<open>u \<in> Q\<close> show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_invar' c s (c', Q - {u}) \<and> ((c', Q - {u}), (c', Q)) \<in> GraphWorkingSet_rel"
-    by (auto simp: rightPass_invar'_def rightPass_invar_def GraphWorkingSet_rel_def)
+    unfolding rightPass_total_invar_def rightPass_partial_invar_def by simp_all
+  with \<open>u \<in> Q\<close> show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_total_invar c s (c', Q - {u}) \<and> ((c', Q - {u}), (c', Q)) \<in> GraphWorkingSet_rel"
+    by (auto simp: rightPass_total_invar_def rightPass_partial_invar_def GraphWorkingSet_rel_def)
 
   let ?c'' = "removeEdges c' (Graph.outgoing c' u)"
   let ?Q' = "Q - {u} \<union> snd ` Graph.outgoing c' u"
-  from SUB interpret g': Finite_Graph c'
-    by (meson Graph.Finite_Graph_EI Subgraph.E_ss Subgraph.intro finite_E finite_subset)
-  have "Finite_Graph ?c''" using g'.removeEdges_E g'.finite_E Graph.Finite_Graph_EI finite_Diff by metis
-  with S_NO_IN step_assms show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_invar' c s (?c'', ?Q') \<and> ((?c'', ?Q'), (c', Q)) \<in> GraphWorkingSet_rel"
-    using rightPassRefine'_step by blast
+  from S_NO_IN step_assms show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_total_invar c s (?c'', ?Q') \<and> ((?c'', ?Q'), (c', Q)) \<in> GraphWorkingSet_rel"
+    using rightPassRefine_total_step by blast
 next
   fix c'
-  assume "rightPass_invar' c s (c', {})"
-  then show "rightPassAbstract c s = c'" unfolding rightPass_invar'_def rightPass_invar_def
+  assume "rightPass_total_invar c s (c', {})"
+  then show "rightPassAbstract c s = c'" unfolding rightPass_total_invar_def rightPass_partial_invar_def
     using rightPassRefine_final by simp
 qed
 

@@ -2,6 +2,8 @@ theory LayerGraph
   imports Subgraph
 begin
 
+(* TODO: reintroduce layerings as locales and move all lemma that don't relate to the base graph there *)
+
 definition s_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> 'capacity graph"
   where "s_layering c s \<equiv> \<lambda>(u, v).
     if Graph.connected c s u \<and> Graph.min_dist c s u + 1 = Graph.min_dist c s v then
