@@ -22,7 +22,7 @@ definition pathFinding_invar :: "node \<Rightarrow> (path \<times> node) \<Right
 
 lemma pathFinding_finds_maximal_path: "pathFindingRefine_partial s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
   unfolding pathFindingRefine_partial_def
-  apply (intro WHILE_rule[where I="pathFinding_invar s"] refine_vcg)
+  apply (refine_vcg WHILE_rule[where I="pathFinding_invar s"])
   unfolding pathFinding_invar_def outgoing_def by (auto simp: isPath_append_edge)
 end \<comment> \<open>Graph\<close>
 
@@ -49,6 +49,12 @@ definition bounded_path_measure :: "path rel" where "bounded_path_measure \<equi
 
 lemma pathFinding_total_correct: "pathFindingRefine_total s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
   unfolding pathFindingRefine_total_def
+(*  apply (refine_vcg WHILET_rule[where I="pathFinding_invar s" and R="inv_image bounded_path_measure fst"])
+      apply (auto simp:pathFinding_invar_def bounded_path_measure_def dest!: in_outgoingD)[]
+     apply (auto simp:pathFinding_invar_def bounded_path_measure_def dest!: in_outgoingD)[]
+    defer
+  defer
+apply (auto simp:pathFinding_invar_def bounded_path_measure_def dest!: in_outgoingD)[]*)
 proof (intro WHILET_rule[where I="pathFinding_invar s"] refine_vcg, clarsimp_all dest!: in_outgoingD)
   show "wf (inv_image bounded_path_measure fst)" unfolding bounded_path_measure_def by blast
 next
@@ -92,10 +98,13 @@ proof (drule stl_no_outD, elim disjE)
     using Graph.distinct_nodes_in_V_if_connected(1) Graph.isPath.simps(1) by blast
 qed (auto intro: stl_sub_c.sg_paths_are_base_paths) (* TODO cleanup *)
 
+thm order_trans
+thm nrec.leq_trans
+
 lemma pathFinding_partial_finds_st_path:
   assumes "connected s t"
   shows "stl.pathFindingRefine_partial s \<le> SPEC (\<lambda>p. isPath s p t)"
-  apply (rule nrec.leq_trans[OF stl.pathFinding_finds_maximal_path], rule SPEC_rule)
+  apply (rule order_trans[OF stl.pathFinding_finds_maximal_path], rule SPEC_rule)
   using stl_maintains_st_connected[OF \<open>connected s t\<close>] back_terminal_s_path_is_st_path stl_sub_c.sg_paths_are_base_paths by blast
 (* TODO cleanup *)
 end \<comment> \<open>ST_Graph\<close>
@@ -106,8 +115,13 @@ begin
 lemma pathFinding_total_finds_st_path:
   assumes "connected s t"
   shows "stl.pathFindingRefine_total s \<le> SPEC (\<lambda>p. isPath s p t)"
-  apply (rule nrec.leq_trans[OF stl.pathFinding_total_correct], rule SPEC_rule)
-  using stl_maintains_st_connected[OF \<open>connected s t\<close>] back_terminal_s_path_is_st_path stl_sub_c.sg_paths_are_base_paths by blast
+proof -
+  note stl.pathFinding_total_correct
+  also have "SPEC (\<lambda>p. \<exists>u. stl.outgoing u = {} \<and> stl.isPath s p u) \<le> SPEC (\<lambda>p. isPath s p t)"
+    apply (rule SPEC_rule)
+    using stl_maintains_st_connected[OF \<open>connected s t\<close>] back_terminal_s_path_is_st_path stl_sub_c.sg_paths_are_base_paths by blast
+  finally show ?thesis .
+qed
 end
 
 \<comment> \<open>PathFinding\<close>
@@ -233,7 +247,7 @@ proof (clarify, intro conjI)
   qed
 
   show "(\<forall>v \<in> g''.V - Q' - {s}. g''.incoming v \<noteq> {})" unfolding Q'_def
-  proof clarsimp (* TODO can you remove lemmas from clarify? *)
+  proof clarsimp
     fix v
     assume "v \<in> g''.V" "v \<noteq> s" "v \<notin> snd ` g'.outgoing u" "v \<in> Q \<longrightarrow> v = u" "g''.incoming v = {}"
     from \<open>v \<in> g''.V\<close> have "v \<in> g'.V" unfolding c''_def
@@ -242,8 +256,10 @@ proof (clarify, intro conjI)
     proof
       assume "v \<in> Q"
       with \<open>v \<in> Q \<longrightarrow> v = u\<close> have "v = u" by blast
-      (* NOTE: \<open>g''.incoming v = {}\<close> is not needed, since we could get it from U_NO_IN, might be more elegant, but also more verbose *)
-      with \<open>v \<in> g''.V\<close> \<open>g''.incoming v = {}\<close> obtain w where "(u, w) \<in> g''.E"
+      moreover from U_NO_IN have "g''.incoming u = {}" unfolding c''_def Graph.incoming_def
+        using g'.removeEdges_E by auto
+      moreover note \<open>v \<in> g''.V\<close>
+      ultimately obtain w where "(u, w) \<in> g''.E"
         unfolding g''.incoming_def by (auto elim: g''.vertex_cases)
       then show False unfolding c''_def using g'.removeEdges_E g'.outgoing_alt by fastforce
     qed

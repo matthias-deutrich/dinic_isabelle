@@ -161,9 +161,6 @@ lemma path_length_bounded: "isPath u p v \<Longrightarrow> length p \<le> b" usi
 sublocale Acyclic_Graph unfolding Acyclic_Graph_def
   using cycle_induces_arbitrary_length_paths path_length_bounded not_less_eq_eq by blast
 
-thm classical
-thm ccontr
-
 lemma b_length_paths_are_terminal:
   assumes PATH: "isPath u p v" and LEN: "length p = b"
   shows "incoming u = {}" "outgoing v = {}"
@@ -236,6 +233,11 @@ lemma obtain_back_terminal_path: obtains v p where "isPath u p v" "outgoing v = 
 corollary obtain_back_terminal_connected: obtains v where "connected u v" "outgoing v = {}"
   using obtain_back_terminal_path connected_def by metis
 end
+
+(*
+lemma (in Acyclic_Graph) finite_imp_bounded:
+  "Finite_Graph c \<Longrightarrow> \<exists>b. Distance_Bounded_Graph c b"
+*)
 
 
 
