@@ -16,7 +16,12 @@ lemma s_layering_subgraph: "isSubgraph (s_layering c s) c"
 
 locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
   fixes s :: node
-  (* assumes s_node[simp, intro!]: "s \<in> V" *)
+
+locale S_Layer_Graph = S_Graph +
+  assumes s_connected: "u \<in> V \<Longrightarrow> connected s u"
+  assumes s_layered: "(u, v) \<in> E \<Longrightarrow> min_dist s u + 1 = min_dist s v"
+
+context S_Graph
 begin
 
 sublocale sl: Graph "s_layering c s" .
@@ -41,8 +46,7 @@ lemma sl_edge_iff: "(u, v) \<in> sl.E \<longleftrightarrow> (u, v) \<in> E \<and
   using E_def' sl.E_def' s_layering_def by (smt (verit, best) mem_Collect_eq prod.simps(2))
 
 lemma sl_vertices_connected_in_base: "u \<in> sl.V \<Longrightarrow> connected s u" (* TODO necessary? *)
-  unfolding sl.V_def
-  using connected_append_edge by blast
+  unfolding sl.V_def using connected_append_edge by blast
 
 lemma shortest_s_path_remains_path:
   assumes "isShortestPath s p u"
@@ -62,26 +66,36 @@ proof -
   ultimately show "sl.isPath s p u" using sl.isPath_alt by simp
 qed
 
-lemma shortest_s_path_remains_shortest: "isShortestPath s p u \<Longrightarrow> sl.isShortestPath s p u"
-  using shortest_s_path_remains_path sl_sub.shortest_paths_remain_if_contained by blast
+lemma sl_s_path_is_shortest_base_path: "sl.isPath s p u \<Longrightarrow> isShortestPath s p u"
+  apply (induction rule: sl.isPath_back_induct)
+   apply (simp add: isShortestPath_def)
+  by (auto intro!: shortestPath_append)
 
-lemma sl_vertices_connected_in_sl: "u \<in> sl.V \<Longrightarrow> sl.connected s u" unfolding sl.connected_def
+lemma shortest_s_path_iff[simp]: "sl.isShortestPath s p u \<longleftrightarrow> isShortestPath s p u"
+  by (auto intro:
+        shortest_s_path_remains_path
+        sl_sub.shortest_paths_remain_if_contained
+        sl_s_path_is_shortest_base_path
+        sl.shortestPath_is_path)
+
+lemma min_s_dist_eq[simp]: "connected s u \<Longrightarrow> sl.min_dist s u = min_dist s u"
+  using Graph.isShortestPath_min_dist_def shortest_s_path_iff obtain_shortest_path by metis
+
+find_theorems "connected ?u ?v \<Longrightarrow> (?v, ?w) \<in> E \<Longrightarrow> connected ?u ?w"
+
+interpretation sl: S_Layer_Graph "s_layering c s" s
+  apply (unfold_locales)
+  unfolding sl.connected_def using sl_vertices_connected_in_base obtain_shortest_path shortest_s_path_remains_path apply meson
+  apply (auto dest: connected_append_edge)
+  done(* TODO fix this so it doesn't loop and can be used as sublocale*)
+
+
+lemma sl_vertices_connected_in_sl: "u \<in> sl.V \<Longrightarrow> sl.connected s u" unfolding sl.connected_def (* TODO remove *)
   using sl_vertices_connected_in_base obtain_shortest_path shortest_s_path_remains_path by meson
 
 (* TODO necessary? or reuse from LayerGraphExplicit *)
 lemma sl_path_adds_to_source_dist: "sl.isPath u p v \<Longrightarrow> min_dist s u + length p = min_dist s v"
   by (induction rule: sl.isPath_front_induct) auto
-
-(* TODO necessary? *)
-(*lemma all_l_paths_are_shortest_in_base: "l.isPath s p u \<Longrightarrow> isShortestPath s p u"
-proof (induction rule: l.isPath_custom_induct)
-  case (SelfPath u)
-  then show ?case unfolding isShortestPath_def by simp
-next
-  case (EdgePath u v p w)
-  then show ?case sorry
-qed*)
-
 
 lemma connected_iff_in_layering: "s \<noteq> u \<Longrightarrow> connected s u \<longleftrightarrow> u \<in> sl.V" (* TODO necessary? *)
 proof

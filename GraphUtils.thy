@@ -255,6 +255,14 @@ lemma connected_prepend_edge: "(u, v) \<in> E \<Longrightarrow> connected v w \<
 (* TODO check whether this is useful *)
 lemma E_def': "E = {e. c e \<noteq> 0}" unfolding E_def by blast
 
+lemma shortestPath_prepend:
+  "(u, v) \<in> E \<Longrightarrow> isShortestPath v p w \<Longrightarrow> min_dist u w = Suc (min_dist v w) \<Longrightarrow> isShortestPath u ((u, v) # p) w"
+  unfolding isShortestPath_min_dist_def by simp
+
+lemma shortestPath_append:
+  "isShortestPath u p v \<Longrightarrow> (v, w) \<in> E \<Longrightarrow> Suc (min_dist u v) = min_dist u w \<Longrightarrow> isShortestPath u (p @ [(v, w)]) w"
+  unfolding isShortestPath_min_dist_def by (simp add: isPath_append_edge)
+
 
 
 
