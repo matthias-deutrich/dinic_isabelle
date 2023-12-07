@@ -275,11 +275,27 @@ lemma vertex_cases[consumes 1]:
 
 text \<open>This lemma makes it more convenient to work with split_shortest_path in a common use case.\<close>
 thm split_shortest_path
-lemma split_shortest_path_around_edge:
+(*lemma split_shortest_path_around_edge:
   assumes "isShortestPath s (p @ (u, v) # p') t"
   shows "isShortestPath s p u" "isShortestPath u ((u, v) # p') t"
     and "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t"
 proof -
+  from assms obtain w where "isShortestPath s p w" "isShortestPath w ((u, v) # p') t" using split_shortest_path by blast
+  moreover from this have "w = u" unfolding isShortestPath_def by simp
+  ultimately show "isShortestPath s p u" "isShortestPath u ((u, v) # p') t" by auto
+next
+  from assms obtain w where "isShortestPath s (p @ [(u, v)]) w" "isShortestPath w p' t" using split_shortest_path
+    by (metis append.assoc append_Cons append_Nil)
+  moreover from this have "w = v" unfolding isShortestPath_def
+    using isPath_tail by simp
+  ultimately show "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t" by auto
+qed*)
+
+lemma split_shortest_path_around_edge:
+  assumes "isShortestPath s (p @ (u, v) # p') t"
+  shows "isShortestPath s p u \<and> isShortestPath u ((u, v) # p') t
+        \<and> isShortestPath s (p @ [(u, v)]) v \<and> isShortestPath v p' t"
+proof (intro conjI)
   from assms obtain w where "isShortestPath s p w" "isShortestPath w ((u, v) # p') t" using split_shortest_path by blast
   moreover from this have "w = u" unfolding isShortestPath_def by simp
   ultimately show "isShortestPath s p u" "isShortestPath u ((u, v) # p') t" by auto
