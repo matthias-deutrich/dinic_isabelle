@@ -16,9 +16,9 @@ context Graph
 begin
 text \<open>This rule allows us to use isPath as if it were an inductive predicate,
 which is sometimes more convenient\<close>
-lemma isPath_front_induct'[consumes 1, case_names SelfPath EdgePath]:
+(*lemma isPath_front_induct'[consumes 1, case_names SelfPath EdgePath]:
   "\<lbrakk>isPath u' p' v'; \<And>u. P u [] u; \<And>u v p w. \<lbrakk>(u, v) \<in> E; isPath v p w; P v p w\<rbrakk> \<Longrightarrow> P u ((u, v) # p) w\<rbrakk> \<Longrightarrow> P u' p' v'"
-  by (induction p' arbitrary: u') auto
+  by (induction p' arbitrary: u') auto*)
 
 (* TODO is this better? if so, clean up the first*)
 lemma isPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
@@ -255,14 +255,16 @@ lemma connected_prepend_edge: "(u, v) \<in> E \<Longrightarrow> connected v w \<
 (* TODO check whether this is useful *)
 lemma E_def': "E = {e. c e \<noteq> 0}" unfolding E_def by blast
 
-lemma shortestPath_prepend:
+lemma shortestPath_prepend_edge:
   "(u, v) \<in> E \<Longrightarrow> isShortestPath v p w \<Longrightarrow> min_dist u w = Suc (min_dist v w) \<Longrightarrow> isShortestPath u ((u, v) # p) w"
   unfolding isShortestPath_min_dist_def by simp
 
-lemma shortestPath_append:
+lemma shortestPath_append_edge:
   "isShortestPath u p v \<Longrightarrow> (v, w) \<in> E \<Longrightarrow> Suc (min_dist u v) = min_dist u w \<Longrightarrow> isShortestPath u (p @ [(v, w)]) w"
   unfolding isShortestPath_min_dist_def by (simp add: isPath_append_edge)
 
+lemma connected_trans: "\<lbrakk>connected u v; connected v w\<rbrakk> \<Longrightarrow> connected u w"
+  using dist_trans min_dist_is_dist by blast
 
 
 
