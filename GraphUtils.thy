@@ -234,6 +234,8 @@ corollary obtain_back_terminal_connected: obtains v where "connected u v" "outgo
   using obtain_back_terminal_path connected_def by metis
 end
 
+locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
+
 (*
 lemma (in Acyclic_Graph) finite_imp_bounded:
   "Finite_Graph c \<Longrightarrow> \<exists>b. Distance_Bounded_Graph c b"

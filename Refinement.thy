@@ -70,26 +70,11 @@ qed (auto simp: pathFinding_invar_def)
 
 end \<comment> \<open>Distance_Bounded_Graph\<close>
 
-context ST_Graph
+(*context ST_Graph
 begin
-(* TODO useful? then move *)
-lemma stl_no_outD: "stl.outgoing u = {} \<Longrightarrow> u = t \<or> u \<notin> stl.V"
-  using only_t_without_stl_outgoing by blast
-
-
-find_theorems "(?A :: _ nres) \<le> ?B \<Longrightarrow> ?B \<le> ?C \<Longrightarrow> ?A \<le> ?C"
-thm SPEC_trans
-thm nrec.leq_trans
-
-
-find_theorems "SPEC ?A \<le> SPEC ?B"
-thm SPEC_rule
-thm iSPEC_rule
-(* TODO why are there two? *)
-
 lemma back_terminal_s_path_is_st_path:
   "stl.outgoing u = {} \<Longrightarrow> stl.connected s t\<Longrightarrow> stl.isPath s p u \<Longrightarrow> stl.isPath s p t"
-proof (drule stl_no_outD, elim disjE)
+proof (drule stl.no_outgoingD, elim disjE)
   assume PATH: "stl.isPath s p u" and CON: "stl.connected s t" and "u \<notin> stl.V"
   then have "s \<notin> stl.V" "p = []"
     using stl.acyclic stl.isCycle_def
@@ -109,7 +94,6 @@ lemma pathFinding_partial_finds_st_path:
 (* TODO cleanup *)
 end \<comment> \<open>ST_Graph\<close>
 
-(* TODO refactor into new locale *)
 locale TMPLoc = ST_Graph + Distance_Bounded_Graph
 begin
 lemma pathFinding_total_finds_st_path:
@@ -122,6 +106,19 @@ proof -
     using stl_maintains_st_connected[OF \<open>connected s t\<close>] back_terminal_s_path_is_st_path stl_sub_c.sg_paths_are_base_paths by blast
   finally show ?thesis .
 qed
+end*)
+
+context ST_Layer_Graph
+begin
+lemma pathFinding_partial_finds_st_path:
+  "s \<in> V \<Longrightarrow> pathFindingRefine_partial s \<le> SPEC (\<lambda>p. isPath s p t)"
+  apply (intro order_trans[OF pathFinding_finds_maximal_path] SPEC_rule)
+  using back_terminal_path_is_t_path by blast
+
+lemma pathFinding_total_finds_st_path:
+  "s \<in> V \<Longrightarrow> pathFindingRefine_total s \<le> SPEC (\<lambda>p. isPath s p t)"
+  apply (intro order_trans[OF pathFinding_total_correct] SPEC_rule)
+  using back_terminal_path_is_t_path by blast
 end
 
 \<comment> \<open>PathFinding\<close>
@@ -401,7 +398,7 @@ proof (clarify, intro conjI)
   qed
 qed
 
-locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
+context Finite_Bounded_Graph
 begin
 theorem rightPassRefine_total_correct:
   assumes S_NO_IN: "incoming s = {}"

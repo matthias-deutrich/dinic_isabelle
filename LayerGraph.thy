@@ -61,6 +61,12 @@ lemma s_in_V_if_nonempty: "V \<noteq> {} \<Longrightarrow> s \<in> V"
 
 lemma only_s_without_incoming[simp]: "\<lbrakk>u \<in> V; incoming u = {}\<rbrakk> \<Longrightarrow> u = s"
   using distinct_nodes_have_in_out_if_connected by blast
+
+corollary no_incomingD: "incoming u = {} \<Longrightarrow> u \<notin> V \<or> u = s" by simp
+
+lemma front_terminal_path_is_s_path:
+  "isPath u p v \<Longrightarrow> v \<in> V \<Longrightarrow> incoming u = {} \<Longrightarrow> isPath s p v"
+  using connected_def connected_inV_iff no_incomingD by blast
 end
 
 subsubsection \<open>Building a source layering from an arbitrary graph\<close>
@@ -223,6 +229,12 @@ lemma t_in_V_if_nonempty: "V \<noteq> {} \<Longrightarrow> t \<in> V"
 
 lemma only_t_without_outgoing[simp]: "\<lbrakk>u \<in> V; outgoing u = {}\<rbrakk> \<Longrightarrow> u = t"
   using distinct_nodes_have_in_out_if_connected by blast
+
+corollary no_outgoingD: "outgoing u = {} \<Longrightarrow> u \<notin> V \<or> u = t" by simp
+
+lemma back_terminal_path_is_t_path:
+  "isPath u p v \<Longrightarrow> u \<in> V \<Longrightarrow> outgoing v = {} \<Longrightarrow> isPath u p t"
+  using connected_def connected_inV_iff no_outgoingD by blast
 end
 
 locale ST_Layer_Graph = Graph +
@@ -262,16 +274,24 @@ sublocale T_Layer_Graph unfolding T_Layer_Graph_def
   by (fastforce elim: obtain_shortest_st_path_via_edge
                 dest: split_shortest_path_around_edge
                 simp: isShortestPath_min_dist_def)
-  (* by (auto intro: obtain_shortest_st_path_fragments simp: isShortestPath_min_dist_def) *)
 
-sublocale Distance_Bounded_Graph c "min_dist s t" (* TODO *)
-  apply unfold_locales
-  unfolding dist_def apply auto
-  by (metis Graph.isShortestPath_min_dist_def Graph.min_dist_z bot_nat_0.extremum connected_def distinct_nodes_in_V_if_connected(2) dual_order.trans le_add1 le_add2 path_ascends_layer path_is_shortest t_connected)
+lemma layer_bounded_by_t: "u \<in> V \<Longrightarrow> layer u \<le> layer t"
+  using connected_by_dist dist_layer t_connected by fastforce
+
+sublocale Distance_Bounded_Graph c "min_dist s t"
 proof
-lemma stl_path_length_bounded: "stl.isPath u p v \<Longrightarrow> length p \<le> min_dist s t"
-  by (metis Graph.connected_def Graph.distinct_nodes_in_V_if_connected(1) ST_Graph.stl_path_adds_dist(2) ST_Graph.stl_vertexE add_cancel_right_right add_leD2 le_add2)
-
+  fix u v n
+  assume DIST: "dist u n v"
+  then show "n \<le> layer t"
+  proof (cases "u = v")
+    case True
+    with DIST show ?thesis using dist_layer by fastforce
+  next
+    case False
+    with DIST have "v \<in> V" using connected_distI distinct_nodes_in_V_if_connected(2) by blast
+    with DIST show ?thesis using dist_layer layer_bounded_by_t by fastforce
+  qed
+qed
 
 end
 
@@ -507,22 +527,7 @@ next
   then show "(u, v) \<in> stl.E" using stl_shortest_st_path_remains_path stl.isPath_edgeset by blast
 qed
 
-(*
-lemma stl_path_length_bounded: "stl.isPath u p v \<Longrightarrow> length p \<le> min_dist s t"
-  by (metis Graph.connected_def Graph.distinct_nodes_in_V_if_connected(1) ST_Graph.stl_path_adds_dist(2) ST_Graph.stl_vertexE add_cancel_right_right add_leD2 le_add2)
-*)
-(* TODO cleanup using stl_path_adds_dist *)
-(* TODO show finiteness *)
 end \<comment> \<open>ST_Graph\<close>
 
-(* TODO needed? *)
-(*locale Bounded_ST_Graph = ST_Graph c s t + Distance_Bounded_Graph c b for c :: "'capacity::linordered_idom graph" and s t b*)
-
-context ST_Graph
-begin
-sublocale stl: Distance_Bounded_Graph "st_layering c s t" "min_dist s t"
-  unfolding Distance_Bounded_Graph_def
-  using stl.dist_def stl_path_length_bounded by metis
-end
 
 end
