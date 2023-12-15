@@ -2,7 +2,7 @@ theory LayerGraph
   imports Subgraph
 begin
 
-subsection \<open>Layering from a source node\<close>
+
 
 (* TODO can we somehow make this work? *)
 (*
@@ -27,6 +27,8 @@ lemma path_is_shortest[intro]: "isPath u p v \<Longrightarrow> isShortestPath u 
   unfolding isShortestPath_def using paths_unique_len by (metis order_refl)
 end
 *)
+
+subsection \<open>Layerings\<close>
 
 locale Generic_Layer_Graph = Graph +
   fixes layer :: "node \<Rightarrow> nat"
@@ -68,6 +70,149 @@ lemma front_terminal_path_is_s_path:
   "isPath u p v \<Longrightarrow> v \<in> V \<Longrightarrow> incoming u = {} \<Longrightarrow> isPath s p v"
   using connected_def connected_inV_iff no_incomingD by blast
 end
+
+locale T_Layer_Graph = Graph +
+  fixes t
+  assumes t_connected[intro]: "u \<in> V \<Longrightarrow> connected u t"
+      and t_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist v t) = min_dist u t"
+begin
+lemma t_in_V_if_nonempty: "V \<noteq> {} \<Longrightarrow> t \<in> V"
+  using connected_inV_iff by blast
+
+lemma only_t_without_outgoing[simp]: "\<lbrakk>u \<in> V; outgoing u = {}\<rbrakk> \<Longrightarrow> u = t"
+  using distinct_nodes_have_in_out_if_connected by blast
+
+corollary no_outgoingD: "outgoing u = {} \<Longrightarrow> u \<notin> V \<or> u = t" by simp
+
+lemma back_terminal_path_is_t_path:
+  "isPath u p v \<Longrightarrow> u \<in> V \<Longrightarrow> outgoing v = {} \<Longrightarrow> isPath u p t"
+  using connected_def connected_inV_iff no_outgoingD by blast
+end
+
+locale ST_Layer_Graph = Graph +
+  fixes s t
+  assumes st_connected: "u \<in> V \<Longrightarrow> connected s u \<and> connected u t"
+      and st_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist s u + min_dist v t) = min_dist s t"
+begin
+
+lemma obtain_shortest_st_path_via_edge:
+  assumes "(u, v) \<in> E"
+  obtains p p' where "isShortestPath s (p @ (u, v) # p') t"
+proof -
+  from assms have "u \<in> V" "v \<in> V" unfolding V_def by auto
+  then obtain p p' where "isShortestPath s p u" "isShortestPath v p' t"
+    by (meson obtain_shortest_path st_connected)
+  with assms have "isShortestPath s (p @ (u, v) # p') t"
+    using isShortestPath_min_dist_def isPath_append by simp
+  then show ?thesis using that by blast (* TODO prettify *)
+qed (* TODO this idea is reused, can this be prevented? Maybe set this up as Intro for ST_Layer_Graph *)
+
+sublocale S_Layer_Graph unfolding S_Layer_Graph_def
+  by (fastforce elim: obtain_shortest_st_path_via_edge
+                dest: split_shortest_path_around_edge st_connected
+                simp: isShortestPath_min_dist_def)
+
+sublocale T_Layer_Graph unfolding T_Layer_Graph_def
+  by (fastforce elim: obtain_shortest_st_path_via_edge
+                dest: split_shortest_path_around_edge st_connected
+                simp: isShortestPath_min_dist_def)
+
+lemma layer_bounded_by_t: "u \<in> V \<Longrightarrow> layer u \<le> layer t"
+  using connected_by_dist dist_layer t_connected by fastforce
+
+sublocale Distance_Bounded_Graph c "min_dist s t"
+proof
+  fix u v n
+  assume DIST: "dist u n v"
+  then show "n \<le> layer t"
+  proof (cases "u = v")
+    case True
+    with DIST show ?thesis using dist_layer by fastforce
+  next
+    case False
+    with DIST have "v \<in> V" using connected_distI distinct_nodes_in_V_if_connected(2) by blast
+    with DIST show ?thesis using dist_layer layer_bounded_by_t by fastforce
+  qed
+qed
+end
+
+subsection \<open>Union of shortest path\<close>
+
+locale Shortest_Path_Union = Subgraph +
+  fixes S T
+  assumes shortest_path_union: "E' = \<Union>{set p | p. \<exists>s t. s \<in> S \<and> t \<in> T \<and> g.isShortestPath s p t}"
+begin
+lemma edge_on_shortest_path: "(u, v) \<in> E' \<Longrightarrow> \<exists>s t p. s \<in> S \<and> t \<in> T \<and> g.isShortestPath s p t \<and> (u, v) \<in> set p"
+  using shortest_path_union by blast
+
+lemma obtain_shortest_ST_edge_path:
+  assumes "(u, v) \<in> E'"
+  obtains s t p p' where "s \<in> S" "t \<in> T" "g.isShortestPath s (p @ (u, v) # p') t"
+  using assms by (metis edge_on_shortest_path in_set_conv_decomp)
+
+lemma shortest_path_remains: "\<lbrakk>u \<in> S; v \<in> T; g.isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v" sorry (* TODO *)
+end
+
+locale S_Shortest_Path_Union = Subgraph + 
+  fixes s T
+  assumes shortest_s_path_union: "E' = \<Union>{set p | p. \<exists>t. t \<in> T \<and> g.isShortestPath s p t}"
+begin
+sublocale Shortest_Path_Union c' c "{s}" T
+  by unfold_locales (simp add: shortest_s_path_union)
+
+(* TODO can we improve on the latter two? *)
+thm edge_on_shortest_path[simplified]
+thm obtain_shortest_ST_edge_path[simplified]
+thm shortest_path_remains[simplified]
+
+lemma obtain_shortest_sT_edge_path:
+  assumes "(u, v) \<in> E'"
+  obtains t p p' where "t \<in> T" "g.isShortestPath s (p @ (u, v) # p') t"
+  using assms by (blast elim: obtain_shortest_ST_edge_path)
+
+sublocale S_Layer_Graph c' s sorry (* TODO *)
+end
+
+locale T_Shortest_Path_Union = Subgraph +
+  fixes S t
+  assumes shortest_t_path_union: "E' = \<Union>{set p | p. \<exists>s. s \<in> S \<and> g.isShortestPath s p t}"
+begin
+sublocale Shortest_Path_Union c' c S "{t}"
+  by unfold_locales (simp add: shortest_t_path_union)
+
+thm edge_on_shortest_path[simplified]
+
+lemma obtain_shortest_St_edge_path:
+  assumes "(u, v) \<in> E'"
+  obtains s p p' where "s \<in> S" "g.isShortestPath s (p @ (u, v) # p') t"
+  using assms by (blast elim: obtain_shortest_ST_edge_path)
+
+sublocale T_Layer_Graph c' t sorry (* TODO *)
+end
+
+locale ST_Shortest_Path_Union = Subgraph +
+  fixes s t
+  assumes shortest_st_path_union: "E' = \<Union>{set p | p. g.isShortestPath s p t}"
+begin
+sublocale S_Shortest_Path_Union c' c s "{t}"
+  by unfold_locales (simp add: shortest_st_path_union)
+
+sublocale T_Shortest_Path_Union c' c "{s}" t
+  by unfold_locales (simp add: shortest_st_path_union)
+
+thm edge_on_shortest_path[simplified]
+
+lemma obtain_shortest_st_edge_path: (* TODO this idea is once again reused *)
+  assumes "(u, v) \<in> E'"
+  obtains p p' where "g.isShortestPath s (p @ (u, v) # p') t"
+  using assms by (blast elim: obtain_shortest_ST_edge_path)
+
+sublocale ST_Layer_Graph c' s t sorry (* TODO, using obtain_shortest_st_edge_path, shortest_path_remains and then new Intro for ST_Layer_Edge *)
+end
+
+(* TODO move the following transfer properties to the shortest path union locales *)
+
+interpretation ST_Shortest_Path_Union undefined undefined undefined undefined sorry
 
 subsubsection \<open>Building a source layering from an arbitrary graph\<close>
 
@@ -182,70 +327,6 @@ end \<comment> \<open>S_Graph\<close>
 
 subsection \<open>Layering from source to target node\<close>
 
-locale T_Layer_Graph = Graph +
-  fixes t
-  assumes t_connected[intro]: "u \<in> V \<Longrightarrow> connected u t"
-      and t_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist v t) = min_dist u t"
-begin
-lemma t_in_V_if_nonempty: "V \<noteq> {} \<Longrightarrow> t \<in> V"
-  using connected_inV_iff by blast
-
-lemma only_t_without_outgoing[simp]: "\<lbrakk>u \<in> V; outgoing u = {}\<rbrakk> \<Longrightarrow> u = t"
-  using distinct_nodes_have_in_out_if_connected by blast
-
-corollary no_outgoingD: "outgoing u = {} \<Longrightarrow> u \<notin> V \<or> u = t" by simp
-
-lemma back_terminal_path_is_t_path:
-  "isPath u p v \<Longrightarrow> u \<in> V \<Longrightarrow> outgoing v = {} \<Longrightarrow> isPath u p t"
-  using connected_def connected_inV_iff no_outgoingD by blast
-end
-
-locale ST_Layer_Graph = Graph +
-  fixes s t
-  assumes st_connected: "u \<in> V \<Longrightarrow> connected s u \<and> connected u t"
-      and st_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist s u + min_dist v t) = min_dist s t"
-begin
-
-lemma obtain_shortest_st_path_via_edge:
-  assumes "(u, v) \<in> E"
-  obtains p p' where "isShortestPath s (p @ (u, v) # p') t"
-proof -
-  from assms have "u \<in> V" "v \<in> V" unfolding V_def by auto
-  then obtain p p' where "isShortestPath s p u" "isShortestPath v p' t"
-    by (meson obtain_shortest_path st_connected)
-  with assms have "isShortestPath s (p @ (u, v) # p') t"
-    using isShortestPath_min_dist_def isPath_append by simp
-  then show ?thesis using that by blast (* TODO prettify *)
-qed (* TODO this idea is reused, can this be prevented? *)
-
-sublocale S_Layer_Graph unfolding S_Layer_Graph_def
-  by (fastforce elim: obtain_shortest_st_path_via_edge
-                dest: split_shortest_path_around_edge st_connected
-                simp: isShortestPath_min_dist_def)
-
-sublocale T_Layer_Graph unfolding T_Layer_Graph_def
-  by (fastforce elim: obtain_shortest_st_path_via_edge
-                dest: split_shortest_path_around_edge st_connected
-                simp: isShortestPath_min_dist_def)
-
-lemma layer_bounded_by_t: "u \<in> V \<Longrightarrow> layer u \<le> layer t"
-  using connected_by_dist dist_layer t_connected by fastforce
-
-sublocale Distance_Bounded_Graph c "min_dist s t"
-proof
-  fix u v n
-  assume DIST: "dist u n v"
-  then show "n \<le> layer t"
-  proof (cases "u = v")
-    case True
-    with DIST show ?thesis using dist_layer by fastforce
-  next
-    case False
-    with DIST have "v \<in> V" using connected_distI distinct_nodes_in_V_if_connected(2) by blast
-    with DIST show ?thesis using dist_layer layer_bounded_by_t by fastforce
-  qed
-qed
-end
 
 definition st_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> 'capacity graph"
   where "st_layering c s t \<equiv> \<lambda>(u, v).

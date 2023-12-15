@@ -19,19 +19,24 @@ interpretation subgraph: order isSubgraph isProperSubgraph
 thm subgraph.order_trans
 thm subgraph.order_refl
 
-
-locale CapacityLeSubgraph = g': Graph c' + g: Graph c for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +
-  (* assumes cap_abs_le: "\<forall>e.\<bar>c' e\<bar> \<le> \<bar>c e\<bar>"*)
-  assumes cap_abs_le: "\<forall>e. (0 \<le> c' e \<and> c' e \<le> c e) \<or> (c e \<le> c' e \<and> c' e \<le> 0)"
-
-locale Subgraph = g': Graph c' + g: Graph c for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +
-  assumes c'_sg_c: "isSubgraph c' c"
+(* TODO is there a way to automatically rename all constants in g' by appending a prime symbol? *)
+locale GraphTransfer = g': Graph c' + g: Graph c
+  for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph"
 begin
 notation g.E ("E")
 notation g'.E ("E''")
 notation g.V ("V")
 notation g'.V ("V''")
+end
 
+
+locale CapacityLeSubgraph = GraphTransfer +
+  (* assumes cap_abs_le: "\<forall>e.\<bar>c' e\<bar> \<le> \<bar>c e\<bar>"*)
+  assumes cap_abs_le: "\<forall>e. (0 \<le> c' e \<and> c' e \<le> c e) \<or> (c e \<le> c' e \<and> c' e \<le> 0)"
+
+locale Subgraph = GraphTransfer +
+  assumes c'_sg_c: "isSubgraph c' c"
+begin
 lemma E_ss: "E' \<subseteq> E" using c'_sg_c unfolding g.E_def g'.E_def isSubgraph_def by force
 
 lemma V_ss: "V' \<subseteq> V" unfolding g.V_def g'.V_def using E_ss by blast
@@ -52,8 +57,7 @@ lemma sg_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distanc
   using sg_paths_are_base_paths by (metis Distance_Bounded_Graph_def Graph.dist_def)
 end
 
-locale Proper_Subgraph = g': Graph c' + g: Graph c
-  for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph" +
+locale Proper_Subgraph = GraphTransfer + 
   assumes c'_psg_c: "isProperSubgraph c' c"
 begin
 sublocale Subgraph
