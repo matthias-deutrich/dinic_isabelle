@@ -154,7 +154,30 @@ lemma obtain_shortest_ST_edge_path:
   obtains s t p p' where "s \<in> S" "t \<in> T" "isShortestPath s (p @ (u, v) # p') t"
   using assms by (metis edge_on_shortest_path in_set_conv_decomp)
 
-lemma shortest_path_remains: "\<lbrakk>u \<in> S; v \<in> T; isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v" sorry (* TODO *)
+lemma shortest_ST_path_remains:
+  assumes "s \<in> S" "t \<in> T" and SP: "isShortestPath s p t"
+  shows "g'.isShortestPath s p t"
+proof -
+  from assms have "g'.isPath s p t"
+    by (auto simp: Graph.isPath_alt shortest_path_union dest: shortestPath_is_path)
+  with SP show ?thesis by (auto intro: shortest_path_remains_if_contained)
+qed
+
+(* TODO is this sound? *)
+lemma s_path_is_base_shortest: "g'.isShortestPath u p v \<Longrightarrow> isShortestPath u p v" oops
+
+(* TODO is this sound? might want S/T instead of connected *)
+lemma min_dist_eq[simp]:
+  assumes CON: "g'.connected u v"
+  shows "sl.min_dist u v = min_dist u v" oops
+
+(*lemma shortest_ST_path_remains_path:
+  "\<lbrakk>s \<in> S; t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isPath s p t" unfolding g'.isPath_alt
+  using shortestPath_is_path isLinked_if_isPath shortest_path_union by blast
+
+lemma shortest_ST_path_remains_shortest:
+  "\<lbrakk>u \<in> S; v \<in> T; isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
+  using shortest_ST_path_remains_path shortest_path_remains_if_contained by blast*)
 end
 
 locale S_Shortest_Path_Union = CapacityCompatibleGraphs + 
@@ -170,37 +193,43 @@ sublocale Shortest_Path_Union c' c "{s}" T
 (* TODO can we improve on the latter two? *)
 thm edge_on_shortest_path[simplified]
 thm obtain_shortest_ST_edge_path[simplified]
-thm shortest_path_remains[simplified]
+thm shortest_ST_path_remains[simplified]
 
 lemma obtain_shortest_sT_edge_path:
   assumes "(u, v) \<in> E'"
   obtains t p p' where "t \<in> T" "isShortestPath s (p @ (u, v) # p') t"
   using assms by (blast elim: obtain_shortest_ST_edge_path)
 
-(* TODO can we do this without restricting u as much? *)
-(*
-lemma shortest_s_path_remains_path:
-  assumes SP: "isShortestPath s p u"
-  shows "g'.isPath s p u"
-  unfolding g'.isPath_alt
-proof
-  from SP show "isLinked s p u" using shortestPath_is_path isLinked_if_isPath by blast
-  (*have "u \<in> T" sorry
-  then show "(set p) \<subseteq> E'" using SP shortest_s_path_union by blast*)
-  then show "set p \<subseteq> E'"
-  proof clarify
-    fix v w
-    assume SET: "(v, w) \<in> set p"
-    with SP have "(v, w) \<in> E" using isPath_edgeset shortestPath_is_path by blast
-    moreover have "connected s v" "Suc (min_dist s v) = min_dist s w"
-      using isShortestPath_level_edge[OF SP SET] by auto
-    ultimately show "(v, w) \<in> sl.E" unfolding sl_edge_iff by simp
-  qed
+ (* TODO remove, since we get this immediately from sublocale *)
+(*lemma shortest_sT_path_remains_path:
+  "\<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t" using shortest_ST_path_remains by simp*)
+
+(* TODO check if necessary, and if so, cleanup *)
+lemma shortest_s_path_remains_path: "\<lbrakk>u \<in> V'; isShortestPath s p u\<rbrakk> \<Longrightarrow> g'.isPath s p u"
+proof (elim g'.vertex_cases)
+  fix v
+  assume SP: "isShortestPath s p u" and "(u, v) \<in> E'"
+  then obtain t p\<^sub>1 p\<^sub>2 where "t \<in> T" "isShortestPath s (p\<^sub>1 @ (u, v) # p\<^sub>2) t"
+    by (elim obtain_shortest_sT_edge_path)
+  with SP have "isShortestPath s (p @ (u, v) # p\<^sub>2) t"
+    by (metis (no_types, lifting) isShortestPath_min_dist_def isPath_append length_append split_shortest_path_around_edge)
+  with \<open>t \<in> T\<close> have "g'.isShortestPath s (p @ (u, v) # p\<^sub>2) t" using shortest_ST_path_remains by blast
+  then show ?thesis using g'.shortestPath_is_path g'.split_shortest_path_around_edge by blast
+next
+  fix v
+  assume SP: "isShortestPath s p u" and "(v, u) \<in> E'"
+  then obtain t p\<^sub>1 p\<^sub>2 where "t \<in> T" "isShortestPath s (p\<^sub>1 @ (v, u) # p\<^sub>2) t"
+    by (elim obtain_shortest_sT_edge_path)
+  with SP have "isShortestPath s (p @ p\<^sub>2) t"
+    by (metis (mono_tags, lifting) Graph.isShortestPath_min_dist_def append.assoc append_Cons isPath_append length_append self_append_conv2 split_shortest_path_around_edge)
+  with \<open>t \<in> T\<close> have "g'.isShortestPath s (p @  p\<^sub>2) t" using shortest_ST_path_remains by blast
+  with SP show ?thesis
+    by (meson Graph.isPath_alt Graph.shortestPath_is_path g'.split_shortest_path)
 qed
-*)
-lemma shortest_sT_path_remains_path:
-  "\<lbrakk>isShortestPath s p t; t \<in> T\<rbrakk> \<Longrightarrow> g'.isPath s p t" unfolding g'.isPath_alt
-  using shortestPath_is_path isLinked_if_isPath shortest_s_path_union by blast
+
+(* TODO fix this *)
+lemma s_path_is_base_shortest: "g'.isPath s p u \<Longrightarrow> isShortestPath s p u"
+  by (smt (verit, ccfv_SIG) Graph.isPath_back_induct Graph.isShortestPath_level_edge(4) Graph.isShortestPath_min_dist_def Graph.shortestPath_append_edge Suc_eq_plus1 edge'_if_edge edge_on_shortest_path g'.isPath.simps(1) list.size(3) min_dist_z sg_paths_are_base_paths singletonD)
 
 sublocale S_Layer_Graph c' s sorry (* TODO *)
 end
@@ -323,6 +352,7 @@ lemma sl_edge_iff: "(u, v) \<in> sl.E \<longleftrightarrow> (u, v) \<in> E \<and
   unfolding induced_s_layering_def Graph.E_def by simp
 *)
 
+(*
 lemma sl_shortest_s_path_remains_path:
   assumes SP: "isShortestPath s p u"
   shows "sl.isPath s p u"
@@ -339,6 +369,7 @@ proof
     ultimately show "(v, w) \<in> sl.E" unfolding sl_edge_iff by simp
   qed
 qed
+*)
 
 lemma sl_s_path_is_shortest_base_path: "sl.isPath s p u \<Longrightarrow> isShortestPath s p u"
   apply (induction rule: sl.isPath_back_induct)
@@ -353,7 +384,7 @@ proof
 next
   assume "isShortestPath s p u"
   then show "sl.isShortestPath s p u"
-    using sl_shortest_s_path_remains_path sl_sub.shortest_paths_remain_if_contained by blast
+    using sl_shortest_s_path_remains_path sl_sub.shortest_path_remains_if_contained by blast
 qed
 
 lemma sl_min_s_dist_eq: "connected s u \<Longrightarrow> sl.min_dist s u = min_dist s u"
@@ -489,7 +520,7 @@ proof
 next
   assume "isShortestPath s p t"
   then show "stl.isShortestPath s p t"
-    using stl_shortest_st_path_remains_path stl_sub_c.shortest_paths_remain_if_contained by blast
+    using stl_shortest_st_path_remains_path stl_sub_c.shortest_path_remains_if_contained by blast
 qed
 *)
 
@@ -500,7 +531,7 @@ proof -
   from EDGE obtain p p' where "isShortestPath s (p @ (u, v) # p') t"
     by (fastforce elim: obtain_shortest_path simp: isPath_append isShortestPath_min_dist_def)
   then have "stl.isShortestPath s (p @ (u, v) # p') t"
-    using stl_shortest_st_path_remains_path stl_sub_c.shortest_paths_remain_if_contained by blast
+    using stl_shortest_st_path_remains_path stl_sub_c.shortest_path_remains_if_contained by blast
   then show ?thesis using that by blast
 qed
 

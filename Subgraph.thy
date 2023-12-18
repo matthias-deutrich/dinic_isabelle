@@ -62,7 +62,7 @@ lemma sg_paths_are_base_paths: "g'.isPath u p v \<Longrightarrow> isPath u p v"
 corollary sg_connected_remains_base_connected: "g'.connected u v \<Longrightarrow> connected u v"
   unfolding Graph.connected_def using sg_paths_are_base_paths by blast
 
-lemma shortest_paths_remain_if_contained: "\<lbrakk>g'.isPath u p v; isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
+lemma shortest_path_remains_if_contained: "\<lbrakk>g'.isPath u p v; isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
   using sg_paths_are_base_paths by (meson Graph.isShortestPath_def)
 
 (* TODO is this the right location for this? *)
