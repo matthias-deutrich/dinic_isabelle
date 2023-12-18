@@ -24,12 +24,10 @@ text \<open>Fixes two graphs and sets up names. Note that, contrary to the usual
       graph is denoted by g' and the second as g. This is because this is mostly used in contexts
       where the first graph is a subgraph of the second and literature usually denotes the subgraph
       as g'.\<close>
-locale GraphComparison = g': Graph c' + g: Graph c
+locale GraphComparison = g': Graph c' + Graph c
   for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph"
 begin
-notation g.E ("E")
 notation g'.E ("E''")
-notation g.V ("V")
 notation g'.V ("V''")
 end
 
@@ -43,7 +41,7 @@ locale CapacityCompatibleGraphs = GraphComparison +
   assumes cap_compatible: "c (u, v) = 0 \<or> c' (u, v) = 0 \<or> c (u, v) = c' (u, v)"
 begin
 lemma eq_if_E_eq[intro]: "E = E' \<Longrightarrow> c = c'"
-  unfolding g.E_def g'.E_def using cap_compatible by fastforce
+  unfolding Graph.E_def using cap_compatible by fastforce
 end
 
 text \<open>Subgraphs are a lifting of the subset relation for edges of graphs with the same underlying
@@ -58,13 +56,13 @@ lemma c'_sg_c: "isSubgraph c' c"
 
 lemma V_ss: "V' \<subseteq> V" unfolding Graph.V_def using E_ss by blast
 
-lemma sg_paths_are_base_paths: "g'.isPath u p v \<Longrightarrow> g.isPath u p v"
+lemma sg_paths_are_base_paths: "g'.isPath u p v \<Longrightarrow> isPath u p v"
   by (induction rule: g'.isPath_front_induct) (auto intro: edge'_if_edge)
 
-corollary sg_connected_remains_base_connected: "g'.connected u v \<Longrightarrow> g.connected u v"
+corollary sg_connected_remains_base_connected: "g'.connected u v \<Longrightarrow> connected u v"
   unfolding Graph.connected_def using sg_paths_are_base_paths by blast
 
-lemma shortest_paths_remain_if_contained: "\<lbrakk>g'.isPath u p v; g.isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
+lemma shortest_paths_remain_if_contained: "\<lbrakk>g'.isPath u p v; isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
   using sg_paths_are_base_paths by (meson Graph.isShortestPath_def)
 
 (* TODO is this the right location for this? *)
