@@ -28,13 +28,7 @@ end \<comment> \<open>Graph\<close>
 
 subsubsection \<open>Total correctness\<close>
 
-context Distance_Bounded_Graph
-begin
-
-(* TODO useful? then move *)
-lemma in_outgoingD: "(u', v) \<in> outgoing u \<Longrightarrow> (u, v) \<in> E \<and> u' = u" unfolding outgoing_def by blast
-
-definition pathFindingRefine_total :: "node \<Rightarrow> path nres" where
+definition (in Graph) pathFindingRefine_total :: "node \<Rightarrow> path nres" where
   "pathFindingRefine_total s \<equiv> do {
     (p, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(p, u). outgoing u \<noteq> {}) (\<lambda>(p, u). do {
       e \<leftarrow> SPEC (\<lambda>e. e \<in> outgoing u);
@@ -45,16 +39,35 @@ definition pathFindingRefine_total :: "node \<Rightarrow> path nres" where
     RETURN p
   }"
 
-definition bounded_path_measure :: "path rel" where "bounded_path_measure \<equiv> measure (\<lambda>p. b - length p)"
+context Distance_Bounded_Graph
+begin
+term "measure (\<lambda>p. b - length p)"
 
-lemma pathFinding_total_correct: "pathFindingRefine_total s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
+(*definition bounded_path_measure :: "path rel" where "bounded_path_measure \<equiv> measure (\<lambda>p. b - length p)"
+definition bounded_path_measure' where "bounded_path_measure \<equiv> measure (\<lambda>p. b - length p)"
+term bounded_path_measure
+term "pathFindingRefine_total s"
+term "SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
+term b
+thm WHILET_rule*)
+
+lemma pathFinding_total_correct:
+  "pathFindingRefine_total s \<le> SPEC (\<lambda>p. \<exists>u. outgoing u = {} \<and> isPath s p u)"
   unfolding pathFindingRefine_total_def
+  apply (refine_vcg WHILET_rule[where
+          R="inv_image (measure (\<lambda>p. b - length p)) fst"
+          and I="pathFinding_invar s"])
+unfolding pathFinding_invar_def outgoing_def apply (auto intro: isPath_append_edge)
+  by (metis Distance_Bounded_Graph_def Graph.dist_suc Graph.isPath_distD diff_less_mono2 lessI less_eq_Suc_le local.Distance_Bounded_Graph_axioms)
+(* TODO fix this *)
+
 (*  apply (refine_vcg WHILET_rule[where I="pathFinding_invar s" and R="inv_image bounded_path_measure fst"])
       apply (auto simp:pathFinding_invar_def bounded_path_measure_def dest!: in_outgoingD)[]
      apply (auto simp:pathFinding_invar_def bounded_path_measure_def dest!: in_outgoingD)[]
     defer
   defer
 apply (auto simp:pathFinding_invar_def bounded_path_measure_def dest!: in_outgoingD)[]*)
+(*
 proof (intro WHILET_rule[where I="pathFinding_invar s"] refine_vcg, clarsimp_all dest!: in_outgoingD)
   show "wf (inv_image bounded_path_measure fst)" unfolding bounded_path_measure_def by blast
 next
@@ -67,6 +80,7 @@ next
   with PATH' show "pathFinding_invar s (p @ [(u, v)], v) \<and> ((p @ [(u, v)], v), p, u) \<in> inv_image bounded_path_measure fst"
     unfolding pathFinding_invar_def by simp
 qed (auto simp: pathFinding_invar_def)
+*)
 
 end \<comment> \<open>Distance_Bounded_Graph\<close>
 
@@ -218,7 +232,7 @@ proof (clarify, intro conjI)
   show "s \<notin> Q'"
   proof -
     from S_NO_IN SUB have "g'.incoming s = {}" unfolding Graph.incoming_def
-      using Subgraph.E_ss Subgraph.intro by blast
+      using Subgraph.E_ss by fast
     then have "s \<notin> snd ` g'.outgoing u" unfolding g'.incoming_def g'.outgoing_def by fastforce
     with \<open>s \<notin> Q\<close> show "?thesis" unfolding Q'_def by blast
   qed
@@ -232,8 +246,8 @@ proof (clarify, intro conjI)
     then obtain p where PATH': "g'.isPath s p v" unfolding g'.connected_def by blast
     with \<open>u \<noteq> s\<close> U_NO_IN have "u \<notin> set (g'.pathVertices s p)"
       by (metis g'.distinct_nodes_have_in_out_if_connected(2) g'.connected_def g'.pathVertices_fwd g'.split_path_at_vertex)
-    with PATH' have "set p \<inter> g'.outgoing u = {}"
-      using g'.outgoing_edges_not_on_path g'.pathVertices_fwd by fastforce
+    with PATH' have "g'.outgoing u \<inter> set p = {}"
+      using g'.outgoing_edges_not_on_path g'.pathVertices_fwd by simp
     with PATH' have "g''.isPath s p v" unfolding Graph.isPath_alt c''_def using g'.removeEdges_E by blast
     then show "g''.connected s v" using g''.connected_def by blast
 
@@ -248,7 +262,7 @@ proof (clarify, intro conjI)
     fix v
     assume "v \<in> g''.V" "v \<noteq> s" "v \<notin> snd ` g'.outgoing u" "v \<in> Q \<longrightarrow> v = u" "g''.incoming v = {}"
     from \<open>v \<in> g''.V\<close> have "v \<in> g'.V" unfolding c''_def
-      using g'.removeEdges_sg Subgraph.V_ss Subgraph.intro by blast
+      using g'.removeEdges_sg Subgraph.V_ss by fast
     have "v \<notin> Q"
     proof
       assume "v \<in> Q"
@@ -281,7 +295,7 @@ proof (intro subgraph.order_antisym, unfold isSubgraph_def, clarsimp_all)
     using rightPassAbstract_nz_iff S_Graph.rp_is_c_if_s_connected by metis
 next
   interpret g': Distance_Bounded_Graph c' b
-    using SUB Subgraph.intro Subgraph.sg_Distance_Bounded Distance_Bounded_Graph_axioms by blast
+    using SUB Subgraph.sg_Distance_Bounded Distance_Bounded_Graph_axioms by fast
   fix u v
   assume "c' (u, v) \<noteq> 0"
   then have "u \<in> g'.V" unfolding Graph.V_def Graph.E_def by blast
@@ -289,7 +303,7 @@ next
   from W_CON \<open>u \<in> g'.V\<close> have "w \<in> g'.V" by (meson g'.connected_inV_iff)
   with W_NO_IN NODE_HAS_IN have "w = s" by blast
   with W_CON have "rightPassAbstract c s (u, v) = c (u, v)"
-    using SUB Subgraph.intro Subgraph.sg_connected_remains_base_connected S_Graph.rp_is_c_if_s_connected by blast
+    using SUB Subgraph.sg_connected_remains_base_connected S_Graph.rp_is_c_if_s_connected by fastforce
   also from SUB \<open>c' (u, v) \<noteq> 0\<close> have "... = c' (u, v)" unfolding isSubgraph_def by metis
   finally show "c' (u, v) = rightPassAbstract c s (u, v)" by simp
 qed (* TODO cleanup *)
@@ -375,7 +389,7 @@ proof (clarify, intro conjI)
   from T_INVAR have P_INVAR: "rightPass_partial_invar c s (c', Q)" and "finite Q"
     unfolding rightPass_total_invar_def by auto
   then interpret g': Finite_Graph c' unfolding rightPass_partial_invar_def Finite_Graph_def
-    using Subgraph.V_ss Subgraph.intro finite_V finite_subset by fast
+    using Subgraph.V_ss finite_V finite_subset by fast
 
   from S_NO_IN \<open>u \<in> Q\<close> U_NO_IN P_INVAR show "rightPass_partial_invar c s (c'', Q')"
     unfolding c''_def Q'_def by (rule rightPassRefine_partial_step)

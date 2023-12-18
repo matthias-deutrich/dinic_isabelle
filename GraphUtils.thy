@@ -327,6 +327,12 @@ corollary distinct_nodes_in_V_if_connected:
   shows "u \<in> V" "v \<in> V"
   using assms distinct_nodes_have_in_out_if_connected
   unfolding V_def outgoing_def incoming_def by fastforce+
+
+
+
+(* TODO useful? *)
+lemma in_outgoingD[dest]: "(u', v) \<in> outgoing u \<Longrightarrow> (u, v) \<in> E \<and> u' = u"
+  unfolding outgoing_def by blast
 end
 
 

@@ -137,12 +137,17 @@ qed
 end
 
 subsection \<open>Union of shortest path\<close>
+(* TODO use CapacityCompatibleGraphs *)
 
-locale Shortest_Path_Union = Subgraph +
+locale Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes S T
   assumes shortest_path_union: "E' = \<Union>{set p | p. \<exists>s t. s \<in> S \<and> t \<in> T \<and> g.isShortestPath s p t}"
 begin
-lemma edge_on_shortest_path: "(u, v) \<in> E' \<Longrightarrow> \<exists>s t p. s \<in> S \<and> t \<in> T \<and> g.isShortestPath s p t \<and> (u, v) \<in> set p"
+sublocale Subgraph
+  using shortest_path_union g.isPath_edgeset g.shortestPath_is_path by unfold_locales blast
+
+lemma edge_on_shortest_path:
+  "(u, v) \<in> E' \<Longrightarrow> \<exists>s t p. s \<in> S \<and> t \<in> T \<and> g.isShortestPath s p t \<and> (u, v) \<in> set p"
   using shortest_path_union by blast
 
 lemma obtain_shortest_ST_edge_path:
@@ -153,10 +158,13 @@ lemma obtain_shortest_ST_edge_path:
 lemma shortest_path_remains: "\<lbrakk>u \<in> S; v \<in> T; g.isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v" sorry (* TODO *)
 end
 
-locale S_Shortest_Path_Union = Subgraph + 
+locale S_Shortest_Path_Union = CapacityCompatibleGraphs + 
   fixes s T
   assumes shortest_s_path_union: "E' = \<Union>{set p | p. \<exists>t. t \<in> T \<and> g.isShortestPath s p t}"
 begin
+sublocale Subgraph
+  using shortest_s_path_union g.isPath_edgeset g.shortestPath_is_path by unfold_locales blast
+
 sublocale Shortest_Path_Union c' c "{s}" T
   by unfold_locales (simp add: shortest_s_path_union)
 
@@ -173,10 +181,13 @@ lemma obtain_shortest_sT_edge_path:
 sublocale S_Layer_Graph c' s sorry (* TODO *)
 end
 
-locale T_Shortest_Path_Union = Subgraph +
+locale T_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes S t
   assumes shortest_t_path_union: "E' = \<Union>{set p | p. \<exists>s. s \<in> S \<and> g.isShortestPath s p t}"
 begin
+sublocale Subgraph
+  using shortest_t_path_union g.isPath_edgeset g.shortestPath_is_path by unfold_locales blast
+
 sublocale Shortest_Path_Union c' c S "{t}"
   by unfold_locales (simp add: shortest_t_path_union)
 
@@ -190,10 +201,13 @@ lemma obtain_shortest_St_edge_path:
 sublocale T_Layer_Graph c' t sorry (* TODO *)
 end
 
-locale ST_Shortest_Path_Union = Subgraph +
+locale ST_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes s t
   assumes shortest_st_path_union: "E' = \<Union>{set p | p. g.isShortestPath s p t}"
 begin
+sublocale Subgraph
+  using shortest_st_path_union g.isPath_edgeset g.shortestPath_is_path by unfold_locales blast
+
 sublocale S_Shortest_Path_Union c' c s "{t}"
   by unfold_locales (simp add: shortest_st_path_union)
 
@@ -233,7 +247,7 @@ begin
 sublocale sl: Graph "induced_s_layering c s" .
 
 sublocale sl_sub: Subgraph "induced_s_layering c s" c
-  unfolding Subgraph_def using induced_s_layering_subgraph .
+  using Subgraph_isSubgraphI induced_s_layering_subgraph .
 
 lemma sl_edgeD[dest]:
   assumes "(u, v) \<in> sl.E"
@@ -362,10 +376,10 @@ abbreviation "st_dist \<equiv> min_dist s t"
 
 sublocale stl: Graph "st_layering c s t" .
 
-sublocale stl_sub_sl: Subgraph "st_layering c s t" "induced_s_layering c s" unfolding Subgraph_def
-  using st_layering_subgraph .
+sublocale stl_sub_sl: Subgraph "st_layering c s t" "induced_s_layering c s"
+  using Subgraph_isSubgraphI st_layering_subgraph .
 
-sublocale stl_sub_c: Subgraph "st_layering c s t" c unfolding Subgraph_def
+sublocale stl_sub_c: Subgraph "st_layering c s t" c
   using induced_s_layering_subgraph st_layering_subgraph subgraph.order_trans by blast
 
 lemma stl_edgeD[dest]:
