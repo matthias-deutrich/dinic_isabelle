@@ -266,8 +266,7 @@ lemma obtain_shortest_sT_edge_path:
  (* TODO remove, since we get this immediately from sublocale *)
 (*lemma shortest_sT_path_remains_path:
   "\<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t" using shortest_ST_path_remains by simp*)
-lemma shortest_sT_path_remains_path:
-  "\<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t" using shortest_ST_path_remains by simp
+
 
 (* TODO check if necessary, and if so, cleanup *)
 lemma shortest_s_path_remains_path: "\<lbrakk>u \<in> V'; isShortestPath s p u\<rbrakk> \<Longrightarrow> g'.isPath s p u"
@@ -302,14 +301,14 @@ proof
   assume "u \<in> V'"
   then obtain p\<^sub>1 p\<^sub>2 t where "t \<in> T" "isShortestPath s p\<^sub>1 u" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
     by (blast elim: obtain_shortest_ST_paths)
-  then have "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t" using shortest_sT_path_remains_path by blast
+  then have "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t" using shortest_ST_path_remains by blast
   with \<open>isShortestPath s p\<^sub>1 u\<close> show "g'.connected s u" unfolding g'.connected_def
     by (fastforce dest: Graph.shortestPath_is_path simp: g'.isPath_append Graph.isPath_alt)
 next
   fix u v
   assume "(u, v) \<in> E'"
   then show "Suc (g'.min_dist s u) = g'.min_dist s v"
-    using edge_on_shortest_path g'.isShortestPath_level_edge(4) shortest_sT_path_remains_path by fastforce
+    using edge_on_shortest_path g'.isShortestPath_level_edge(4) shortest_ST_path_remains by fastforce
 qed
 
 lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow> isShortestPath u p v"
@@ -368,7 +367,21 @@ lemma obtain_shortest_St_edge_path:
   obtains s p p' where "s \<in> S" "isShortestPath s (p @ (u, v) # p') t"
   using assms by (blast elim: obtain_shortest_ST_edge_path)
 
-sublocale T_Layer_Graph c' t sorry (* TODO *)
+sublocale T_Layer_Graph c' t
+proof
+  fix u
+  assume "u \<in> V'"
+  then obtain p\<^sub>1 p\<^sub>2 s where "s \<in> S" "isShortestPath u p\<^sub>2 t" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
+    by (blast elim: obtain_shortest_ST_paths)
+  then have "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t" using shortest_ST_path_remains by blast
+  with \<open>isShortestPath u p\<^sub>2 t\<close> show "g'.connected u t" unfolding g'.connected_def
+    by (fastforce dest: Graph.shortestPath_is_path simp: g'.isPath_append Graph.isPath_alt)
+next
+  fix u v
+  assume "(u, v) \<in> E'"
+  then show "Suc (g'.min_dist v t) = g'.min_dist u t"
+    using edge_on_shortest_path g'.isShortestPath_level_edge(5) shortest_ST_path_remains by fastforce
+qed
 end
 
 locale ST_Shortest_Path_Union = CapacityCompatibleGraphs +
@@ -384,14 +397,15 @@ sublocale S_Shortest_Path_Union c' c s "{t}"
 sublocale T_Shortest_Path_Union c' c "{s}" t
   by unfold_locales (simp add: shortest_st_path_union)
 
-thm edge_on_shortest_path[simplified]
-
-lemma obtain_shortest_st_edge_path: (* TODO this idea is once again reused *)
+(*lemma obtain_shortest_st_edge_path: (* TODO this idea is once again reused *)
   assumes "(u, v) \<in> E'"
   obtains p p' where "isShortestPath s (p @ (u, v) # p') t"
-  using assms by (blast elim: obtain_shortest_ST_edge_path)
+  using assms by (blast elim: obtain_shortest_ST_edge_path)*)
 
-sublocale ST_Layer_Graph c' s t sorry (* TODO, using obtain_shortest_st_edge_path, shortest_path_remains and then new Intro for ST_Layer_Edge *)
+text \<open>Note that due connectivity being declared as intro for S/T_Layer_Graph, this proof is
+      completely automatic (as opposed to the ones in S/T_Shortest_Path_Union.\<close>
+sublocale ST_Layer_Graph c' s t unfolding ST_Layer_Graph_def
+  using edge_on_shortest_path g'.isShortestPath_level_edge(6) shortest_ST_path_remains by fastforce
 end
 
 (* TODO move the following transfer properties to the shortest path union locales *)
@@ -517,7 +531,8 @@ lemma stl_obtain_shortest_st_path:
   obtains p p' where "stl.g'.isShortestPath s t s (p @ (u, v) # p') t"
   using assms stl.obtain_shortest_st_path_via_edge by blast
 
-corollary stl_maintains_st_connected: "connected s t \<Longrightarrow> stl.g'.connected s t s t" sledgehammer
+corollary stl_maintains_st_connected: "connected s t \<Longrightarrow> stl.g'.connected s t s t"
+  by (meson obtain_shortest_path stl.g'.connected_def stl_shortest_st_path_remains_path)
 end
 
 locale ST_Graph = S_Graph + T_Graph
