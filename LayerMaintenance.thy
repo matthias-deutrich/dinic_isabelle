@@ -1,8 +1,17 @@
 theory LayerMaintenance
   imports LayerGraph (*"Flow_Networks.Residual_Graph"*)
 begin
-(* TODO PathFinding *)
-(* TODO check if definitions are sound *)
+
+(* TODO check if these are really necessary, and if so, place them at the right location *)
+locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes s :: node
+
+locale T_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes t :: node
+
+locale ST_Graph = S_Graph + T_Graph
+
+(* TODO fix errors resulting from LayerGraph refactoring *)
 
 subsection \<open>Right Pass\<close>
 
