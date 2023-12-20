@@ -407,11 +407,12 @@ definition induced_s_layering :: "'capacity::linordered_idom graph \<Rightarrow>
     else
       0"
 
-lemma induced_s_layering_subgraph: "isSubgraph (induced_s_layering c s) c" (* TODO remove *)
-  unfolding isSubgraph_def induced_s_layering_def by simp
+(*lemma induced_s_layering_subgraph: "isSubgraph (induced_s_layering c s) c" (* TODO remove *)
+  unfolding isSubgraph_def induced_s_layering_def by simp*)
 
 
-interpretation sl: S_Shortest_Path_Union "induced_s_layering c s" c s "Graph.V c"
+(*interpretation sl: S_Shortest_Path_Union "induced_s_layering c s" c s "Graph.V c"*)
+theorem induced_s_shortest_path_union: "S_Shortest_Path_Union (induced_s_layering c s) c s (Graph.V c)"
 proof
   interpret Graph c .
   interpret g': Graph "induced_s_layering c s" .
@@ -435,12 +436,7 @@ proof
   qed
 qed (simp add: induced_s_layering_def)
 
-
-locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
-  fixes s :: node
-
 subsection \<open>Layering from source to target node\<close>
-
 
 definition st_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> 'capacity graph"
   where "st_layering c s t \<equiv> \<lambda>(u, v).
@@ -450,8 +446,8 @@ definition st_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \
       0"
 
 (* TODO why can this not coexist with sl? *)
-(*
-interpretation stl: ST_Shortest_Path_Union "st_layering c s t" c s t
+(*interpretation stl: ST_Shortest_Path_Union "st_layering c s t" c s t*)
+theorem induced_st_shortest_path_union: "ST_Shortest_Path_Union (st_layering c s t) c s t"
 proof
   interpret Graph c .
   interpret g': Graph "st_layering c s t" .
@@ -475,29 +471,54 @@ proof
     then show "(u, v) \<in> g'.E" unfolding st_layering_def Graph.E_def by simp
   qed
 qed (simp add: st_layering_def)
-*)
 
 (*
-lemma st_layering_subgraph: "isSubgraph (st_layering c s t) (induced_s_layering c s)"
-  unfolding isSubgraph_def induced_s_layering_def st_layering_def
-  apply (auto dest!: Graph.min_dist_is_dist intro!: Graph.zero_cap_simp)
-  using Graph.dist_suc Graph.min_dist_split(1) by fastforce (* TODO prettify *)
+interpretation stl: ST_Shortest_Path_Union "st_layering c s t" c s t
+proof
+  show "Graph.E (st_layering c s t) = \<Union> {set p |p. Graph.isShortestPath c s p t}"
+  proof (rule pair_set_eqI)
+    fix u v
+    assume "(u, v) \<in> Graph.E (st_layering c s t)"
+    then have MIN_DIST: "(u, v) \<in> Graph.E c \<and> Suc (Graph.min_dist c s u + Graph.min_dist c v t) = Graph.min_dist c s t" and "Graph.connected c s u \<and> Graph.connected c v t"
+      unfolding st_layering_def Graph.E_def by (smt case_prod_conv mem_Collect_eq)+
+    then obtain p\<^sub>1 p\<^sub>2 where "Graph.isShortestPath c s p\<^sub>1 u" "Graph.isShortestPath c v p\<^sub>2 t"
+      by (meson Graph.obtain_shortest_path)
+    with MIN_DIST have "Graph.isShortestPath c s (p\<^sub>1 @ (u, v) # p\<^sub>2) t" unfolding Graph.isShortestPath_min_dist_def
+      by (simp add: Graph.isPath_append)
+    then show "(u, v) \<in> \<Union> {set p |p. Graph.isShortestPath c s p t}" by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. Graph.isShortestPath c s p t}"
+    then obtain p where "Graph.isShortestPath c s p t" "(u, v) \<in> set p" by blast
+    with Graph.isShortestPath_level_edge[OF this] have "(u, v) \<in> Graph.E c" "Graph.connected c s u" "Graph.connected c v t" "Suc (Graph.min_dist c s u + Graph.min_dist c v t) = Graph.min_dist c s t"
+      by (auto intro: Graph.isPath_edgeset Graph.shortestPath_is_path)
+    then show "(u, v) \<in> Graph.E (st_layering c s t)" unfolding st_layering_def Graph.E_def by simp
+  qed
+qed (simp add: st_layering_def)
 *)
-(*
-proof clarify
-  fix u v
-  assume 0: "st_layering c s t (u, v) \<noteq> 0"
-  then have "st_layering c s t (u, v) = c (u, v)" "Graph.connected c s u" "Graph.connected c v t"
-    "Graph.min_dist c s u + 1 + Graph.min_dist c v t = Graph.min_dist c s t"
-    unfolding st_layering_def case_prod_conv by meson+
-  then have "induced_s_layering c s (u, v) = c (u, v)" unfolding induced_s_layering_def
-    by (smt (verit, best) Graph.min_dist_is_dist Graph.zero_cap_simp Suc_eq_plus1 case_prod_conv Graph.dist_suc Graph.min_dist_split(1))
-  with \<open>st_layering c s t (u, v) = c (u, v)\<close> show "st_layering c s t (u, v) = induced_s_layering c s (u, v)" by simp
-qed
-*)
+
+locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes s :: node
 
 locale T_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
   fixes t :: node
+
+(* TODO remove *)
+context Graph
+begin
+interpretation stl: ST_Shortest_Path_Union "st_layering c s t" c s t by (simp add: induced_st_shortest_path_union)
+term "stl.g'.isShortestPath"
+lemma stl_shortest_st_path_remains_path:
+  "isShortestPath s p t \<Longrightarrow> stl.g'.isPath s t s p t"
+  by (simp add: Graph.shortestPath_is_path stl.shortest_sT_path_remains_path)
+
+lemma stl_obtain_shortest_st_path:
+  assumes EDGE: "(u, v) \<in> stl.g'.E s t"
+  obtains p p' where "stl.g'.isShortestPath s t s (p @ (u, v) # p') t"
+  using assms stl.obtain_shortest_st_path_via_edge by blast
+
+corollary stl_maintains_st_connected: "connected s t \<Longrightarrow> stl.g'.connected s t s t" sledgehammer
+end
 
 locale ST_Graph = S_Graph + T_Graph
 begin
