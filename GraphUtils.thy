@@ -15,19 +15,14 @@ section \<open>Custom induction rules\<close>
 context Graph
 begin
 text \<open>This rule allows us to use isPath as if it were an inductive predicate,
-which is sometimes more convenient\<close>
-(*lemma isPath_front_induct'[consumes 1, case_names SelfPath EdgePath]:
-  "\<lbrakk>isPath u' p' v'; \<And>u. P u [] u; \<And>u v p w. \<lbrakk>(u, v) \<in> E; isPath v p w; P v p w\<rbrakk> \<Longrightarrow> P u ((u, v) # p) w\<rbrakk> \<Longrightarrow> P u' p' v'"
-  by (induction p' arbitrary: u') auto*)
-
-(* TODO is this better? if so, clean up the first*)
+      which is sometimes more convenient\<close>
 lemma isPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
   "\<lbrakk>isPath u' p' t; \<And>u. P u [] u; \<And>u v p. \<lbrakk>(u, v) \<in> E; isPath v p t; P v p t\<rbrakk> \<Longrightarrow> P u ((u, v) # p) t\<rbrakk> \<Longrightarrow> P u' p' t"
   by (induction p' arbitrary: u') auto
 
 lemma isPath_back_induct[consumes 1, case_names SelfPath EdgePath]:
   "\<lbrakk>isPath s p' v'; \<And>u. P u [] u; \<And>p u v. \<lbrakk>(u, v) \<in> E; isPath s p u; P s p u\<rbrakk> \<Longrightarrow> P s (p @ [(u, v)]) v\<rbrakk> \<Longrightarrow> P s p' v'"
-  by (induction p'  arbitrary: v' rule: rev_induct) (auto simp: isPath_tail)
+  by (induction p' arbitrary: v' rule: rev_induct) (auto simp: isPath_tail)
 
 lemma connected_front_induct[consumes 1, case_names Self Edge]:
   "\<lbrakk>connected w t; \<And>u. P u u; \<And>u v. \<lbrakk>(u, v) \<in> E; connected v t; P v t\<rbrakk> \<Longrightarrow> P u t\<rbrakk> \<Longrightarrow> P w t"
@@ -42,6 +37,29 @@ lemma connected_back_induct[consumes 1, case_names Self Edge]:
   apply clarify
   apply (induct_tac rule: isPath_back_induct)
   by blast+
+
+lemma shortestPath_prepend_edge:
+  "(u, v) \<in> E \<Longrightarrow> isShortestPath v p w \<Longrightarrow> min_dist u w = Suc (min_dist v w) \<Longrightarrow> isShortestPath u ((u, v) # p) w"
+  unfolding isShortestPath_min_dist_def by simp
+
+lemma shortestPath_append_edge:
+  "isShortestPath u p v \<Longrightarrow> (v, w) \<in> E \<Longrightarrow> Suc (min_dist u v) = min_dist u w \<Longrightarrow> isShortestPath u (p @ [(v, w)]) w"
+  unfolding isShortestPath_min_dist_def by (simp add: isPath_append_edge)
+
+lemma shortestPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
+  "\<lbrakk>isShortestPath u' p' t; \<And>u. P u [] u; \<And>u v p. \<lbrakk>(u, v) \<in> E; min_dist u t = Suc (min_dist v t); isShortestPath v p t; P v p t\<rbrakk> \<Longrightarrow> P u ((u, v) # p) t\<rbrakk> \<Longrightarrow> P u' p' t"
+  apply (induction p' arbitrary: u')
+   apply (simp add: Graph.isShortestPath_def)
+  apply auto
+  by (metis isPath.simps(2) isShortestPath_level_edge(5) isShortestPath_min_dist_def length_Cons list.set_intros(1) nat.inject plus_1_eq_Suc) (* TODO *)
+
+lemma shortestPath_back_induct[consumes 1, case_names SelfPath EdgePath]:
+  "\<lbrakk>isShortestPath s p' v'; \<And>u. P u [] u; \<And>p u v. \<lbrakk>(u, v) \<in> E; Suc (min_dist s u) = min_dist s v; isShortestPath s p u; P s p u\<rbrakk> \<Longrightarrow> P s (p @ [(u, v)]) v\<rbrakk> \<Longrightarrow> P s p' v'"
+  apply (induction p' arbitrary: v' rule: rev_induct)
+   apply (simp add: Graph.isShortestPath_def)
+  apply auto
+  by (metis Nil_is_append_conv isPath.simps(2) isPath_bwd_cases isShortestPath_alt length_append_singleton shortestPath_is_path split_shortest_path) (* TODO *)
+  (*apply (auto simp: isShortestPath_min_dist_def)*)
 end
 
 section \<open>Alternative definition of paths\<close>
@@ -257,13 +275,7 @@ lemma connected_prepend_edge: "(u, v) \<in> E \<Longrightarrow> connected v w \<
 (* TODO check whether this is useful *)
 lemma E_def': "E = {e. c e \<noteq> 0}" unfolding E_def by blast
 
-lemma shortestPath_prepend_edge:
-  "(u, v) \<in> E \<Longrightarrow> isShortestPath v p w \<Longrightarrow> min_dist u w = Suc (min_dist v w) \<Longrightarrow> isShortestPath u ((u, v) # p) w"
-  unfolding isShortestPath_min_dist_def by simp
 
-lemma shortestPath_append_edge:
-  "isShortestPath u p v \<Longrightarrow> (v, w) \<in> E \<Longrightarrow> Suc (min_dist u v) = min_dist u w \<Longrightarrow> isShortestPath u (p @ [(v, w)]) w"
-  unfolding isShortestPath_min_dist_def by (simp add: isPath_append_edge)
 
 lemma connected_trans: "\<lbrakk>connected u v; connected v w\<rbrakk> \<Longrightarrow> connected u w"
   using dist_trans min_dist_is_dist by blast
@@ -334,6 +346,10 @@ corollary distinct_nodes_in_V_if_connected:
 lemma in_outgoingD[dest]: "(u', v) \<in> outgoing u \<Longrightarrow> (u, v) \<in> E \<and> u' = u"
   unfolding outgoing_def by blast
 end
+
+lemma min_dist_eqI: (* TODO use this wherever applicable *)
+  "\<lbrakk>Graph.isShortestPath c u p v; Graph.isShortestPath c' u p v\<rbrakk> \<Longrightarrow> Graph.min_dist c u v = Graph.min_dist c' u v"
+  unfolding Graph.isShortestPath_min_dist_def by simp
 
 
 end

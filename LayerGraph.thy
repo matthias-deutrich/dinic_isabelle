@@ -151,8 +151,30 @@ lemma edge_on_shortest_path:
 
 lemma obtain_shortest_ST_edge_path:
   assumes "(u, v) \<in> E'"
-  obtains s t p p' where "s \<in> S" "t \<in> T" "isShortestPath s (p @ (u, v) # p') t"
+  obtains s t p\<^sub>1 p\<^sub>2 where "s \<in> S" "t \<in> T" "isShortestPath s (p\<^sub>1 @ (u, v) # p\<^sub>2) t"
   using assms by (metis edge_on_shortest_path in_set_conv_decomp)
+
+lemma obtain_shortest_ST_paths:
+  assumes "u \<in> V'"
+  obtains s t p\<^sub>1 p\<^sub>2 where "s \<in> S" "t \<in> T" "isShortestPath s p\<^sub>1 u" "isShortestPath u p\<^sub>2 t" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
+  using assms apply (elim g'.vertex_cases obtain_shortest_ST_edge_path)
+   apply (metis split_shortest_path_around_edge)
+  by (metis split_shortest_path_around_edge append.assoc append.left_neutral append_Cons)
+(*  using assms proof (cases rule: g'.vertex_cases)
+  case (incoming v)
+  then obtain s t p\<^sub>1 p\<^sub>2 where "s \<in> S" "t \<in> T" "isShortestPath s (p\<^sub>1 @ [(v, u)] @ p\<^sub>2) t" using obtain_shortest_ST_edge_path
+    by (metis append.left_neutral append_Cons)
+  with that[where p\<^sub>1="p\<^sub>1 @ [(v, u)]"] show ?thesis
+    by (metis append.assoc append.left_neutral append_Cons split_shortest_path_around_edge)
+qed (meson split_shortest_path_around_edge obtain_shortest_ST_edge_path)*)
+(* TODO cleanup *)
+
+(*
+lemma obtain_shortest_ST_paths:
+  assumes "u \<in> V'"
+  obtains s t p p' where "s \<in> S" "t \<in> T" "isShortestPath s p u" "isShortestPath u p' t"
+  using assms by (metis g'.vertex_cases obtain_shortest_ST_edge_path split_shortest_path_around_edge)
+*)
 
 lemma shortest_ST_path_remains:
   assumes "s \<in> S" "t \<in> T" and SP: "isShortestPath s p t"
@@ -163,13 +185,54 @@ proof -
   with SP show ?thesis by (auto intro: shortest_path_remains_if_contained)
 qed
 
-(* TODO is this sound? *)
-lemma s_path_is_base_shortest: "g'.isShortestPath u p v \<Longrightarrow> isShortestPath u p v" oops
+text \<open>Note: for the direction from g' to g, we actually DO need BOTH endpoints in S/T.
+      Alternatively, it also works as long as one of these sets has cardinality \<le> 1.\<close>
+lemma shortest_ST_path_transfer:
+  assumes "s \<in> S" "t \<in> T"
+  shows "g'.isShortestPath s p t \<longleftrightarrow> isShortestPath s p t"
+proof
+  assume "g'.isShortestPath s p t"
+  then show "isShortestPath s p t"
+    by (metis connected_def Graph.isShortestPath_min_dist_def assms obtain_shortest_path sg_paths_are_base_paths shortest_ST_path_remains)
+qed (rule shortest_ST_path_remains[OF assms])
+
+corollary min_ST_dist_transfer: "\<lbrakk>s \<in> S; t \<in> T; connected s t\<rbrakk> \<Longrightarrow> g'.min_dist s t = min_dist s t"
+  using shortest_ST_path_transfer by (metis Graph.isShortestPath_min_dist_def obtain_shortest_path)
+
+(* TODO is every path is a shortest path? Though this is more of a property of the resulting layering *)
+
+
+
+(* NOT TRUE *)
+(*lemma shortest_path_in_base: "g'.isShortestPath u p v \<Longrightarrow> isShortestPath u p v"
+proof (rule ccontr)
+  assume G'_SP: "g'.isShortestPath u p v" and "\<not> isShortestPath u p v"
+  then obtain p' where "isShortestPath u p' v" "length p' < length p"
+    by (metis Graph.obtain_shortest_path Graph.shortestPath_is_path antisym_conv1 connected_def isShortestPath_def sg_paths_are_base_paths)
+  with G'_SP have "2 \<le> length p"
+    by (metis Graph.isPath.simps(1) Graph.isShortestPath_min_dist_def One_nat_def length_0_conv less_2_cases less_one linorder_le_less_linear not_less_zero shortest_path_remains_if_contained)
+  with G'_SP obtain w w' p'' where "p = (u, w) # p'' @ [(w', v)]"
+    apply (auto dest!: g'.shortestPath_is_path)
+    by (metis Graph.isPath_bwd_cases Graph.isPath_fwd_cases One_nat_def le_eq_less_or_eq length_Suc_conv list.size(3) nat_1_add_1 not_less_eq_eq plus_1_eq_Suc rel_simps(28))
+  with G'_SP have "(u, w) \<in> E'" "(w', v) \<in> E'"
+    using g'.isPath_head g'.isPath_tail g'.isShortestPath_min_dist_def by auto
+
+(*with G'_SP have "u \<noteq> v" "(u, v) \<notin> E'" sledgehammer
+    using g'.isShortestPath_min_dist_def apply fastforce
+    using G'_SP \<open>isShortestPath u p' v\<close> \<open>length p' < length p\<close>
+    by (metis (no_types, lifting) Graph.isPath.simps(1) Graph.isPath_append_edge Orderings.order_eq_iff Suc_leI append_Nil g'.isShortestPath_def length_Cons length_greater_0_conv list.size(3) order_less_le shortestPath_is_path)*)
+
+
+(*then obtain p' where "isPath u p' v" "length p' < length p" unfolding isShortestPath_def
+    using sg_paths_are_base_paths g'.shortestPath_is_path by auto*)
+  then show False sorry
+qed*)
 
 (* TODO is this sound? might want S/T instead of connected *)
-lemma min_dist_eq[simp]:
+(*lemma min_dist_eq[simp]:
   assumes CON: "g'.connected u v"
   shows "sl.min_dist u v = min_dist u v" oops
+*)
 
 (*lemma shortest_ST_path_remains_path:
   "\<lbrakk>s \<in> S; t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isPath s p t" unfolding g'.isPath_alt
@@ -203,6 +266,8 @@ lemma obtain_shortest_sT_edge_path:
  (* TODO remove, since we get this immediately from sublocale *)
 (*lemma shortest_sT_path_remains_path:
   "\<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t" using shortest_ST_path_remains by simp*)
+lemma shortest_sT_path_remains_path:
+  "\<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t" using shortest_ST_path_remains by simp
 
 (* TODO check if necessary, and if so, cleanup *)
 lemma shortest_s_path_remains_path: "\<lbrakk>u \<in> V'; isShortestPath s p u\<rbrakk> \<Longrightarrow> g'.isPath s p u"
@@ -231,7 +296,59 @@ qed
 lemma s_path_is_base_shortest: "g'.isPath s p u \<Longrightarrow> isShortestPath s p u"
   by (smt (verit, ccfv_SIG) Graph.isPath_back_induct Graph.isShortestPath_level_edge(4) Graph.isShortestPath_min_dist_def Graph.shortestPath_append_edge Suc_eq_plus1 edge'_if_edge edge_on_shortest_path g'.isPath.simps(1) list.size(3) min_dist_z sg_paths_are_base_paths singletonD)
 
-sublocale S_Layer_Graph c' s sorry (* TODO *)
+sublocale S_Layer_Graph c' s
+proof
+  fix u
+  assume "u \<in> V'"
+  then obtain p\<^sub>1 p\<^sub>2 t where "t \<in> T" "isShortestPath s p\<^sub>1 u" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
+    by (blast elim: obtain_shortest_ST_paths)
+  then have "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t" using shortest_sT_path_remains_path by blast
+  with \<open>isShortestPath s p\<^sub>1 u\<close> show "g'.connected s u" unfolding g'.connected_def
+    by (fastforce dest: Graph.shortestPath_is_path simp: g'.isPath_append Graph.isPath_alt)
+next
+  fix u v
+  assume "(u, v) \<in> E'"
+  then show "Suc (g'.min_dist s u) = g'.min_dist s v"
+    using edge_on_shortest_path g'.isShortestPath_level_edge(4) shortest_sT_path_remains_path by fastforce
+qed
+
+lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow> isShortestPath u p v"
+proof (induction rule: g'.isPath_back_induct)
+  case (SelfPath u)
+  then show ?case by (simp add: isShortestPath_def)
+next
+  case (EdgePath p u' v)
+  show ?case
+  proof (rule ccontr)
+    assume "\<not> isShortestPath u (p @ [(u', v)]) v"
+    from EdgePath have "isPath u (p @ [(u', v)]) v"
+      by (simp add: Graph.isPath_append_edge edge'_if_edge shortestPath_is_path)
+    moreover have "connected u v" by (meson EdgePath.hyps(1) EdgePath.hyps(2) Graph.connected_def Subgraph.sg_connected_remains_base_connected Subgraph_axioms g'.isPath_append_edge)
+    ultimately obtain p\<^sub>F where "isShortestPath u p\<^sub>F v" "length p\<^sub>F \<le> length p"
+      by (metis Graph.isPath_distD Graph.isShortestPath_min_dist_def Graph.min_dist_minD \<open>\<not> isShortestPath u (p @ [(u', v)]) v\<close> le_antisym length_append_singleton not_less_eq_eq obtain_shortest_path)
+
+    from EdgePath obtain t p\<^sub>1 p\<^sub>2 where "t \<in> T" "isShortestPath s (p\<^sub>1 @ (u', v) # p\<^sub>2) t"
+      using obtain_shortest_ST_edge_path by (metis singletonD) (* TODO if we keep sT_edge_path, use that and remove singletonD *)
+    then have "g'.isShortestPath s (p\<^sub>1 @ (u', v) # p\<^sub>2) t" by (simp add: shortest_ST_path_remains)
+    from EdgePath obtain p' where "isShortestPath s (p' @ [(u', v)]) v"
+      using obtain_shortest_ST_edge_path by (metis singletonD split_shortest_path_around_edge) (* TODO if we keep sT_edge_path, use that and remove singletonD *)
+    (*then have "Suc (g'.min_dist s u) = g'.min_dist s v" by simp*)
+    obtain p\<^sub>u where "g'.isPath s p\<^sub>u u"
+      by (metis EdgePath.hyps(2) Graph.distinct_nodes_in_V_if_connected(1) Graph.isShortestPath_min_dist_def Graph.split_shortest_path_around_edge \<open>g'.isShortestPath s (p\<^sub>1 @ (u', v) # p\<^sub>2) t\<close> g'.connected_def s_connected)
+    with \<open>g'.isPath u p u'\<close> have "g'.isPath s (p\<^sub>u @ p) u'" using g'.isPath_append by blast
+    then have "g'.isShortestPath s (p\<^sub>u @ p) u'" by blast
+    with EdgePath show False
+      by (smt (verit, ccfv_SIG) \<open>\<not> isShortestPath u (p @ [(u', v)]) v\<close> \<open>g'.isPath s (p\<^sub>u @ p) u'\<close> \<open>isPath u (p @ [(u', v)]) v\<close> append_assoc g'.isPath_append_edge isPath_fwd_cases s_path_is_base_shortest split_shortest_path_around_edge)
+  qed
+qed (* TODO cleanup this horrible mess *)
+
+corollary min_dist_transfer: "g'.connected u v \<Longrightarrow> g'.min_dist u v = min_dist u v"
+  using shortest_path_transfer g'.obtain_shortest_path g'.shortestPath_is_path min_dist_eqI
+  by meson
+
+(* TODO is this useful? *)
+(* lemma sl_shortest_s_path_iff[simp]: "sl.isShortestPath s p u \<longleftrightarrow> isShortestPath s p u" *)
+
 end
 
 locale T_Shortest_Path_Union = CapacityCompatibleGraphs +
@@ -290,28 +407,18 @@ definition induced_s_layering :: "'capacity::linordered_idom graph \<Rightarrow>
     else
       0"
 
-lemma induced_s_layering_subgraph: "isSubgraph (induced_s_layering c s) c"
+lemma induced_s_layering_subgraph: "isSubgraph (induced_s_layering c s) c" (* TODO remove *)
   unfolding isSubgraph_def induced_s_layering_def by simp
 
-context Graph
-begin
-(*sublocale sl': S_Shortest_Path_Union "induced_s_layering c s" c s V sorry*)
-end
 
-thm in_set_conv_decomp_first
-thm in_set_conv_decomp_last
-find_theorems "Graph.isShortestPath ?c ?a ?p ?b \<Longrightarrow> (?u, ?v) \<in> set ?p \<Longrightarrow> _"
-
-locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
-  fixes s :: node
-begin
-sublocale S_Shortest_Path_Union "induced_s_layering c s" c s V
+interpretation sl: S_Shortest_Path_Union "induced_s_layering c s" c s "Graph.V c"
 proof
-  interpret sl: Graph "induced_s_layering c s" .
-  show "sl.E = \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t}"
-  proof (intro pair_set_eqI)
+  interpret Graph c .
+  interpret g': Graph "induced_s_layering c s" .
+  show "g'.E = \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t}"
+  proof (rule pair_set_eqI)
     fix u v
-    assume "(u, v) \<in> sl.E"
+    assume "(u, v) \<in> g'.E"
     then have "(u, v) \<in> E" "connected s u \<and> Suc (min_dist s u) = min_dist s v"
       unfolding induced_s_layering_def Graph.E_def by (smt case_prod_conv mem_Collect_eq)+
     then obtain p where "isShortestPath s (p @ [(u, v)]) v"
@@ -322,113 +429,15 @@ proof
     fix u v
     assume "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t}"
     then obtain t p where "isShortestPath s p t" "(u, v) \<in> set p" by blast
-    then have "connected s u" "Suc (min_dist s u) = min_dist s v" "(u, v) \<in> E"
+    then have "(u, v) \<in> E" "connected s u" "Suc (min_dist s u) = min_dist s v"
       using isShortestPath_level_edge by (auto intro: isPath_edgeset shortestPath_is_path)
-    then show "(u, v) \<in> sl.E" unfolding induced_s_layering_def Graph.E_def by auto
+    then show "(u, v) \<in> g'.E" unfolding induced_s_layering_def Graph.E_def by simp
   qed
-qed (auto simp: induced_s_layering_def)
-end
+qed (simp add: induced_s_layering_def)
 
-context S_Graph
-begin
-(*
-interpretation sl: Graph "induced_s_layering c s" .
 
-sublocale sl_sub: Subgraph "induced_s_layering c s" c
-  using Subgraph_isSubgraphI induced_s_layering_subgraph .
-
-lemma sl_edgeD[dest]:
-  assumes "(u, v) \<in> sl.E"
-  shows "(u, v) \<in> E \<and> connected s u \<and> connected s v \<and> Suc (min_dist s u) = min_dist s v"
-proof (intro conjI)
-  from assms show "(u, v) \<in> E" using sl_sub.E_ss by blast
-  from assms have L_NOT_Z: "induced_s_layering c s (u, v) \<noteq> 0" using sl.E_def by blast
-  then show "connected s u" unfolding induced_s_layering_def by (smt case_prod_conv)
-  with \<open>(u, v) \<in> E\<close> show "connected s v" by (elim connected_append_edge)
-  from L_NOT_Z show "Suc (min_dist s u) = min_dist s v" unfolding induced_s_layering_def by (smt case_prod_conv)
-qed
-
-lemma sl_edge_iff: "(u, v) \<in> sl.E \<longleftrightarrow> (u, v) \<in> E \<and> connected s u \<and> Suc (min_dist s u) = min_dist s v"
-  unfolding induced_s_layering_def Graph.E_def by simp
-*)
-
-(*
-lemma sl_shortest_s_path_remains_path:
-  assumes SP: "isShortestPath s p u"
-  shows "sl.isPath s p u"
-  unfolding sl.isPath_alt
-proof
-  from SP show "isLinked s p u" using shortestPath_is_path isLinked_if_isPath by blast
-  show "(set p) \<subseteq> sl.E"
-  proof clarify
-    fix v w
-    assume SET: "(v, w) \<in> set p"
-    with SP have "(v, w) \<in> E" using isPath_edgeset shortestPath_is_path by blast
-    moreover have "connected s v" "Suc (min_dist s v) = min_dist s w"
-      using isShortestPath_level_edge[OF SP SET] by auto
-    ultimately show "(v, w) \<in> sl.E" unfolding sl_edge_iff by simp
-  qed
-qed
-*)
-
-lemma sl_s_path_is_shortest_base_path: "sl.isPath s p u \<Longrightarrow> isShortestPath s p u"
-  apply (induction rule: sl.isPath_back_induct)
-   apply (simp add: isShortestPath_def)
-  by (auto intro: shortestPath_append_edge)
-
-lemma sl_shortest_s_path_iff[simp]: "sl.isShortestPath s p u \<longleftrightarrow> isShortestPath s p u"
-proof
-  assume "sl.isShortestPath s p u"
-  then show "isShortestPath s p u"
-    using sl.shortestPath_is_path sl_s_path_is_shortest_base_path by blast
-next
-  assume "isShortestPath s p u"
-  then show "sl.isShortestPath s p u"
-    using sl_shortest_s_path_remains_path sl_sub.shortest_path_remains_if_contained by blast
-qed
-
-lemma sl_min_s_dist_eq: "connected s u \<Longrightarrow> sl.min_dist s u = min_dist s u"
-  using Graph.isShortestPath_min_dist_def sl_shortest_s_path_iff obtain_shortest_path by metis
-
-sublocale sl: S_Layer_Graph "induced_s_layering c s" s
-proof
-  fix u
-  assume "u \<in> sl.V"
-  then obtain p where "sl.isShortestPath s p u"
-    by (fastforce elim: sl.vertex_cases obtain_shortest_path) (* TODO needs shortest_s_path, add if removed from simp *)
-  then show "sl.connected s u"
-    unfolding sl.connected_def using sl.shortestPath_is_path by blast
-next
-  fix u v
-  assume "(u, v) \<in> sl.E"
-  then show "Suc (sl.min_dist s u) = sl.min_dist s v" by (auto simp: sl_min_s_dist_eq)
-qed
-
-(* TODO review how to best transfer min_dist once st_graph enters the mix *)
-(*lemma min_dist_eq[simp]:
-  assumes CON: "sl.connected u v"
-  shows "sl.min_dist u v = min_dist u v"
-*)
-
-theorem induced_s_layering_is_shortest_s_paths_union:
-  "isPathUnion (induced_s_layering c s) (shortestSPaths s V)" unfolding isPathUnion_def
-proof (rule pair_set_eqI)
-  fix u v
-  assume "(u, v) \<in> sl.E"
-  then have "(u, v) \<in> E" "connected s u" and S_DIST: "Suc (min_dist s u) = min_dist s v" by auto
-  from \<open>connected s u\<close> obtain p where "isShortestPath s p u" by (rule obtain_shortest_path)
-  with \<open>(u, v) \<in> E\<close> S_DIST have "isShortestPath s (p @ [(u, v)]) v"
-    by (intro shortestPath_append_edge)
-  moreover from \<open>(u, v) \<in> E\<close> have "v \<in> V" using V_def by blast
-  ultimately show "(u, v) \<in> \<Union> (set ` shortestSPaths s V)" unfolding shortestSPaths_def by fastforce
-next
-  fix u v
-  assume "(u, v) \<in> \<Union> (set ` shortestSPaths s V)"
-  then obtain p v' where "isShortestPath s p v'" and "(u, v) \<in> set p"
-    using shortestSPaths_def by auto
-  then show "(u, v) \<in> sl.E" using sl_shortest_s_path_remains_path sl.isPath_edgeset by blast
-qed
-end \<comment> \<open>S_Graph\<close>
+locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes s :: node
 
 subsection \<open>Layering from source to target node\<close>
 
@@ -440,10 +449,40 @@ definition st_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \
     else
       0"
 
+(* TODO why can this not coexist with sl? *)
+(*
+interpretation stl: ST_Shortest_Path_Union "st_layering c s t" c s t
+proof
+  interpret Graph c .
+  interpret g': Graph "st_layering c s t" .
+  show "g'.E = \<Union> {set p |p. isShortestPath s p t}"
+  proof (rule pair_set_eqI)
+    fix u v
+    assume "(u, v) \<in> g'.E"
+    then have MIN_DIST: "(u, v) \<in> E \<and> Suc (min_dist s u + min_dist v t) = min_dist s t" and "connected s u \<and> connected v t"
+      unfolding st_layering_def Graph.E_def by (smt case_prod_conv mem_Collect_eq)+
+    then obtain p\<^sub>1 p\<^sub>2 where "isShortestPath s p\<^sub>1 u" "isShortestPath v p\<^sub>2 t"
+      by (meson obtain_shortest_path)
+    with MIN_DIST have "isShortestPath s (p\<^sub>1 @ (u, v) # p\<^sub>2) t" unfolding isShortestPath_min_dist_def
+      by (simp add: isPath_append)
+    then show "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}" by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}"
+    then obtain p where "isShortestPath s p t" "(u, v) \<in> set p" by blast
+    then have "(u, v) \<in> E" "connected s u" "connected v t" "Suc (min_dist s u + min_dist v t) = min_dist s t"
+      using isShortestPath_level_edge by (auto intro: isPath_edgeset shortestPath_is_path)
+    then show "(u, v) \<in> g'.E" unfolding st_layering_def Graph.E_def by simp
+  qed
+qed (simp add: st_layering_def)
+*)
+
+(*
 lemma st_layering_subgraph: "isSubgraph (st_layering c s t) (induced_s_layering c s)"
   unfolding isSubgraph_def induced_s_layering_def st_layering_def
   apply (auto dest!: Graph.min_dist_is_dist intro!: Graph.zero_cap_simp)
   using Graph.dist_suc Graph.min_dist_split(1) by fastforce (* TODO prettify *)
+*)
 (*
 proof clarify
   fix u v
