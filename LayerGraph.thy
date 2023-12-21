@@ -159,8 +159,34 @@ qed (rule shortest_ST_path_remains[OF assms])
 
 corollary min_ST_dist_transfer: "\<lbrakk>s \<in> S; t \<in> T; connected s t\<rbrakk> \<Longrightarrow> g'.min_dist s t = min_dist s t"
   using obtain_shortest_path shortest_ST_path_transfer min_dist_eqI by meson
-
 end \<comment> \<open>Shortest_Path_Union\<close>
+
+(* TODO inherit this locale *)
+locale Layered_Shortest_Path_Union = Shortest_Path_Union + Generic_Layer_Graph c'
+begin
+(* TODO finish *)
+lemma edge_respects_layers: "(u, v) \<in> E \<Longrightarrow> layer v \<le> Suc (layer u)"
+proof (rule ccontr, drule not_le_imp_less)
+  assume EDGE: "(u, v) \<in> E" and L_JUMP: "Suc (layer u) < layer v"
+  (*then have "(u, v) \<in> E'" sorry
+  with L_JUMP show False by simp*)
+  then show False sorry
+qed
+
+(*
+lemma edge_respects_layers: "(u, v) \<in> E \<Longrightarrow> layer v \<le> Suc (layer u)" sorry
+
+lemma path_respects_layers: "isPath u p v \<Longrightarrow> layer v \<le> layer u + length p"
+  by (induction rule: isPath_front_induct) (auto dest: edge_respects_layers)
+
+lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow>  isShortestPath u p v" unfolding isShortestPath_def
+  using path_ascends_layer path_respects_layers sg_paths_are_base_paths by fastforce
+
+corollary min_dist_transfer: "g'.connected u v \<Longrightarrow> g'.min_dist u v = min_dist u v"
+  using shortest_path_transfer g'.obtain_shortest_path g'.shortestPath_is_path min_dist_eqI
+  by meson
+*)
+end
 
 (* TODO cleanup this locale *)
 locale S_Shortest_Path_Union = CapacityCompatibleGraphs + 
@@ -233,6 +259,7 @@ next
     using edge_on_shortest_path g'.isShortestPath_level_edge(4) shortest_ST_path_remains by fastforce
 qed
 
+(* TODO this should be a general property for LayerGraphs, move to ShortestPathUnion with that assumption *)
 lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow> isShortestPath u p v"
 proof (induction rule: g'.isPath_back_induct)
   case (SelfPath u)

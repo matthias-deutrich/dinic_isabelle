@@ -2,17 +2,6 @@ theory LayerMaintenance
   imports LayerGraph (*"Flow_Networks.Residual_Graph"*)
 begin
 
-(* TODO check if these are really necessary, and if so, place them at the right location *)
-locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
-  fixes s :: node
-
-locale T_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
-  fixes t :: node
-
-locale ST_Graph = S_Graph + T_Graph
-
-(* TODO fix errors resulting from LayerGraph refactoring *)
-
 subsection \<open>Right Pass\<close>
 
 definition rightPassAbstract :: "_ graph \<Rightarrow> node \<Rightarrow> _ graph"
@@ -28,14 +17,15 @@ lemma right_pass_subgraph: "isSubgraph (rightPassAbstract c s) c"
 lemma rightPassAbstract_nz_iff: "rightPassAbstract c s (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u"
   unfolding rightPassAbstract_def by simp
 
-context S_Graph
+locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes s :: node
 begin
 abbreviation "right_pass \<equiv> rightPassAbstract c s"
 
 sublocale rp_graph: Graph right_pass .
 
 sublocale rp_sg: Subgraph right_pass c
-  by unfold_locales (rule right_pass_subgraph)
+  by (intro Subgraph_isSubgraphI right_pass_subgraph)
 
 lemma rp_is_c_if_s_connected[simp]:
   "connected s u \<Longrightarrow> right_pass (u, v) = c (u, v)"
@@ -105,14 +95,15 @@ lemma left_pass_subgraph: "isSubgraph (leftPassAbstract c s) c"
 lemma leftPassAbstract_nz_iff: "leftPassAbstract c t (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c v t"
   unfolding leftPassAbstract_def by simp
 
-context T_Graph
+locale T_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+  fixes t :: node
 begin
 abbreviation "left_pass \<equiv> leftPassAbstract c t"
 
 sublocale lp_graph: Graph left_pass .
 
 sublocale lp_sg: Subgraph left_pass c
-  by unfold_locales (rule left_pass_subgraph)
+  by (intro Subgraph_isSubgraphI left_pass_subgraph)
 
 lemma lp_is_c_if_s_connected[simp]:
   "connected v t \<Longrightarrow> left_pass (u, v) = c (u, v)"
@@ -182,19 +173,19 @@ lemma cleaningAbstract_nz_iff:
   "cleaningAbstract c s t (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u \<and> Graph.connected c v t"
   unfolding cleaningAbstract_def by simp
 
-context ST_Graph
+locale ST_Graph = S_Graph + T_Graph
 begin
 abbreviation "cleaned \<equiv> cleaningAbstract c s t"
 
 sublocale cl_graph: Graph cleaned .
 
 sublocale cl_right_sg: Subgraph cleaned right_pass
-  by unfold_locales (rule cleaning_right_subgraph)
+  by (intro Subgraph_isSubgraphI cleaning_right_subgraph)
 
 sublocale cl_left_sg: Subgraph cleaned left_pass
-  by unfold_locales (rule cleaning_left_subgraph)
+  by (intro Subgraph_isSubgraphI cleaning_left_subgraph)
 
-sublocale cl_sg: Subgraph cleaned c unfolding Subgraph_def
+sublocale cl_sg: Subgraph cleaned c
   using cleaning_right_subgraph right_pass_subgraph subgraph.order_trans by blast
 
 lemma cl_is_c_if_st_connected[simp]: "connected s u \<Longrightarrow> connected v t \<Longrightarrow> cleaned (u, v) = c (u, v)"
