@@ -146,6 +146,18 @@ proof -
   with SP show ?thesis by (auto intro: shortest_path_remains_if_contained)
 qed
 
+lemma obtain_connected_ST:
+  assumes "u \<in> V'"
+  obtains s t where "s \<in> S" "t \<in> T" "g'.connected s u" "g'.connected u t"
+proof -
+  from assms obtain s t p\<^sub>1 p\<^sub>2 where "s \<in> S" "t \<in> T" "isShortestPath s p\<^sub>1 u" "isShortestPath u p\<^sub>2 t" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
+    by (rule obtain_shortest_ST_paths)
+  then have "isPath s p\<^sub>1 u" "isPath u p\<^sub>2 t" "g'.isPath s (p\<^sub>1 @ p\<^sub>2) t"
+    by (auto intro: Graph.shortestPath_is_path shortest_ST_path_remains)
+  with that \<open>s \<in> S\<close> \<open>t \<in> T\<close> show thesis
+    by (meson g'.connected_def Graph.isPath_alt g'.isPath_append)
+qed
+
 (*
 corollary obtain_shortest_ST_paths': (* TODO is this necessary? *)
   assumes "u \<in> V'"
@@ -155,7 +167,7 @@ corollary obtain_shortest_ST_paths': (* TODO is this necessary? *)
 *)
 
 text \<open>Note: for the direction from g' to g, we actually DO need BOTH endpoints in S/T.
-      Alternatively, it also works as long as one of these sets has cardinality \<le> 1.\<close>
+      Alternatively, it also works as long as g' is layered, which we show later.\<close>
 lemma shortest_ST_path_transfer:
   assumes "s \<in> S" "t \<in> T"
   shows "g'.isShortestPath s p t \<longleftrightarrow> isShortestPath s p t"
@@ -171,81 +183,35 @@ end \<comment> \<open>Shortest_Path_Union\<close>
 
 locale Layered_Shortest_Path_Union = Shortest_Path_Union + Generic_Layer_Graph c'
 begin
-(* TODO cleanup *)
-lemma tmp: "\<lbrakk>s \<in> S; t \<in> T; isPath s p t; layer t = layer s + length p\<rbrakk> \<Longrightarrow> g'.isPath s p t"
-  (*by (metis (no_types, opaque_lifting) Graph.connected_def add_le_cancel_left g'.isShortestPath_def isShortestPath_min_dist_def nle_le obtain_shortest_path path_ascends_layer shortest_ST_path_transfer)*)
-  by (metis (no_types, lifting) add_left_imp_eq connected_distI g'.shortestPath_is_path isPath_distD isShortestPath_min_dist_def obtain_shortest_path path_ascends_layer shortest_ST_path_remains)
-(* TODO this is questionable, since layer t > layer s + length p will be a contradiction *)
-lemma tmp': "\<lbrakk>s \<in> S; t \<in> T; isPath s p t; layer t \<ge> layer s + length p\<rbrakk> \<Longrightarrow> g'.isPath s p t"
-  by (smt (verit) Graph.isShortestPath_min_dist_def connected_distI isPath_distD le_antisym min_dist_minD nat_add_left_cancel_le obtain_shortest_path path_ascends_layer shortest_ST_path_remains)
-
-find_theorems "(?a = ?b \<Longrightarrow> ?P ?a ?b) \<Longrightarrow> (?a \<noteq> ?b \<Longrightarrow> ?P ?a ?b) \<Longrightarrow> ?P ?a ?b"
-thm case_split
-(* TODO finish *)
-
-lemma path_respects_layers:
+lemma path_respects_layer:
   assumes CON': "g'.connected u v" and PATH: "isPath u p v"
   shows "layer v \<le> layer u + length p"
-proof (rule ccontr, drule not_le_imp_less)
-  assume L_JUMP: "layer u + length p < layer v"
-  then show False
-  proof (cases "u = v")
-    case False
-    with CON' have "u \<in> V'" "v \<in> V'" using g'.distinct_nodes_in_V_if_connected by auto
-    then obtain s t p\<^sub>1 p\<^sub>3 where TAILS: "s \<in> S" "g'.isPath s p\<^sub>1 u" "t \<in> T" "g'.isPath v p\<^sub>3 t"
-      by (metis (no_types, lifting) Graph.isPath_alt Graph.shortestPath_is_path g'.split_shortest_path obtain_shortest_ST_paths shortest_ST_path_remains)
-    moreover from CON' obtain p\<^sub>2 where "g'.isPath u p\<^sub>2 v" using g'.connected_def by blast
+proof (cases "u = v")
+  case False
+  with CON' have "u \<in> V'" "v \<in> V'" using g'.distinct_nodes_in_V_if_connected by auto
+  show ?thesis
+  proof (rule ccontr, drule not_le_imp_less)
+    assume L_JUMP: "layer u + length p < layer v"
+    from \<open>u \<in> V'\<close> obtain s p\<^sub>1 where "s \<in> S" "g'.isPath s p\<^sub>1 u"
+      by (fastforce elim: obtain_connected_ST simp: g'.connected_def)
+    moreover from CON' obtain p\<^sub>2 where P2: "g'.isPath u p\<^sub>2 v" using g'.connected_def by blast
+    moreover from \<open>v \<in> V'\<close> obtain t p\<^sub>3 where "t \<in> T" "g'.isPath v p\<^sub>3 t"
+      by (fastforce elim: obtain_connected_ST simp: g'.connected_def)
     ultimately have "g'.isPath s (p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3) t" using g'.isPath_append by blast
-
-    (* TODO fix this *)
-    from TAILS PATH have "isPath s (p\<^sub>1 @ p @ p\<^sub>3) t" using isPath_append sg_paths_are_base_paths by blast
-    with TAILS PATH have "g'.isPath s (p\<^sub>1 @ p @ p\<^sub>3) t" apply (auto intro!: tmp')
-      using Generic_Layer_Graph.path_ascends_layer Generic_Layer_Graph_axioms L_JUMP by fastforce
-    with \<open>g'.isPath s (p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3) t\<close> show False
-      by (smt (verit) L_JUMP \<open>g'.isPath u p\<^sub>2 v\<close> add_left_imp_eq add_right_imp_eq length_append nat_neq_iff path_ascends_layer)
-  qed simp
-qed (* TODO cleanup *)
+    with \<open>s \<in> S\<close> \<open>t \<in> T\<close> have "isShortestPath s (p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3) t"
+      using shortest_ST_path_transfer by blast
+    with P2 have "isShortestPath u p\<^sub>2 v"
+      by (metis False Graph.isPath.elims(2) Graph.split_shortest_path_around_edge \<open>g'.isPath v p\<^sub>3 t\<close> append.assoc append_Nil2) (* TODO *)
+    with P2 PATH L_JUMP show False using isShortestPath_def path_ascends_layer by auto
+  qed
+qed simp
 
 lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow>  isShortestPath u p v" unfolding isShortestPath_def
-  using path_ascends_layer path_respects_layers sg_paths_are_base_paths g'.connected_def by fastforce
+  using path_ascends_layer path_respects_layer sg_paths_are_base_paths g'.connected_def by fastforce
 
 corollary min_dist_transfer: "g'.connected u v \<Longrightarrow> g'.min_dist u v = min_dist u v"
   using shortest_path_transfer g'.obtain_shortest_path g'.shortestPath_is_path min_dist_eqI
   by meson
-
-
-(*
-lemma edge_respects_layers:
-  assumes CON': "g'.connected u v" and EDGE: "(u, v) \<in> E" (* TODO can we do this directly with path? *)
-  shows "layer v \<le> Suc (layer u)"
-proof (rule ccontr, drule not_le_imp_less)
-  assume L_JUMP: "Suc (layer u) < layer v"
-  then show False
-  proof (cases "u = v")
-    case True
-    with L_JUMP show ?thesis by simp
-  next
-    case False
-    with CON' have "u \<in> V'" "v \<in> V'" using g'.distinct_nodes_in_V_if_connected by auto
-    from \<open>u \<in> V'\<close> obtain s p\<^sub>1 where P1: "s \<in> S" "g'.isPath s p\<^sub>1 u"
-      by (metis Graph.shortestPath_is_path g'.isPath_alt g'.isPath_append isLinked_if_isPath obtain_shortest_ST_paths shortest_ST_path_remains)
-    moreover from CON' obtain p\<^sub>2 where "g'.isPath u p\<^sub>2 v" using g'.connected_def by blast
-    moreover from \<open>v \<in> V'\<close> obtain t p\<^sub>3 where P3: "t \<in> T" "g'.isPath v p\<^sub>3 t"
-      by (metis Graph.shortestPath_is_path g'.isPath_alt g'.isPath_append isLinked_if_isPath obtain_shortest_ST_paths shortest_ST_path_remains)
-    ultimately have "g'.isPath s (p\<^sub>1 @ p\<^sub>2 @ p\<^sub>3) t" using g'.isPath_append by blast
-    from P1 P3 EDGE have "g'.isPath s (p
-    then show ?thesis sorry
-  qed
-qed
-*)
-
-(*
-(* TODO need some property about u and v being in V' *)
-lemma edge_respects_layers: "(u, v) \<in> E \<Longrightarrow> layer v \<le> Suc (layer u)" sorry
-
-lemma path_respects_layers: "isPath u p v \<Longrightarrow> layer v \<le> layer u + length p"
-  by (induction rule: isPath_front_induct) (auto dest: edge_respects_layers)
-*)
 end
 
 (* TODO cleanup this locale *)
