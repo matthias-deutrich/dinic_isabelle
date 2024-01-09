@@ -17,7 +17,7 @@ lemma right_pass_subgraph: "isSubgraph (rightPassAbstract c s) c"
 lemma rightPassAbstract_nz_iff: "rightPassAbstract c s (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u"
   unfolding rightPassAbstract_def by simp
 
-locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" + (* TODO does this make more sense as an anonymous context? *)
   fixes s :: node
 begin
 abbreviation "right_pass \<equiv> rightPassAbstract c s"

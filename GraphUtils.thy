@@ -10,6 +10,10 @@ lemma pair_set_eqI:
 
 lemma set_emptyI: "(\<And>x. x \<notin> S) \<Longrightarrow> S = {}" by blast (* TODO necessary? *)
 
+section \<open>Empty graph\<close>
+definition empty_graph :: "_ graph" where "empty_graph \<equiv> \<lambda>_. 0" (* TODO is there a better way to define constant functions? *)
+interpretation empty: Graph empty_graph .
+
 section \<open>Custom induction rules\<close>
 (* TODO check which of these are useful and prettify proofs *)
 context Graph

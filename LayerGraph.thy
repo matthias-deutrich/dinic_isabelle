@@ -354,25 +354,25 @@ qed (simp add: induced_s_layering_def)
 
 subsubsection \<open>Building from source to target node\<close>
 
-definition st_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> 'capacity graph"
-  where "st_layering c s t \<equiv> \<lambda>(u, v).
+definition induced_st_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> 'capacity graph"
+  where "induced_st_layering c s t \<equiv> \<lambda>(u, v).
     if Graph.connected c s u \<and> Graph.connected c v t \<and> Suc (Graph.min_dist c s u + Graph.min_dist c v t) = Graph.min_dist c s t then
       c (u, v)
     else
       0"
 
 (* TODO why can this not coexist with sl? *)
-(*interpretation stl: ST_Shortest_Path_Union "st_layering c s t" c s t*)
-theorem induced_st_shortest_path_union: "ST_Shortest_Path_Union (st_layering c s t) c s t"
+(*interpretation stl: ST_Shortest_Path_Union "induced_st_layering c s t" c s t*)
+theorem induced_st_shortest_path_union: "ST_Shortest_Path_Union (induced_st_layering c s t) c s t"
 proof
   interpret Graph c .
-  interpret g': Graph "st_layering c s t" .
+  interpret g': Graph "induced_st_layering c s t" .
   show "g'.E = \<Union> {set p |p. isShortestPath s p t}"
   proof (rule pair_set_eqI)
     fix u v
     assume "(u, v) \<in> g'.E"
     then have MIN_DIST: "(u, v) \<in> E \<and> Suc (min_dist s u + min_dist v t) = min_dist s t" and "connected s u \<and> connected v t"
-      unfolding st_layering_def Graph.E_def by (smt case_prod_conv mem_Collect_eq)+
+      unfolding induced_st_layering_def Graph.E_def by (smt case_prod_conv mem_Collect_eq)+
     then obtain p\<^sub>1 p\<^sub>2 where "isShortestPath s p\<^sub>1 u" "isShortestPath v p\<^sub>2 t"
       by (meson obtain_shortest_path)
     with MIN_DIST have "isShortestPath s (p\<^sub>1 @ (u, v) # p\<^sub>2) t" unfolding isShortestPath_min_dist_def
@@ -384,9 +384,9 @@ proof
     then obtain p where "isShortestPath s p t" "(u, v) \<in> set p" by blast
     then have "(u, v) \<in> E" "connected s u" "connected v t" "Suc (min_dist s u + min_dist v t) = min_dist s t"
       using isShortestPath_level_edge by (auto intro: isPath_edgeset shortestPath_is_path)
-    then show "(u, v) \<in> g'.E" unfolding st_layering_def Graph.E_def by simp
+    then show "(u, v) \<in> g'.E" unfolding induced_st_layering_def Graph.E_def by simp
   qed
-qed (simp add: st_layering_def)
+qed (simp add: induced_st_layering_def)
 
 \<comment> \<open>Building a layering from an arbitrary graph\<close>
 
