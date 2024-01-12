@@ -286,7 +286,7 @@ section \<open>Reducing Graphs\<close>
 (* TODO reduction creates equivalence classes, check whether making this explicit helps *)
 definition reduce :: "'capacity::linordered_idom graph \<Rightarrow> 'capacity graph"
   where "reduce c \<equiv> \<lambda>(u, v).
-    if c (u, v) \<ge> c (v, u) then
+    if c (u, v) > c (v, u) then
       c (u, v) - c (v, u)
     else
       0"
@@ -294,21 +294,21 @@ definition reduce :: "'capacity::linordered_idom graph \<Rightarrow> 'capacity g
 definition reduced_cong :: "'capacity::linordered_idom graph \<Rightarrow> 'capacity graph \<Rightarrow> bool" (infix "\<cong>" 50)
   where "reduced_cong c c' \<equiv> \<forall>u v. c (u, v) - c (v, u) = c' (u, v) - c' (v, u)"
 
-lemma reduced_eq_equivp: "equivp reduced_cong"
+lemma reduced_cong_equivp: "equivp reduced_cong"
   unfolding equivp_def reduced_cong_def by (metis (opaque_lifting))
 (* TODO how to do this automatically, similar to ord? *)
 (* TODO clean this up *)
 
 lemma reduced_eq_trans[trans]: "\<lbrakk>c\<^sub>1 \<cong> c\<^sub>2; c\<^sub>2 \<cong> c\<^sub>3\<rbrakk> \<Longrightarrow> c\<^sub>1 \<cong> c\<^sub>3" by (simp add: reduced_cong_def)
 
-lemma reduce_reduced_eq: "c \<cong> reduce c" unfolding reduce_def reduced_cong_def by simp
+lemma reduce_reduced_cong: "c \<cong> reduce c" unfolding reduce_def reduced_cong_def by simp
 
-lemma reduced_eq_if_eq: "c = c' \<Longrightarrow> c \<cong> c'" unfolding reduced_cong_def by simp
+lemma reduced_cong_if_eq: "c = c' \<Longrightarrow> c \<cong> c'" unfolding reduced_cong_def by simp
 
 lemma reduced_cong_iff_reduce_eq: "c \<cong> c' \<longleftrightarrow> reduce c = reduce c'"
   apply (intro iffI)
    apply (fastforce simp: reduce_def reduced_cong_def)
-  by (metis equivp_def reduce_reduced_eq reduced_eq_equivp)
+  by (metis equivp_def reduce_reduced_cong reduced_cong_equivp)
 
 locale Nonnegative_Graph = Graph +
   assumes cap_non_negative: "c (u, v) \<ge> 0"
@@ -321,22 +321,15 @@ proof (intro ext, unfold split_paired_all)
   fix u v
   consider (EQ) "c (u, v) = 0" | (G) "c (u, v) > 0"
     using cap_non_negative by (metis order_neq_le_trans)
-  then show "reduce c (u, v) = c (u, v)"
-  proof cases
-    case EQ
-    then show ?thesis unfolding reduce_def using cap_non_negative nle_le by auto
-  next
-    case G
-    then show ?thesis unfolding reduce_def using no_parallel_edge
-      by (smt (verit, best) case_prod_conv diff_0_right leI order_less_imp_not_less zero_cap_simp)
-  qed
+  then show "reduce c (u, v) = c (u, v)" unfolding reduce_def
+    by (smt (verit, best) cap_non_negative case_prod_conv diff_0_right leD no_parallel_edge zero_cap_simp)
 qed
 end
 
 lemma irreducibleI[intro]: "reduce c = c \<Longrightarrow> Irreducible_Graph c"
-  apply unfold_locales
-   apply (smt (verit) case_prod_conv diff_ge_0_iff_ge dual_order.eq_iff reduce_def)
-  by (smt (verit, ccfv_threshold) Graph.E_def mem_Collect_eq nle_le prod.simps(2) reduce_def right_minus_eq)
+  apply unfold_locales unfolding reduce_def Graph.E_def
+   apply (smt (verit) case_prod_conv linorder_not_le order_less_imp_not_less)
+  by (smt (verit) case_prod_conv mem_Collect_eq order_less_imp_not_less)
 (* TODO use *)
 
 

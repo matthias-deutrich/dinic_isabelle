@@ -34,7 +34,7 @@ notation g'.V ("V''")
 abbreviation "E' \<equiv> g'.E"
 abbreviation "V' \<equiv> g'.V"
 
-definition tmp where "tmp \<equiv> c' + c"
+(*definition tmp where "tmp \<equiv> c' + c"*)
 end
 
 (* TODO is there a way to automatically rename all constants in g' by appending a prime symbol? *)
@@ -101,18 +101,34 @@ proof -
 qed
 
 (* TODO are the following locale necessary? *)
-locale CapacityLeSubgraph = GraphComparison +
-  assumes cap_abs_le: "\<forall>e. (0 \<le> c' e \<and> c' e \<le> c e) \<or> (c e \<le> c' e \<and> c' e \<le> 0)"
 
-sublocale Subgraph \<subseteq> CapacityLeSubgraph
+definition subtract_graph :: "'capacity::linordered_idom graph \<Rightarrow> _ graph \<Rightarrow> _ graph"
+  where "subtract_graph c c' \<equiv> \<lambda> (u, v). c (u, v) - c' (u, v)"
+
+locale Contained_Graph = GraphComparison +
+  assumes cap_abs_le:
+    "(0 \<le> c' (u, v) \<and> c' (u, v) \<le> c (u, v)) \<or> (c (u, v) \<le> c' (u, v) \<and> c' (u, v) \<le> 0)"
+begin
+lemma contained_irreducible: "Irreducible_Graph c \<Longrightarrow> Irreducible_Graph c'"
+  unfolding Irreducible_Graph_def
+  by (metis (mono_tags, lifting) Irreducible_Graph_axioms_def Nonnegative_Graph_def cap_abs_le dual_order.antisym g'.E_def' mem_Collect_eq order_trans zero_cap_simp)
+
+lemma subtract_contained: "Contained_Graph (subtract_graph c c') c"
+  unfolding subtract_graph_def Contained_Graph_def
+  using cap_abs_le by auto
+end
+
+sublocale Subgraph \<subseteq> Contained_Graph
   using c'_sg_c
-  unfolding CapacityLeSubgraph_def isSubgraph_def
+  unfolding Contained_Graph_def isSubgraph_def
   by (metis linorder_le_cases)
 
+(*
 locale PosCapacityLeSubgraph = CapacityLeSubgraph +
-  assumes caps_non_negative: "\<forall>e. 0 \<le> c e \<and> 0 \<le> c' e"
+  assumes caps_non_negative: "0 \<le> c (u, v) \<and> 0 \<le> c' (u, v)"
 begin
-lemma cap_le: "\<forall>e. c' e \<le> c e" using cap_abs_le caps_non_negative by (meson order.trans)
+lemma cap_le: "c' (u, v) \<le> c (u, v)" using cap_abs_le caps_non_negative by (meson order.trans)
 end
+*)
 
 end

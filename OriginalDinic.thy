@@ -44,6 +44,19 @@ definition subtract_path :: "path \<Rightarrow> _ graph"
       c (u, v)"
 end
 
+context Nonnegative_Graph
+begin
+definition path_induced_graph :: "path \<Rightarrow> _ graph"
+  where "path_induced_graph p \<equiv> \<lambda> (u, v).
+    if (u, v) \<in> set p then
+      Min {c e | e. e \<in> set p}
+    else
+      0"
+
+lemma path_induced_graph_contained: (*isPath u p v \<Longrightarrow> *)"Contained_Graph (path_induced_graph p) c"
+  apply unfold_locales sorry
+end
+
 context NFlow
 begin
 
