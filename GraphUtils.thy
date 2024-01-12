@@ -11,6 +11,18 @@ lemma pair_set_eqI:
 lemma set_emptyI: "(\<And>x. x \<notin> S) \<Longrightarrow> S = {}" by blast (* TODO necessary? *)
 
 section \<open>Empty graph\<close>
+(* TODO decide which variant is better *)
+context Graph
+begin
+definition isEmpty where "isEmpty \<equiv> E = {}"
+
+lemma isEmptyV: "isEmpty \<longleftrightarrow> V = {}" unfolding isEmpty_def V_def by auto
+
+lemma empty_connected: "\<lbrakk>isEmpty; connected u v\<rbrakk> \<Longrightarrow> u = v" unfolding connected_def isEmpty_def
+  using isPath_fwd_cases by fastforce
+end
+
+
 definition empty_graph :: "_ graph" where "empty_graph \<equiv> \<lambda>_. 0" (* TODO is there a better way to define constant functions? *)
 interpretation empty: Graph empty_graph .
 
@@ -84,6 +96,11 @@ qed
 
 lemma isLinked_if_isPath: "Graph.isPath c u p v \<Longrightarrow> isLinked u p v"
   using Graph.isPath_alt by blast
+
+lemma isPath_endpoints_eq:
+  "\<lbrakk>Graph.isPath c u p v; Graph.isPath c' u' p v'; p \<noteq> []\<rbrakk> \<Longrightarrow> u' = u"
+  "\<lbrakk>Graph.isPath c u p v; Graph.isPath c' u' p v'; p \<noteq> []\<rbrakk> \<Longrightarrow> v' = v"
+  by (metis Graph.isPath_head neq_Nil_conv) (metis Graph.isPath_tail rev_exhaust)
 
 section \<open>Path Union\<close>
 definition isPathUnion :: "_ graph \<Rightarrow> path set \<Rightarrow> bool"
@@ -263,6 +280,64 @@ lemma (in Acyclic_Graph) finite_imp_bounded:
   "Finite_Graph c \<Longrightarrow> \<exists>b. Distance_Bounded_Graph c b"
 *)
 
+
+section \<open>Reducing Graphs\<close>
+(* TODO check if this is useful *)
+(* TODO reduction creates equivalence classes, check whether making this explicit helps *)
+definition reduce :: "'capacity::linordered_idom graph \<Rightarrow> 'capacity graph"
+  where "reduce c \<equiv> \<lambda>(u, v).
+    if c (u, v) \<ge> c (v, u) then
+      c (u, v) - c (v, u)
+    else
+      0"
+
+definition reduced_cong :: "'capacity::linordered_idom graph \<Rightarrow> 'capacity graph \<Rightarrow> bool" (infix "\<cong>" 50)
+  where "reduced_cong c c' \<equiv> \<forall>u v. c (u, v) - c (v, u) = c' (u, v) - c' (v, u)"
+
+lemma reduced_eq_equivp: "equivp reduced_cong"
+  unfolding equivp_def reduced_cong_def by (metis (opaque_lifting))
+(* TODO how to do this automatically, similar to ord? *)
+(* TODO clean this up *)
+
+lemma reduced_eq_trans[trans]: "\<lbrakk>c\<^sub>1 \<cong> c\<^sub>2; c\<^sub>2 \<cong> c\<^sub>3\<rbrakk> \<Longrightarrow> c\<^sub>1 \<cong> c\<^sub>3" by (simp add: reduced_cong_def)
+
+lemma reduce_reduced_eq: "c \<cong> reduce c" unfolding reduce_def reduced_cong_def by simp
+
+lemma reduced_eq_if_eq: "c = c' \<Longrightarrow> c \<cong> c'" unfolding reduced_cong_def by simp
+
+lemma reduced_cong_iff_reduce_eq: "c \<cong> c' \<longleftrightarrow> reduce c = reduce c'"
+  apply (intro iffI)
+   apply (fastforce simp: reduce_def reduced_cong_def)
+  by (metis equivp_def reduce_reduced_eq reduced_eq_equivp)
+
+locale Nonnegative_Graph = Graph +
+  assumes cap_non_negative: "c (u, v) \<ge> 0"
+
+locale Irreducible_Graph = Nonnegative_Graph +
+  assumes no_parallel_edge: "(u, v) \<in> E \<Longrightarrow> (v, u) \<notin> E"
+begin
+lemma irreducible[simp]: "reduce c = c"
+proof (intro ext, unfold split_paired_all)
+  fix u v
+  consider (EQ) "c (u, v) = 0" | (G) "c (u, v) > 0"
+    using cap_non_negative by (metis order_neq_le_trans)
+  then show "reduce c (u, v) = c (u, v)"
+  proof cases
+    case EQ
+    then show ?thesis unfolding reduce_def using cap_non_negative nle_le by auto
+  next
+    case G
+    then show ?thesis unfolding reduce_def using no_parallel_edge
+      by (smt (verit, best) case_prod_conv diff_0_right leI order_less_imp_not_less zero_cap_simp)
+  qed
+qed
+end
+
+lemma irreducibleI[intro]: "reduce c = c \<Longrightarrow> Irreducible_Graph c"
+  apply unfold_locales
+   apply (smt (verit) case_prod_conv diff_ge_0_iff_ge dual_order.eq_iff reduce_def)
+  by (smt (verit, ccfv_threshold) Graph.E_def mem_Collect_eq nle_le prod.simps(2) reduce_def right_minus_eq)
+(* TODO use *)
 
 
 (* TODO check and sort from here *)

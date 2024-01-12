@@ -27,8 +27,14 @@ text \<open>Fixes two graphs and sets up names. Note that, contrary to the usual
 locale GraphComparison = g': Graph c' + Graph c
   for c' :: "'capacity::linordered_idom graph" and c :: "'capacity graph"
 begin
+(*
 notation g'.E ("E''")
 notation g'.V ("V''")
+*)
+abbreviation "E' \<equiv> g'.E"
+abbreviation "V' \<equiv> g'.V"
+
+definition tmp where "tmp \<equiv> c' + c"
 end
 
 (* TODO is there a way to automatically rename all constants in g' by appending a prime symbol? *)
@@ -38,7 +44,7 @@ text \<open>This locale denotes two graphs that are restrictions of the same und
       by reasoning about their edge sets and automatically deriving the corresponding properties
       for the underlying capacity function.\<close>
 locale CapacityCompatibleGraphs = GraphComparison +
-  assumes cap_compatible: "c (u, v) = 0 \<or> c' (u, v) = 0 \<or> c (u, v) = c' (u, v)"
+  assumes cap_compatible: "c (u, v) = 0 \<or> c' (u, v) = 0 \<or> c (u, v) = c' (u, v)" (* TODO which is better style: this way or using \<forall> quantifier? *)
 begin
 lemma eq_if_E_eq[intro]: "E = E' \<Longrightarrow> c = c'"
   unfolding Graph.E_def using cap_compatible by fastforce
