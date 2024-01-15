@@ -30,32 +30,8 @@ definition bounded_st_layering where (* TODO necessary? *)
 (* NOTE: while the setup for applying augmenting paths already exists, they are always directly
    applied to the residual graph, which is unfit for our purpose *)
 
-(* TODO check whether this simple definition is best, or whether a more in-depth setup is needed *)
-context Graph
-begin
-definition pathCap :: "path \<Rightarrow> 'capacity"
-  where "pathCap p \<equiv> Min {c e | e. e \<in> set p}"
+(* TODO *)
 
-definition subtract_path :: "path \<Rightarrow> _ graph"
-  where "subtract_path p \<equiv> \<lambda>(u, v).
-    if (u, v) \<in> (set p) then
-      c (u, v) - pathCap p
-    else
-      c (u, v)"
-end
-
-context Nonnegative_Graph
-begin
-definition path_induced_graph :: "path \<Rightarrow> _ graph"
-  where "path_induced_graph p \<equiv> \<lambda> (u, v).
-    if (u, v) \<in> set p then
-      Min {c e | e. e \<in> set p}
-    else
-      0"
-
-lemma path_induced_graph_contained: (*isPath u p v \<Longrightarrow> *)"Contained_Graph (path_induced_graph p) c"
-  apply unfold_locales sorry
-end
 
 context NFlow
 begin

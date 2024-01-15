@@ -310,7 +310,7 @@ lemma reduced_cong_iff_reduce_eq: "c \<cong> c' \<longleftrightarrow> reduce c =
    apply (fastforce simp: reduce_def reduced_cong_def)
   by (metis equivp_def reduce_reduced_cong reduced_cong_equivp)
 
-locale Nonnegative_Graph = Graph +
+locale Nonnegative_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
   assumes cap_non_negative: "c (u, v) \<ge> 0"
 
 locale Irreducible_Graph = Nonnegative_Graph +
