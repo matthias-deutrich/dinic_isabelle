@@ -19,19 +19,13 @@ lemma rightPassAbstract_nz_iff: "rightPassAbstract c s (u, v) \<noteq> 0 \<longl
 
 locale S_Graph = Graph c for c :: "'capacity::linordered_idom graph" + (* TODO does this make more sense as an anonymous context? *)
   fixes s :: node
-
-context Graph
-begin
-
-context fixes s :: node
 begin
 abbreviation "right_pass \<equiv> rightPassAbstract c s"
 
-interpretation rp_graph: Graph right_pass .
+sublocale rp_graph: Graph right_pass .
 
-lemma rp_sg: "Subgraph right_pass c" by (intro Subgraph_isSubgraphI right_pass_subgraph)
-
-interpretation rp_sg: Subgraph right_pass c by (rule rp_sg)
+sublocale rp_sg: Subgraph right_pass c
+  by (intro Subgraph_isSubgraphI right_pass_subgraph)
 
 lemma rp_is_c_if_s_connected[simp]:
   "connected s u \<Longrightarrow> right_pass (u, v) = c (u, v)"
@@ -80,8 +74,7 @@ next
   ultimately show "rp_graph.connected u v"
     using rp_graph.connected_def rp_graph.isPath_alt by auto
 qed
-end \<comment> \<open>Fixed s\<close>
-end \<comment> \<open>Graph\<close>
+end \<comment> \<open>S_Graph\<close>
 
 
 (*locale Finite_S_Graph = Finite_Graph c + S_Graph c s
@@ -104,19 +97,13 @@ lemma leftPassAbstract_nz_iff: "leftPassAbstract c t (u, v) \<noteq> 0 \<longlef
 
 locale T_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
   fixes t :: node
-
-context Graph
-begin
-
-context fixes t :: node
 begin
 abbreviation "left_pass \<equiv> leftPassAbstract c t"
 
-interpretation lp_graph: Graph left_pass .
+sublocale lp_graph: Graph left_pass .
 
-lemma lp_sg: "Subgraph left_pass c" by (intro Subgraph_isSubgraphI left_pass_subgraph)
-
-interpretation lp_sg: Subgraph left_pass c by (rule lp_sg)
+sublocale lp_sg: Subgraph left_pass c
+  by (intro Subgraph_isSubgraphI left_pass_subgraph)
 
 lemma lp_is_c_if_s_connected[simp]:
   "connected v t \<Longrightarrow> left_pass (u, v) = c (u, v)"
@@ -165,8 +152,7 @@ next
   ultimately show "lp_graph.connected u v"
     using lp_graph.connected_def lp_graph.isPath_alt by auto
 qed
-end \<comment> \<open>Fixed t\<close>
-end \<comment> \<open>Graph\<close>
+end \<comment> \<open>T_Graph\<close>
 
 subsection \<open>Cleaning\<close>
 
@@ -188,30 +174,25 @@ lemma cleaningAbstract_nz_iff:
   unfolding cleaningAbstract_def by simp
 
 locale ST_Graph = S_Graph + T_Graph
-
-context Graph
-begin
-
-context fixes s t :: node
 begin
 abbreviation "cleaned \<equiv> cleaningAbstract c s t"
 
-interpretation cl_graph: Graph cleaned .
+sublocale cl_graph: Graph cleaned .
 
-interpretation cl_right_sg: Subgraph cleaned "right_pass s"
+sublocale cl_right_sg: Subgraph cleaned right_pass
   by (intro Subgraph_isSubgraphI cleaning_right_subgraph)
 
-interpretation cl_left_sg: Subgraph cleaned "left_pass t"
+sublocale cl_left_sg: Subgraph cleaned left_pass
   by (intro Subgraph_isSubgraphI cleaning_left_subgraph)
 
-interpretation cl_sg: Subgraph cleaned c
+sublocale cl_sg: Subgraph cleaned c
   using cleaning_right_subgraph right_pass_subgraph subgraph.order_trans by blast
 
 lemma cl_is_c_if_st_connected[simp]: "connected s u \<Longrightarrow> connected v t \<Longrightarrow> cleaned (u, v) = c (u, v)"
   unfolding cleaningAbstract_def by simp
 
 lemma cl_edges_st_connected: "(u, v) \<in> cl_graph.E \<Longrightarrow> connected s u"
-  and "(u, v) \<in> cl_graph.E \<Longrightarrow> connected v t"
+  "(u, v) \<in> cl_graph.E \<Longrightarrow> connected v t"
   using cl_graph.E_def cleaningAbstract_nz_iff by blast+
 
 lemma cl_vertices_st_connected: "u \<in> cl_graph.V \<Longrightarrow> connected s u"
@@ -233,7 +214,6 @@ next
 qed*)
 
 (* TODO *)
-end
 end
 
 context ST_Graph
@@ -276,23 +256,50 @@ subsection \<open>Maintenance when removing paths\<close>
 lemma cleaning_cap_comp: "CapacityCompatibleGraphs (cleaningAbstract c s t) c"
    unfolding CapacityCompatibleGraphs_def cleaningAbstract_def by auto
 *)
-context Graph
+context ST_Graph
 begin
-
-context
-  fixes s t :: node
-begin
-abbreviation 
+(*
 lemma cleaning_subgraph: "Subgraph (cleaningAbstract c s t) c"
   using cleaning_right_subgraph right_pass_subgraph subgraph.order.trans by blast
+*)
 
 lemma cleaning_layered: "Generic_Layer_Graph c l \<Longrightarrow> Generic_Layer_Graph (cleaningAbstract c s t) l"
-  using Generic_Layer_Graph_def Subgraph.edge'_if_edge cleaning_subgraph by blast
+  unfolding Generic_Layer_Graph_def using cl_sg.edge'_if_edge by blast
 
-lemma cleaning_edge_set: "Graph.E (cleaningAbstract c s t) = \<Union>{set p | p. isShortestPath s p t}" sorry
-end
+
+(* TODO there are now two abbreviations for the same thing: cl_sg.E' = cl_graph.E *)
+(* TODO this is congruent to Shortest_Path_Union, except with all paths. use extra locale? *)
+lemma cleaning_edge_set: "cl_graph.E = \<Union>{set p | p. isPath s p t}"
+proof (intro pair_set_eqI)
+  fix u v
+  assume "(u, v) \<in> cl_graph.E"
+  then have "connected s u" "connected v t" "(u, v) \<in> E"
+    by (auto intro: cl_edges_st_connected cl_sg.edge'_if_edge)
+  then obtain p\<^sub>s p\<^sub>t where "isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
+    using connected_def isPath_append by auto
+  then show "(u, v) \<in> \<Union> {set p |p. isPath s p t}"
+    by fastforce
+next
+  fix u v
+  assume "(u, v) \<in> \<Union> {set p |p. isPath s p t}"
+  then show "(u, v) \<in> cl_graph.E" (* TODO *)
+    by (smt (verit) Graph.isPath_edgeset UnionE lp_edges_t_connected lp_keeps_t_paths mem_Collect_eq rp_edges_s_connected rp_keeps_s_paths st_connected_edges_remain)
+qed
+
+lemma layered_cleaning_shortest_path_union:
+  "\<exists>l. Generic_Layer_Graph c l \<Longrightarrow> ST_Shortest_Path_Union cleaned c s t"
+proof
+  assume "\<exists>l. Generic_Layer_Graph c l"
+  then obtain l where "Generic_Layer_Graph c l" by blast
+  then interpret Generic_Layer_Graph c l .
+
+  show "cl_graph.E = \<Union> {set p |p. isShortestPath s p t}"
+    using shortestPath_is_path cleaning_edge_set by fastforce
+qed
+
 end
 
+(*
 context
   fixes c' c :: "'capacity::linordered_idom graph"
 begin
@@ -300,12 +307,17 @@ interpretation g': Graph c' .
 interpretation Graph c .
 
 lemma "\<forall>p. isShortestPath s p t \<longrightarrow> g'.isPath s p t \<Longrightarrow> ST_Shortest_Path_Union (cleaningAbstract c' s t) c s t"
-proof intro_locales
+proof unfold_locales
   assume CONTAINS_SP: "\<forall>p. isShortestPath s p t \<longrightarrow> g'.isPath s p t"
+  fix u v
+  show "c (u, v) = 0 \<or> cleaningAbstract c' s t (u, v) = 0 \<or> c (u, v) = cleaningAbstract c' s t (u, v)"
+    unfolding cleaningAbstract_def apply auto using CONTAINS_SP sorry
+  have "Subgraph (cleaningAbstract c' s t) c" sorry
+  show "CapacityCompatibleGraphs (cleaningAbstract c' s t) c" sorry
   then h
 qed
 end
-
+*)
 
 context
   fixes c c' s t p b

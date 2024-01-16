@@ -85,8 +85,12 @@ lemma shortest_path_remains_if_contained: "\<lbrakk>g'.isPath u p v; isShortestP
   using sg_paths_are_base_paths by (meson Graph.isShortestPath_def)
 
 (* TODO is this the right location for this? *)
+text \<open>Transfer lemmas\<close>
 lemma sg_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distance_Bounded_Graph c' b"
   using sg_paths_are_base_paths by (metis Distance_Bounded_Graph_def Graph.dist_def)
+
+lemma sg_Nonnegative_Graph: "Nonnegative_Graph c \<Longrightarrow> Nonnegative_Graph c'"
+  unfolding Nonnegative_Graph_def by (metis Orderings.order_eq_iff cap_compatible cap_nonzero)
 end
 
 lemma Subgraph_isSubgraphI[intro]: "isSubgraph c' c \<Longrightarrow> Subgraph c' c"

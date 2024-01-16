@@ -2,6 +2,12 @@ theory OriginalDinic
 imports LayerMaintenance "Flow_Networks.Ford_Fulkerson"
 begin
 
+(* TODO check whether something like this can be useful*)
+(*
+typedef (overloaded) 'capacity::linordered_idom irreducible_graph = "{c::('capacity graph). Irreducible_Graph c}"
+  by (metis irreducibleI mem_Collect_eq reduce_reduced_cong reduced_cong_iff_reduce_eq)
+*)
+
 context NPreflow
 begin
 abbreviation "stl \<equiv> induced_st_layering cf s t"
@@ -42,19 +48,34 @@ context
   assumes ST_PATH: "isSTLayeredPath p"
       and CF_LAYERING: "Bounded_ST_Shortest_Path_Union cfl cf s t b"
 begin
-interpretation Bounded_ST_Shortest_Path_Union cfl cf s t b by (rule CF_LAYERING)
+interpretation bstu: Bounded_ST_Shortest_Path_Union cfl cf s t b by (rule CF_LAYERING)
 
-abbreviation "cfl' \<equiv> cleaningAbstract (g'.subtract_path p) s t"
+interpretation g: Nonnegative_Graph cf using resE_nonNegative by unfold_locales blast
+
+interpretation g': Nonnegative_Graph cfl
+  using bstu.sg_Nonnegative_Graph g.Nonnegative_Graph_axioms by blast
+
+(*abbreviation "cfl' \<equiv> cleaningAbstract (g'.subtract_path p) s t"*)
 
 (* interpretation stl': ST_Layer_Graph stl' s t sorry *)
 
 interpretation f': NFlow c s t "augment (augmentingFlow p)"
   unfolding NFlow_def using ST_PATH
   by (fastforce intro: Flow.axioms(1) NPreflow.intro Network_axioms augFlow_resFlow augment_flow_presv st_layered_path_is_augmenting)
-
-theorem layer_maintenance_perfect: "Bounded_ST_Shortest_Path_Union cfl' f'.cf s t b"
-proof (unfold_locales)
-  oops
+thm f'.cf.isPath_alt
+thm f'.is_RPreGraph
+thm NFlow.is_RGraph
+thm f'.isAugmentingPath_def
+(* theorem layer_maintenance_perfect: "Bounded_ST_Shortest_Path_Union cfl' f'.cf s t b" *)
+theorem layer_maintenance_perfect:
+  "Bounded_ST_Shortest_Path_Union (cleaningAbstract (g'.subtract_path p) s t) f'.cf s t b"
+proof (cases "f'.cf.min_dist s t \<le> b")
+  case True
+  then show ?thesis sorry
+next
+  case False
+  then show ?thesis sorry
+qed
 
 
 
