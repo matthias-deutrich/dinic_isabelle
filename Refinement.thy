@@ -232,7 +232,7 @@ proof (clarify, intro conjI)
   show "s \<notin> Q'"
   proof -
     from S_NO_IN SUB have "g'.incoming s = {}" unfolding Graph.incoming_def
-      using Subgraph.E_ss by fast
+      using Subgraph.E'_ss by fast
     then have "s \<notin> snd ` g'.outgoing u" unfolding g'.incoming_def g'.outgoing_def by fastforce
     with \<open>s \<notin> Q\<close> show "?thesis" unfolding Q'_def by blast
   qed
@@ -357,7 +357,7 @@ proof (rule wf_subset)
   show "wf (inv_image finite_psubset Graph.E)" by simp
   show "finiteProperSubgraph \<subseteq> inv_image finite_psubset Graph.E"
     unfolding finiteProperSubgraph_def inv_image_def finite_psubset_def
-    using Proper_Subgraph.E_pss Finite_Graph.finite_E by blast
+    using Proper_Subgraph.E'_pss Finite_Graph.finite_E by blast
 qed
 
 definition GraphWorkingSet_rel :: "(_ graph \<times> _ set) rel"

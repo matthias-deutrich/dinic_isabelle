@@ -286,6 +286,7 @@ next
     by (smt (verit) Graph.isPath_edgeset UnionE lp_edges_t_connected lp_keeps_t_paths mem_Collect_eq rp_edges_s_connected rp_keeps_s_paths st_connected_edges_remain)
 qed
 
+
 lemma layered_cleaning_shortest_path_union:
   "\<exists>l. Generic_Layer_Graph c l \<Longrightarrow> ST_Shortest_Path_Union cleaned c s t"
 proof
@@ -297,7 +298,15 @@ proof
     using shortestPath_is_path cleaning_edge_set by fastforce
 qed
 
+
 end
+
+(*
+lemma (in Generic_Layer_Graph) cleaning_shortest_path_union:
+  "ST_Shortest_Path_Union (cleaningAbstract c s t) c s t" apply unfold_locales
+   apply (metis ST_Graph.cl_is_c_if_st_connected cleaningAbstract_nz_iff)
+  by (smt (verit, best) Collect_cong ST_Graph.cleaning_edge_set path_is_shortest shortestPath_is_path)
+*)
 
 (*
 context
@@ -320,21 +329,20 @@ end
 *)
 
 context
-  fixes c c' s t p b
+  fixes c c' s t p
   assumes PATH: "Graph.isPath c' s p t"
       and NONNEGATIVE: "Nonnegative_Graph c"
-      and B_UNION: "Bounded_ST_Shortest_Path_Union c' c s t b"
+      and B_UNION: "Bounded_ST_Shortest_Path_Union c' c s t (Graph.min_dist c s t)"
 begin
-interpretation Bounded_ST_Shortest_Path_Union c' c s t b by (rule B_UNION)
-interpretation Nonnegative_Graph c by (rule NONNEGATIVE)
-interpretation g': Nonnegative_Graph c' using Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
+interpretation Bounded_ST_Shortest_Path_Union c' c s t "Graph.min_dist c s t" using B_UNION .
+interpretation Nonnegative_Graph c using NONNEGATIVE .
+interpretation g': Nonnegative_Graph c' using sg_Nonnegative_Graph[OF NONNEGATIVE] .
 
 (* TODO does this hold?  NO! due to potential dead ends in g' *)
-lemma "Bounded_ST_Shortest_Path_Union (g'.subtract_path p) (subtract_path p) s t b" sorry
+lemma "Bounded_ST_Shortest_Path_Union (g'.subtract_path p) (subtract_path p) s t b" oops
 
 abbreviation "maintained \<equiv> cleaningAbstract (g'.subtract_path p) s t"
-abbreviation "rebuilt \<equiv> induced_st_layering (subtract_path p) s t"
 
-theorem "Bounded_ST_Shortest_Path_Union maintained rebuilt s t b" sorry
+theorem "Bounded_ST_Shortest_Path_Union maintained (subtract_path p) s t (min_dist s t)" sorry
 end
 end

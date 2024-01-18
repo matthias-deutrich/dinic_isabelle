@@ -329,6 +329,12 @@ text \<open>Note that due connectivity being declared as intro for S/T_Layer_Gra
       completely automatic (as opposed to the ones in S/T_Shortest_Path_Union.\<close>
 sublocale ST_Layer_Graph c' s t unfolding ST_Layer_Graph_def
   using edge_on_shortest_path g'.isShortestPath_level_edge(6) shortest_ST_path_remains by fastforce
+
+lemma st_connected_iff: "g'.connected s t \<longleftrightarrow> connected s t"
+  using empty_iff_ST_disconnected g'.empty_connected s_in_V_if_nonempty by fastforce
+
+lemma empty_iff: "g'.isEmpty \<longleftrightarrow> (connected s t \<longleftrightarrow> s = t)"
+  using empty_iff_ST_disconnected by blast
 end \<comment> \<open>ST_Shortest_Path_Union\<close>
 
 \<comment> \<open>Unions of shortest paths\<close>
@@ -477,7 +483,17 @@ sublocale Bounded_S_Shortest_Path_Union c' c s "{t}" b
 
 sublocale Bounded_T_Shortest_Path_Union c' c "{s}" t b
   by unfold_locales (simp add: bounded_shortest_st_path_union)
+
+lemma empty_iff_no_short_paths: "g'.isEmpty \<longleftrightarrow> (\<forall>p. isPath s p t \<longrightarrow> p = [] \<or> b < length p)"
+  oops (* TODO *)
+
 end \<comment> \<open>Bounded_ST_Shortest_Path_Union\<close>
+
+lemma min_st_dist_bound:
+  "Graph.min_dist c s t \<le> b \<Longrightarrow> Bounded_ST_Shortest_Path_Union c' c s t b \<longleftrightarrow> ST_Shortest_Path_Union c' c s t"
+  unfolding Bounded_ST_Shortest_Path_Union_def ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
+    ST_Shortest_Path_Union_axioms_def Graph.isShortestPath_min_dist_def
+  by fastforce
 
 \<comment> \<open>Unions of bounded length shortest paths\<close>
 
