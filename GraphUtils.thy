@@ -273,6 +273,10 @@ corollary obtain_back_terminal_connected: obtains v where "connected u v" "outgo
   using obtain_back_terminal_path connected_def by metis
 end
 
+lemma (in Graph) Distance_Bounded_Graph_PathI:
+  "(\<And>u p v. isPath u p v \<Longrightarrow> length p \<le> b) \<Longrightarrow> Distance_Bounded_Graph c b"
+  unfolding Distance_Bounded_Graph_def dist_def by blast
+
 locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
 
 (*

@@ -502,6 +502,9 @@ sublocale Bounded_S_Shortest_Path_Union c' c s "{t}" b
 sublocale Bounded_T_Shortest_Path_Union c' c "{s}" t b
   by unfold_locales (simp add: bounded_shortest_st_path_union)
 
+sublocale Distance_Bounded_Graph c' "min_dist s t"
+  apply (intro g'.Distance_Bounded_Graph_PathI) oops (* TODO solve and move *)
+
 find_theorems "(?P \<longrightarrow> ?Q) \<Longrightarrow> \<not> ?Q \<longrightarrow> \<not> ?P" (* TODO *)
 thm not_mono
 
