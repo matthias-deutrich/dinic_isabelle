@@ -449,6 +449,24 @@ locale Bounded_Shortest_Path_Union = CapacityCompatibleGraphs +
 begin
 sublocale Subgraph
   using bounded_shortest_path_union isPath_edgeset shortestPath_is_path by unfold_locales blast
+
+lemma bounded_shortest_ST_path_remains:
+  assumes "s \<in> S" "t \<in> T" and SP: "length p \<le> b" "isShortestPath s p t"
+  shows "g'.isShortestPath s p t"
+proof -
+  from assms have "g'.isPath s p t"
+    by (auto simp: Graph.isPath_alt bounded_shortest_path_union dest: shortestPath_is_path)
+  with SP show ?thesis by (auto intro: shortest_path_remains_if_contained)
+qed
+
+lemma bounded_shortest_ST_path_transfer:
+  assumes "s \<in> S" "t \<in> T" "length p \<le> b"
+  shows "g'.isShortestPath s p t \<longleftrightarrow> isShortestPath s p t"
+proof
+  assume "g'.isShortestPath s p t"
+  with assms show "isShortestPath s p t"
+    by (smt (verit) Graph.connected_def Graph.isPath_distD Graph.isShortestPath_min_dist_def Graph.min_dist_minD bounded_shortest_ST_path_remains dual_order.trans obtain_shortest_path sg_paths_are_base_paths)
+qed (rule bounded_shortest_ST_path_remains[OF assms])
 end
 
 locale Bounded_Layered_Shortest_Path_Union = Bounded_Shortest_Path_Union + Generic_Layer_Graph c'
@@ -483,6 +501,18 @@ sublocale Bounded_S_Shortest_Path_Union c' c s "{t}" b
 
 sublocale Bounded_T_Shortest_Path_Union c' c "{s}" t b
   by unfold_locales (simp add: bounded_shortest_st_path_union)
+
+find_theorems "(?P \<longrightarrow> ?Q) \<Longrightarrow> \<not> ?Q \<longrightarrow> \<not> ?P" (* TODO *)
+thm not_mono
+
+lemma st_connected_if_bound_path: "isPath s p t \<and> length p \<le> b \<Longrightarrow> g'.connected s t"
+proof -
+  assume "isPath s p t \<and> length p \<le> b"
+  then obtain p' where "isShortestPath s p' t" "length p' \<le> b"
+    by (meson obtain_shortest_path connected_def isShortestPath_def le_trans)
+  then have "g'.isShortestPath s p' t" using bounded_shortest_ST_path_transfer by blast
+  then show "g'.connected s t" using g'.connected_def g'.shortestPath_is_path by blast
+qed
 
 lemma empty_iff_no_short_paths: "g'.isEmpty \<longleftrightarrow> (\<forall>p. isPath s p t \<longrightarrow> p = [] \<or> b < length p)"
   oops (* TODO *)
