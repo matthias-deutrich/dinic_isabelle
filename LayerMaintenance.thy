@@ -328,6 +328,7 @@ qed
 end
 *)
 
+(*
 context
   fixes c c' s t p
   assumes PATH: "Graph.isPath c' s p t"
@@ -343,6 +344,7 @@ lemma "Bounded_ST_Shortest_Path_Union (g'.subtract_path p) (subtract_path p) s t
 
 abbreviation "maintained \<equiv> cleaningAbstract (g'.subtract_path p) s t"
 
-theorem "Bounded_ST_Shortest_Path_Union maintained (subtract_path p) s t (min_dist s t)" sorry
+theorem "Bounded_ST_Shortest_Path_Union maintained (subtract_path p) s t (min_dist s t)" oops
 end
+*)
 end

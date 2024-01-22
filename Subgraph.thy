@@ -91,10 +91,18 @@ lemma sg_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distanc
 
 lemma sg_Nonnegative_Graph: "Nonnegative_Graph c \<Longrightarrow> Nonnegative_Graph c'"
   unfolding Nonnegative_Graph_def by (metis Orderings.order_eq_iff cap_compatible cap_nonzero)
+
+lemma CapacityCompatible_transfer:
+  "CapacityCompatibleGraphs c c'' \<Longrightarrow> CapacityCompatibleGraphs c' c''"
+  unfolding CapacityCompatibleGraphs_def using cap_compatible cap_nonzero by metis
 end
 
 lemma Subgraph_isSubgraphI[intro]: "isSubgraph c' c \<Longrightarrow> Subgraph c' c"
   unfolding isSubgraph_def by unfold_locales (force simp: Graph.E_def)+
+
+(*
+lemma Subgraph_CapComp_trans: "\<lbrakk>Subgraph c'' c'; CapacityCompatibleGraphs c' c\<rbrakk> \<Longrightarrow> CapacityCompatibleGraphs c'' c"
+*)
 
 locale Proper_Subgraph = CapacityCompatibleGraphs c' c
   for c' c :: "'capacity::linordered_idom graph"+

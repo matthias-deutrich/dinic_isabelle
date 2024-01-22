@@ -51,7 +51,7 @@ definition dinic_inner_partial :: "(_ flow \<times> nat) nres" where
           (\<lambda>(_, stl). Graph.connected stl s t)
           (\<lambda>(f', stl). do {
             p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
-            let stl = Nonnegative_Graph.subtract_path stl p;
+            let stl = cleaningAbstract (Nonnegative_Graph.subtract_path stl p) s t;
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             RETURN (f', stl)})
           (f, stl);
@@ -66,34 +66,51 @@ definition dinic_inner_partial_invar :: "nat \<Rightarrow> (_ flow \<times> _ gr
 lemma dinic_inner_partial_step:
   assumes PATH: "Graph.isPath stl s p t"
       and BOUNDED_UNION: "Bounded_ST_Shortest_Path_Union stl cf s t b"
-      and B: "b \<le> cf.min_dist s t"
+      and B_LE: "b \<le> cf.min_dist s t"
     shows "NFlow c s t (augment (augmentingFlow p))
-    \<and> Bounded_ST_Shortest_Path_Union (Nonnegative_Graph.subtract_path stl p) (cf_of (augment (augmentingFlow p))) s t b
-    \<and> b \<le> Graph.min_dist (cf_of (augment (augmentingFlow p))) s t" sorry
-(*
-proof
-  interpret ST_Shortest_Path_Union stl cf s t (* TODO cleanup *)
-  proof -
-    from BOUNDED_UNION interpret Bounded_ST_Shortest_Path_Union stl cf s t b .
-    from PATH have "length p \<le> b" using path_length_bounded by blast
-    with PATH have "g'.min_dist s t \<le> b"
-      using bounded g'.isPath_distD g'.min_dist_is_dist by blast
-    then have "cf.min_dist s t \<le> b"
-      by (metis PATH g'.connected_def min_dist_transfer)
-    note min_st_dist_bound[OF this, of stl]
-    then show "ST_Shortest_Path_Union stl cf s t"
-      using Bounded_ST_Shortest_Path_Union_axioms by simp
-  qed
+    \<and> Bounded_ST_Shortest_Path_Union (cleaningAbstract (Nonnegative_Graph.subtract_path stl p) s t) (cf_of (augment (augmentingFlow p))) s t b
+    \<and> b \<le> Graph.min_dist (cf_of (augment (augmentingFlow p))) s t"
+proof (intro conjI)
+  have B_EQ: "b = cf.min_dist s t"
+  proof (intro antisym)
+    interpret Bounded_ST_Shortest_Path_Union stl cf s t b using BOUNDED_UNION .
+    from PATH show "cf.min_dist s t \<le> b"
+      using cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer by force
+  qed (rule B_LE)
+  with BOUNDED_UNION interpret ST_Shortest_Path_Union stl cf s t using min_st_dist_bound by blast
 
   show "NFlow c s t (augment (augmentingFlow p))"
-    apply (intro NFlowI)
-     apply (simp add: Network_axioms)
+    apply (intro NFlowI, simp add: Network_axioms)
     by (simp add: PATH augFlow_resFlow augment_flow_presv cf.shortestPath_is_simple isAugmentingPath_def shortest_path_transfer)
   then interpret n': NFlow c s t "augment (augmentingFlow p)" .
 
-  show "Bounded_ST_Shortest_Path_Union (Nonnegative_Graph.subtract_path stl p) n'.cf s t b" sorry
+  interpret g': Nonnegative_Graph stl 
+    using Nonnegative_Graph.intro resE_nonNegative sg_Nonnegative_Graph by blast
+
+  show "Bounded_ST_Shortest_Path_Union (cleaningAbstract (g'.subtract_path p) s t) n'.cf s t b"
+    unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
+  proof
+    have "Subgraph (cleaningAbstract (g'.subtract_path p) s t) (g'.subtract_path p)"
+      using cleaning_right_subgraph right_pass_subgraph subgraph.order.trans by blast (* TODO extract *)
+    moreover have "CapacityCompatibleGraphs (g'.subtract_path p) n'.cf" sorry
+      (*unfolding g'.subtract_path_def augmentingFlow_def augment_def CapacityCompatibleGraphs_def apply (auto split: if_splits)*)
+      (*unfolding g'.subtract_path_alt*)
+    ultimately show "CapacityCompatibleGraphs (cleaningAbstract (g'.subtract_path p) s t) n'.cf"
+      by (rule Subgraph.CapacityCompatible_transfer)
+  next
+    show "Graph.E (cleaningAbstract (g'.subtract_path p) s t) = \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}"
+    proof (intro pair_set_eqI)
+      fix u v
+      assume "(u, v) \<in> Graph.E (cleaningAbstract (g'.subtract_path p) s t)"
+      then show "(u, v) \<in> \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}" sorry
+    next
+      fix u v
+      assume "(u, v) \<in> \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}"
+      then show "(u, v) \<in> Graph.E (cleaningAbstract (g'.subtract_path p) s t)" sorry
+    qed
+  qed
+  show "b \<le> n'.cf.min_dist s t" sorry
 qed
-*)
 
 
 lemma dinic_inner_partial_correct:
@@ -124,7 +141,7 @@ proof (refine_vcg WHILE_rule[where I="dinic_inner_partial_invar (cf.min_dist s t
   show "\<And>aa ba x.
        \<lbrakk>cf.connected s t; dinic_inner_partial_invar (cf.min_dist s t) (aa, ba); Graph.connected ba s t; Graph.isPath ba s x t\<rbrakk>
        \<Longrightarrow> dinic_inner_partial_invar (cf.min_dist s t)
-            (NFlow.augment c aa (NPreflow.augmentingFlow c aa x), Nonnegative_Graph.subtract_path ba x)"
+            (NFlow.augment c aa (NPreflow.augmentingFlow c aa x), cleaningAbstract (Nonnegative_Graph.subtract_path ba x) s t)"
     unfolding dinic_inner_partial_invar_def using NFlow.dinic_inner_partial_step by blast
 qed
 end
