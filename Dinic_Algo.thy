@@ -7,6 +7,9 @@ text \<open>This is a workaround to introduce NFlow more easily, since it usuall
 lemma NFlowI: "\<lbrakk>Network c s t; Flow c s t f\<rbrakk> \<Longrightarrow> NFlow c s t f"
   unfolding NFlow_def NPreflow_def Flow_def by simp
 
+sublocale Network \<subseteq> Irreducible_Graph
+  using cap_non_negative no_parallel_edge by unfold_locales auto
+
 (*
 context Network
 begin
@@ -38,21 +41,112 @@ theorem dinic_correct: "dinic \<le> SPEC (\<lambda>f. isMaxFlow f)" oops
 end
 *)
 
+
 (* TODO move *)
 context NFlow
 begin
 context
+  fixes f' :: "'capacity flow"
+  assumes f'_flow: "Flow cf s t f'"
+begin
+(*
+interpretation cf: Nonnegative_Graph cf using Nonnegative_Graph_def resE_nonNegative by blast (* TODO make sublocale *)
+interpretation n': NFlow c s t "augment f'"
+  by (simp add: NFlowI Network_axioms augment_flow_presv f'_flow)
+
+thm n'.capacity_const
+
+lemma subtract_augment_Subgraph: "Subgraph (cf.subtract_graph f') n'.cf"
+proof (intro Subgraph_edgeI)
+  fix u v
+  assume "cf.subtract_graph f' (u, v) \<noteq> 0"
+  then show "n'.cf (u, v) = cf.subtract_graph f' (u, v)" sorry
+qed
+*)
+
+interpretation cf: Nonnegative_Graph cf using Nonnegative_Graph_def resE_nonNegative by blast (* TODO make sublocale *)
+interpretation f': Flow cf s t f' using f'_flow .
+interpretation n': NFlow c s t "augment f'"
+  by (simp add: NFlowI Network_axioms augment_flow_presv f'_flow)
+
+thm n'.capacity_const
+thm f'.capacity_const
+thm n'.capacity_const[unfolded augment_def, simplified]
+thm f'.capacity_const[unfolded cf_def, simplified]
+
+thm residualGraph_def
+thm no_parallel_edge_cases (* TODO use *)
+
+lemma subtract_augment_Subgraph: "Subgraph (cf.subtract_graph f') (residualGraph c (augment f'))"
+proof (intro Subgraph_edgeI)
+  fix u v
+  assume assm: "cf.subtract_graph f' (u, v) \<noteq> 0"
+  thm this[unfolded cf_def Graph.subtract_graph_def]
+  thm this[unfolded cf_def Graph.subtract_graph_def, simplified]
+  consider (EDGE) "(u, v) \<in> E" "(v, u) \<notin> E"
+    | (REV_EDGE) "(u, v) \<notin> E" "(v, u) \<in> E"
+    | (NO_EDGE) "(u, v) \<notin> E" "(v, u) \<notin> E"
+    using no_parallel_edge by blast
+  then show "n'.cf (u, v) = cf.subtract_graph f' (u, v)"
+  proof cases (*(cases rule: no_parallel_edge_cases)*)
+    case NO_EDGE
+    then show ?thesis
+      unfolding n'.cf_def Graph.subtract_graph_def cf_def augment_def residualGraph_def
+      apply simp
+      by (smt (verit, ccfv_threshold) cf_def dual_order.strict_trans1 f'.capacity_const order_less_irrefl order_neq_le_trans split_conv)
+  next
+    case EDGE
+    moreover from EDGE have A0: "0 \<le> f (u, v) + f' (u, v) - f' (v, u)" and A1: "f (u, v) + f' (u, v) - f' (v, u) \<le> c (u, v)"
+      using n'.capacity_const unfolding augment_def by (smt (verit) case_prod_conv)+
+    moreover from EDGE have B0: "0 \<le> f' (u, v)" and B1: "f' (u, v) \<le> c (u, v) - f (u, v)"
+      using f'.capacity_const unfolding cf_def by (smt (verit) case_prod_conv)+
+    moreover from EDGE have C0: "0 \<le> f' (v, u)" and C1: "f' (v, u) \<le> f (u, v)"
+      using f'.capacity_const unfolding cf_def by (smt (verit) case_prod_conv)+
+    moreover from EDGE assm have "c (u, v) - f (u, v) - f' (u, v) \<noteq> 0" unfolding cf_def Graph.subtract_graph_def by simp
+    ultimately show ?thesis
+      unfolding n'.cf_def Graph.subtract_graph_def cf_def augment_def residualGraph_def
+      apply simp
+      sorry
+  next
+    case REV_EDGE
+    then show ?thesis
+      unfolding n'.cf_def Graph.subtract_graph_def cf_def augment_def residualGraph_def
+      apply simp sorry
+  qed
+qed
+(*
+  apply (intro Subgraph_isSubgraphI)
+  unfolding cf.subtract_graph_def residualGraph_def augment_def Graph.subtract_graph_def isSubgraph_def E_def
+  apply auto defer defer defer
+  using no_parallel_edge zero_cap_simp apply blast
+*)
+end
+
+context
   fixes p
   assumes "isAugmentingPath p"
 begin
-interpretation g': Nonnegative_Graph cf using Nonnegative_Graph_def resE_nonNegative by blast (* TODO make sublocale *)
+interpretation cf: Nonnegative_Graph cf using Nonnegative_Graph_def resE_nonNegative by blast (* TODO make sublocale *)
 interpretation n': NFlow c s t "augment (augmentingFlow p)"
   using NFlowI Network_axioms \<open>isAugmentingPath p\<close> augFlow_resFlow augment_flow_presv by blast
 
-lemma subtract_augment_Subgraph: "Subgraph (g'.subtract_path p) n'.cf" sorry
+lemma subtract_augment_path_Subgraph: "Subgraph (cf.subtract_path p) n'.cf"
+proof -
+  have "cf.path_induced_graph p = augmentingFlow p"
+    unfolding cf.path_induced_graph_def augmentingFlow_def cf.pathCap_def resCap_def by auto
+  then show ?thesis unfolding cf.subtract_path_alt using subtract_augment_Subgraph
+    by (simp add: \<open>isAugmentingPath p\<close> augFlow_resFlow)
+qed
+(*
+proof (intro Subgraph_edgeI)
+  fix u v
+  assume "g'.subtract_path p (u, v) \<noteq> 0"
+  then show "n'.cf (u, v) = g'.subtract_path p (u, v)" sorry
+qed
+*)
 end
 end
-thm NFlow.subtract_augment_Subgraph
+thm NFlow.subtract_augment_path_Subgraph
 
 context NFlow
 begin
@@ -113,7 +207,7 @@ proof (intro conjI)
     moreover have "Subgraph (g'.subtract_path p) (subtract_path p)"
       using subtract_path_maintains_Subgraph Nonnegative_Graph_axioms PATH by blast
     moreover from PATH have "Subgraph (subtract_path p) n'.cf"
-      using subtract_augment_Subgraph cf.shortestPath_is_simple isAugmentingPath_def shortest_path_transfer by blast
+      using subtract_augment_path_Subgraph cf.shortestPath_is_simple isAugmentingPath_def shortest_path_transfer by blast
     ultimately have "Subgraph (cleaningAbstract (g'.subtract_path p) s t) n'.cf"
       by (auto dest!: Subgraph.c'_sg_c)
     then show "CapacityCompatibleGraphs (cleaningAbstract (g'.subtract_path p) s t) n'.cf"

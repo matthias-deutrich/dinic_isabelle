@@ -328,6 +328,24 @@ proof (intro ext, unfold split_paired_all)
   then show "reduce c (u, v) = c (u, v)" unfolding reduce_def
     by (smt (verit, best) cap_non_negative case_prod_conv diff_0_right leD no_parallel_edge zero_cap_simp)
 qed
+
+lemma no_parallel_edge_cases' [case_names EDGE REV_EDGE NO_EDGE, cases pred]: (* TODO fix *)
+  "\<lbrakk>\<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
+    \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v);
+    \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v)\<rbrakk>
+  \<Longrightarrow> P (u, v)" using no_parallel_edge by blast
+
+lemma no_parallel_edge_cases [case_names EDGE REV_EDGE NO_EDGE, cases pred]: (* TODO fix *)
+  "\<lbrakk>\<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P;
+    \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P;
+    \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P\<rbrakk>
+  \<Longrightarrow> P" using no_parallel_edge by blast
+
+(*
+(EDGE) "(u, v) \<in> E" "(v, u) \<notin> E"
+    | (REV_EDGE) "(u, v) \<notin> E" "(v, u) \<in> E"
+    | (NO_EDGE) "(u, v) \<notin> E" "(v, u) \<notin> E"
+*)
 end
 
 lemma irreducibleI[intro]: "reduce c = c \<Longrightarrow> Irreducible_Graph c"

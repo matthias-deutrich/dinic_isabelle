@@ -97,6 +97,10 @@ lemma CapacityCompatible_transfer:
   unfolding CapacityCompatibleGraphs_def using cap_compatible cap_nonzero by metis
 end
 
+(* TODO use *)
+lemma Subgraph_edgeI: "(\<And>u v. c' (u, v) \<noteq> 0 \<Longrightarrow> c (u, v) = c' (u, v)) \<Longrightarrow> Subgraph c' c"
+  by unfold_locales (auto simp: Graph.E_def)
+
 lemma Subgraph_isSubgraphI[intro]: "isSubgraph c' c \<Longrightarrow> Subgraph c' c"
   unfolding isSubgraph_def by unfold_locales (force simp: Graph.E_def)+
 
