@@ -38,6 +38,22 @@ theorem dinic_correct: "dinic \<le> SPEC (\<lambda>f. isMaxFlow f)" oops
 end
 *)
 
+(* TODO move *)
+context NFlow
+begin
+context
+  fixes p
+  assumes "isAugmentingPath p"
+begin
+interpretation g': Nonnegative_Graph cf using Nonnegative_Graph_def resE_nonNegative by blast (* TODO make sublocale *)
+interpretation n': NFlow c s t "augment (augmentingFlow p)"
+  using NFlowI Network_axioms \<open>isAugmentingPath p\<close> augFlow_resFlow augment_flow_presv by blast
+
+lemma subtract_augment_Subgraph: "Subgraph (g'.subtract_path p) n'.cf" sorry
+end
+end
+thm NFlow.subtract_augment_Subgraph
+
 context NFlow
 begin
 
@@ -84,19 +100,24 @@ proof (intro conjI)
     by (simp add: PATH augFlow_resFlow augment_flow_presv cf.shortestPath_is_simple isAugmentingPath_def shortest_path_transfer)
   then interpret n': NFlow c s t "augment (augmentingFlow p)" .
 
-  interpret g': Nonnegative_Graph stl 
-    using Nonnegative_Graph.intro resE_nonNegative sg_Nonnegative_Graph by blast
+  interpret Nonnegative_Graph cf
+    using Nonnegative_Graph_def resE_nonNegative by blast
+  interpret g': Nonnegative_Graph stl
+    using Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
   show "Bounded_ST_Shortest_Path_Union (cleaningAbstract (g'.subtract_path p) s t) n'.cf s t b"
     unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
   proof
     have "Subgraph (cleaningAbstract (g'.subtract_path p) s t) (g'.subtract_path p)"
       using cleaning_right_subgraph right_pass_subgraph subgraph.order.trans by blast (* TODO extract *)
-    moreover have "CapacityCompatibleGraphs (g'.subtract_path p) n'.cf" sorry
-      (*unfolding g'.subtract_path_def augmentingFlow_def augment_def CapacityCompatibleGraphs_def apply (auto split: if_splits)*)
-      (*unfolding g'.subtract_path_alt*)
-    ultimately show "CapacityCompatibleGraphs (cleaningAbstract (g'.subtract_path p) s t) n'.cf"
-      by (rule Subgraph.CapacityCompatible_transfer)
+    moreover have "Subgraph (g'.subtract_path p) (subtract_path p)"
+      using subtract_path_maintains_Subgraph Nonnegative_Graph_axioms PATH by blast
+    moreover from PATH have "Subgraph (subtract_path p) n'.cf"
+      using subtract_augment_Subgraph cf.shortestPath_is_simple isAugmentingPath_def shortest_path_transfer by blast
+    ultimately have "Subgraph (cleaningAbstract (g'.subtract_path p) s t) n'.cf"
+      by (auto dest!: Subgraph.c'_sg_c)
+    then show "CapacityCompatibleGraphs (cleaningAbstract (g'.subtract_path p) s t) n'.cf"
+      unfolding Subgraph_def by blast
   next
     show "Graph.E (cleaningAbstract (g'.subtract_path p) s t) = \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}"
     proof (intro pair_set_eqI)

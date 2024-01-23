@@ -213,6 +213,45 @@ definition subtract_path :: "path \<Rightarrow> _ graph"
 
 lemma subtract_path_alt: "subtract_path p = subtract_graph (path_induced_graph p)"
   unfolding subtract_graph_def subtract_path_def path_induced_graph_def by auto
+
+lemma nonempty_path_cap_positive: "\<lbrakk>p \<noteq> []; set p \<subseteq> E\<rbrakk> \<Longrightarrow> 0 < pathCap p" (* TODO necessary? *)
+  unfolding pathCap_alt E_def by (auto intro!: le_neq_trans[OF cap_non_negative])
+end
+
+
+context Subgraph
+begin
+context
+  assumes "Nonnegative_Graph c"
+begin
+interpretation Nonnegative_Graph c using \<open>Nonnegative_Graph c\<close> .
+interpretation g': Nonnegative_Graph c' using Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
+
+lemma pathCap_eq: "set p \<subseteq> E' \<Longrightarrow> g'.pathCap p = pathCap p"
+proof -
+  assume "set p \<subseteq> E'"
+  then have "(c' ` set p) = (c ` set p)"
+    by (smt (verit) c'_sg_c g'.E_def' image_cong isSubgraph_def mem_Collect_eq subsetD) (* TODO prettify *)
+  then show ?thesis unfolding g'.pathCap_alt pathCap_alt by simp
+qed
+
+lemma subtract_path_maintains_Subgraph:
+  "g'.isPath u p v \<Longrightarrow> Subgraph (g'.subtract_path p) (subtract_path p)"
+proof (intro Subgraph_isSubgraphI, unfold isSubgraph_def, clarify)
+  assume "g'.isPath u p v"
+  then have P_CAP_EQ: "g'.pathCap p = pathCap p" using pathCap_eq g'.isPath_alt by blast
+
+  fix u v
+  assume "g'.subtract_path p (u, v) \<noteq> 0"
+  then have C': "0 < c' (u, v)" unfolding g'.subtract_path_def g'.pathCap_alt
+    apply (auto split: if_splits intro!: le_neq_trans[OF g'.cap_non_negative])
+    by (metis List.finite_set Min_le Orderings.order_eq_iff empty_iff finite_imageI g'.pathCap_alt g'.path_induced_graph_pos_contained_aux image_eqI list.set(1))
+  then have C_EQ_C': "c (u, v) = c' (u, v)"
+    by (metis cap_compatible cap_nonzero less_numeral_extra(3))
+  then show "g'.subtract_path p (u, v) = subtract_path p (u, v)"
+    unfolding subtract_path_def g'.subtract_path_def using P_CAP_EQ by auto
+qed
+end
 end
 
 end

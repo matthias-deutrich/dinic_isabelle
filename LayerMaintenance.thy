@@ -297,9 +297,8 @@ proof
   show "cl_graph.E = \<Union> {set p |p. isShortestPath s p t}"
     using shortestPath_is_path cleaning_edge_set by fastforce
 qed
-
-
 end
+
 
 (*
 lemma (in Generic_Layer_Graph) cleaning_shortest_path_union:
