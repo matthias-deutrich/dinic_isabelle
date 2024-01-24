@@ -189,6 +189,9 @@ locale Acyclic_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
 begin
 lemma paths_are_simple: "isPath s p t \<Longrightarrow> isSimplePath s p t"
   using split_non_simple_path acyclic by auto
+
+lemma no_parallel_edge: "(u, v) \<in> E \<Longrightarrow> (v, u) \<notin> E"
+  using acyclic isCycle_def[where p="((u, v) # [(v, u)])"] by auto
 end
 
 locale Distance_Bounded_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
@@ -320,6 +323,9 @@ locale Nonnegative_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
 locale Irreducible_Graph = Nonnegative_Graph +
   assumes no_parallel_edge: "(u, v) \<in> E \<Longrightarrow> (v, u) \<notin> E"
 begin
+lemma no_parallel_capacity: "c (u, v) \<noteq> 0 \<Longrightarrow> c (v, u) = 0"
+  using no_parallel_edge unfolding E_def by blast
+
 lemma irreducible[simp]: "reduce c = c"
 proof (intro ext, unfold split_paired_all)
   fix u v
