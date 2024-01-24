@@ -232,6 +232,9 @@ interpretation Nonnegative_Graph c using \<open>Nonnegative_Graph c\<close> .
 interpretation g': Nonnegative_Graph c' using Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
 lemma pathCap_eq: "set p \<subseteq> E' \<Longrightarrow> g'.pathCap p = pathCap p"
+(*
+  unfolding g'.pathCap_alt pathCap_alt
+  by (smt (verit, del_insts) List.finite_set Min_gr_iff c'_sg_c dual_order.irrefl finite_imageI g'.nonempty_path_cap_positive g'.pathCap_alt image_cong image_eqI image_is_empty isSubgraph_def set_empty) *)
 proof -
   assume "set p \<subseteq> E'"
   then have "(c' ` set p) = (c ` set p)"
@@ -239,7 +242,10 @@ proof -
   then show ?thesis unfolding g'.pathCap_alt pathCap_alt by simp
 qed
 
-lemma subtract_path_maintains_Subgraph:
+lemma path_induced_graph_eq: "set p \<subseteq> E' \<Longrightarrow> g'.path_induced_graph p = path_induced_graph p"
+  unfolding g'.path_induced_graph_def path_induced_graph_def using pathCap_eq by auto
+
+lemma subtract_path_maintains_Subgraph: (* TODO remove or simplify with previous lemma *)
   "g'.isPath u p v \<Longrightarrow> Subgraph (g'.subtract_path p) (subtract_path p)"
 proof (intro Subgraph_isSubgraphI, unfold isSubgraph_def, clarify)
   assume "g'.isPath u p v"

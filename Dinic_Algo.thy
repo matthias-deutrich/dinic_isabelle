@@ -15,12 +15,24 @@ begin
 sublocale cf: Nonnegative_Graph cf using Nonnegative_Graph_def resE_nonNegative by blast
 end
 
+subsection \<open>Alternative definitions\<close>
+(* TODO check which of these are used *)
 context Flow
 begin
 thm zero_flow_simp
 lemma residualGraph_alt: "residualGraph c f = (\<lambda>(u, v). if (u, v) \<in> E then c (u, v) - f(u, v) else f (v, u))"
   unfolding residualGraph_def by auto
 end
+
+context NPreflow
+begin
+lemma resCap_pathCap: "resCap p = cf.pathCap p"
+  unfolding resCap_def cf.pathCap_def ..
+
+lemma augmentingFlow_alt: "augmentingFlow p = cf.path_induced_graph p"
+  unfolding augmentingFlow_def cf.path_induced_graph_def resCap_pathCap ..
+end
+\<comment> \<open>Alternative definitions\<close>
 
 (*
 context Network
@@ -71,11 +83,23 @@ interpretation p_con: Pos_Contained_Graph f' stl using POS_CONTAINED .
 
 interpretation f': Irreducible_Graph f'
   using p_con.contained_irreducible g'.Irreducible_Graph_axioms by blast
-
+thm less_le_trans
+thm less_imp_neq
+thm le_neq_trans
 lemma subtract_augment_Subgraph: "Subgraph (g'.subtract_graph f') (cf_of (augment f'))" (* TODO fix this horrible proof *)
 proof (intro Subgraph_edgeI)
   fix u v
   assume "g'.subtract_graph f' (u, v) \<noteq> 0"
+(*
+  then have "stl (u, v) \<noteq> 0" unfolding g'.subtract_graph_def
+    using p_con.cap_le p_con.g'.cap_non_negative
+    apply (auto intro!: less_imp_neq)
+    apply (auto dest!: le_neq_trans intro: less_le_trans intro!: less_imp_neq)
+    apply (intro less_imp_neq)
+    
+    
+    apply simp using p_con.cap_le p_con.g'.cap_non_negative nle_le
+    by (metis nle_le)*)
   then have "f' (u, v) < stl (u, v)"
     unfolding g'.subtract_graph_def using p_con.cap_le by (auto intro: le_neq_trans)
   then have "stl (u, v) \<noteq> 0" by (metis leD p_con.g'.cap_non_negative)
@@ -83,7 +107,7 @@ proof (intro Subgraph_edgeI)
   then have "f' (v, u) = 0"
     by (metis nle_le p_con.cap_le p_con.g'.cap_non_negative)
   then show "cf_of (augment f') (u, v) = g'.subtract_graph f' (u, v)" unfolding g'.subtract_graph_def residualGraph_def augment_def apply auto
-    using no_parallel_edge_cases apply blast
+    using Irreducible_Graph.no_parallel_edge Irreducible_Graph_axioms apply blast
     using \<open>stl (u, v) \<noteq> 0\<close> cap_compatible cap_nonzero residualGraph_alt apply fastforce
      apply (metis \<open>stl (u, v) \<noteq> 0\<close> add_diff_cancel_right' cap_compatible cap_nonzero diff_ge_0_iff_ge f_non_negative flow_of_cf_def fo_rg_inv le_add_diff_inverse)
     using \<open>stl (u, v) \<noteq> 0\<close> cap_nonzero cf_def by fastforce
@@ -106,8 +130,8 @@ interpretation g': Irreducible_Graph stl
 thm subtract_augment_Subgraph[OF SPU g'.path_induced_graph_pos_contained]
 
 lemma aux': "augmentingFlow p = g'.path_induced_graph p"
-  unfolding augmentingFlow_def g'.path_induced_graph_def resCap_alt
-  by (metis PATH cf.Nonnegative_Graph_axioms cf.pathCap_alt g'.isPath_edgeset pathCap_eq subsetI)
+  unfolding augmentingFlow_alt
+  using PATH g'.isPath_alt cf.Nonnegative_Graph_axioms by (auto simp: path_induced_graph_eq)
 
 lemma aux: "Subgraph (g'.subtract_path p) (cf_of (augment (augmentingFlow p)))"
   unfolding g'.subtract_path_alt aux'
