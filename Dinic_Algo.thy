@@ -189,11 +189,11 @@ proof (intro conjI)
     unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
   proof
     have "Subgraph (cleaningAbstract (g'.subtract_path p) s t) (g'.subtract_path p)"
-      using cleaning_right_subgraph right_pass_subgraph subgraph.order.trans by blast (* TODO extract *)
-    moreover have "Subgraph (g'.subtract_path p) n'.cf" using aux
+      by (metis ST_Graph.cl_is_c_if_st_connected Subgraph_edgeI cleaningAbstract_nz_iff)
+      (*using cleaning_right_subgraph right_pass_subgraph subgraph.order.trans by blast*) (* TODO extract *)
+    also have "Subgraph ... n'.cf" using aux
       using PATH ST_Shortest_Path_Union_axioms by presburger
-    ultimately have "Subgraph (cleaningAbstract (g'.subtract_path p) s t) n'.cf"
-      by (auto dest!: Subgraph.c'_sg_c)
+    finally have "Subgraph (cleaningAbstract (g'.subtract_path p) s t) n'.cf" .
     then show "CapacityCompatibleGraphs (cleaningAbstract (g'.subtract_path p) s t) n'.cf"
       unfolding Subgraph_def by blast
   next

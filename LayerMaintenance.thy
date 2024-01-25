@@ -11,9 +11,6 @@ definition rightPassAbstract :: "_ graph \<Rightarrow> node \<Rightarrow> _ grap
     else
       0"
 
-lemma right_pass_subgraph: "isSubgraph (rightPassAbstract c s) c"
-  unfolding isSubgraph_def rightPassAbstract_def by simp
-
 lemma rightPassAbstract_nz_iff: "rightPassAbstract c s (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u"
   unfolding rightPassAbstract_def by simp
 
@@ -24,8 +21,7 @@ abbreviation "right_pass \<equiv> rightPassAbstract c s"
 
 sublocale rp_graph: Graph right_pass .
 
-sublocale rp_sg: Subgraph right_pass c
-  by (intro Subgraph_isSubgraphI right_pass_subgraph)
+sublocale rp_sg: Subgraph right_pass c unfolding rightPassAbstract_def by fastforce
 
 lemma rp_is_c_if_s_connected[simp]:
   "connected s u \<Longrightarrow> right_pass (u, v) = c (u, v)"
@@ -89,9 +85,6 @@ definition leftPassAbstract :: "_ graph \<Rightarrow> node \<Rightarrow> _ graph
     else
       0"
 
-lemma left_pass_subgraph: "isSubgraph (leftPassAbstract c s) c"
-  unfolding isSubgraph_def leftPassAbstract_def by simp
-
 lemma leftPassAbstract_nz_iff: "leftPassAbstract c t (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c v t"
   unfolding leftPassAbstract_def by simp
 
@@ -102,8 +95,7 @@ abbreviation "left_pass \<equiv> leftPassAbstract c t"
 
 sublocale lp_graph: Graph left_pass .
 
-sublocale lp_sg: Subgraph left_pass c
-  by (intro Subgraph_isSubgraphI left_pass_subgraph)
+sublocale lp_sg: Subgraph left_pass c unfolding leftPassAbstract_def by fastforce
 
 lemma lp_is_c_if_s_connected[simp]:
   "connected v t \<Longrightarrow> left_pass (u, v) = c (u, v)"
@@ -163,12 +155,6 @@ definition cleaningAbstract :: "_ graph \<Rightarrow> node \<Rightarrow> node \<
     else
       0"
 
-lemma cleaning_right_subgraph: "isSubgraph (cleaningAbstract c s t) (rightPassAbstract c s)"
-  unfolding isSubgraph_def rightPassAbstract_def cleaningAbstract_def by simp
-
-lemma cleaning_left_subgraph: "isSubgraph (cleaningAbstract c s t) (leftPassAbstract c t)"
-  unfolding isSubgraph_def leftPassAbstract_def cleaningAbstract_def by simp
-
 lemma cleaningAbstract_nz_iff:
   "cleaningAbstract c s t (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u \<and> Graph.connected c v t"
   unfolding cleaningAbstract_def by simp
@@ -180,13 +166,13 @@ abbreviation "cleaned \<equiv> cleaningAbstract c s t"
 sublocale cl_graph: Graph cleaned .
 
 sublocale cl_right_sg: Subgraph cleaned right_pass
-  by (intro Subgraph_isSubgraphI cleaning_right_subgraph)
+  unfolding cleaningAbstract_def by fastforce
 
 sublocale cl_left_sg: Subgraph cleaned left_pass
-  by (intro Subgraph_isSubgraphI cleaning_left_subgraph)
+  unfolding cleaningAbstract_def by fastforce
 
 sublocale cl_sg: Subgraph cleaned c
-  using cleaning_right_subgraph right_pass_subgraph subgraph.order_trans by blast
+  using cl_left_sg.Subgraph_axioms lp_sg.Subgraph_axioms by force
 
 lemma cl_is_c_if_st_connected[simp]: "connected s u \<Longrightarrow> connected v t \<Longrightarrow> cleaned (u, v) = c (u, v)"
   unfolding cleaningAbstract_def by simp

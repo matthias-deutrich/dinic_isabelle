@@ -3,6 +3,7 @@ imports GraphUtils
 begin
 
 (* TODO check whether this definition is actually still useful, or whether it should be dropped in favor of the locale *)
+(*
 definition isSubgraph :: "_ graph \<Rightarrow> _ graph \<Rightarrow> bool"
   where "isSubgraph c' c \<equiv> \<forall>e. c' e = c e \<or> c' e = 0"
 
@@ -11,15 +12,16 @@ definition isProperSubgraph :: "_ graph \<Rightarrow> _ graph \<Rightarrow> bool
 
 find_theorems "?P ?A ?B \<Longrightarrow> ?P ?B ?C \<Longrightarrow> ?P ?A ?C"
 
-interpretation subgraph: order isSubgraph isProperSubgraph
+interpretation subgraph': order isSubgraph isProperSubgraph
   unfolding isSubgraph_def isProperSubgraph_def
   apply unfold_locales
   apply metis
   apply force+
   done
-thm subgraph.order_trans
-thm subgraph.order_refl
+thm subgraph'.order_trans
+thm subgraph'.order_refl
 find_theorems "isProperSubgraph ?c' ?c \<Longrightarrow> isSubgraph ?c' ?c"
+*)
 
 text \<open>This theory sets up a framework to compare graphs. Its two primary notions are liftings of
       different orders to the level of graphs:
@@ -33,14 +35,8 @@ text \<open>Fixes two graphs and sets up names. Note that, contrary to the usual
 locale GraphComparison = g': Graph c' + Graph c
   for c' c :: "'capacity::linordered_idom graph"
 begin
-(*
-notation g'.E ("E''")
-notation g'.V ("V''")
-*)
 abbreviation "E' \<equiv> g'.E"
 abbreviation "V' \<equiv> g'.V"
-
-(*definition tmp where "tmp \<equiv> c' + c"*)
 end
 
 subsection \<open>Graphs with the same underlying capacity function\<close>
@@ -56,11 +52,20 @@ text \<open>This locale denotes two graphs that are restrictions of the same und
       for the underlying capacity function.\<close>
 locale CapacityCompatibleGraphs = GraphComparison c' c
   for c' c :: "'capacity::linordered_idom graph" +
-  assumes cap_compatible: "c (u, v) = 0 \<or> c' (u, v) = 0 \<or> c (u, v) = c' (u, v)" (* TODO which is better style: this way or using \<forall> quantifier? *)
+  assumes cap_compatible: "c' (u, v) = 0 \<or> c (u, v) = 0 \<or> c' (u, v) = c (u, v)" (* TODO which is better style: this way or using \<forall> quantifier? *)
 begin
-lemma eq_if_E_eq[intro]: "E = E' \<Longrightarrow> c = c'"
+lemma eq_if_E_eq[intro]: "E' = E \<Longrightarrow> c' = c"
   unfolding Graph.E_def using cap_compatible by fastforce
 end
+
+lemma CapComp_refl[simp, intro!]: "CapacityCompatibleGraphs c c"
+  unfolding CapacityCompatibleGraphs_def by simp
+
+lemma CapComp_comm: "CapacityCompatibleGraphs c' c \<Longrightarrow> CapacityCompatibleGraphs c c'"
+  unfolding CapacityCompatibleGraphs_def by metis
+
+lemma CapComp_eq[intro]: "\<lbrakk>CapacityCompatibleGraphs c' c; Graph.E c' = Graph.E c\<rbrakk> \<Longrightarrow> c' = c"
+  using CapacityCompatibleGraphs.eq_if_E_eq .
 
 text \<open>Subgraphs are a lifting of the subset relation for edges of graphs with the same underlying
       capacity function. Note that, in accordance with most literature, g' will be the subgraph of g.\<close>
@@ -70,8 +75,13 @@ begin
 lemma edge'_if_edge: "(u, v) \<in> E' \<Longrightarrow> (u, v) \<in> E" using E'_ss by blast (* TODO useful as intro? *)
 lemma cap_nonzero: "c' (u, v) \<noteq> 0 \<Longrightarrow> c (u, v) \<noteq> 0" using E'_ss Graph.E_def' by blast
 
+(*
 lemma c'_sg_c: "isSubgraph c' c"
   using cap_compatible E'_ss unfolding isSubgraph_def Graph.E_def by fastforce
+*)
+
+(* TODO rename or remove *)
+lemma c'_sg_c_old: "\<forall>e. c' e = c e \<or> c' e = 0" using cap_compatible cap_nonzero by auto
 
 lemma V_ss: "V' \<subseteq> V" unfolding Graph.V_def using E'_ss by blast
 
@@ -92,17 +102,18 @@ lemma sg_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distanc
 lemma sg_Nonnegative_Graph: "Nonnegative_Graph c \<Longrightarrow> Nonnegative_Graph c'"
   unfolding Nonnegative_Graph_def by (metis Orderings.order_eq_iff cap_compatible cap_nonzero)
 
-lemma CapacityCompatible_transfer:
+lemma CapComp_transfer:
   "CapacityCompatibleGraphs c c'' \<Longrightarrow> CapacityCompatibleGraphs c' c''"
   unfolding CapacityCompatibleGraphs_def using cap_compatible cap_nonzero by metis
 end
 
-(* TODO use *)
-lemma Subgraph_edgeI: "(\<And>u v. c' (u, v) \<noteq> 0 \<Longrightarrow> c (u, v) = c' (u, v)) \<Longrightarrow> Subgraph c' c"
+lemma Subgraph_edgeI[intro]: "(\<And>u v. c' (u, v) \<noteq> 0 \<Longrightarrow> c (u, v) = c' (u, v)) \<Longrightarrow> Subgraph c' c"
   by unfold_locales (auto simp: Graph.E_def)
 
+(*
 lemma Subgraph_isSubgraphI[intro]: "isSubgraph c' c \<Longrightarrow> Subgraph c' c"
   unfolding isSubgraph_def by unfold_locales (force simp: Graph.E_def)+
+*)
 
 (*
 lemma Subgraph_CapComp_trans: "\<lbrakk>Subgraph c'' c'; CapacityCompatibleGraphs c' c\<rbrakk> \<Longrightarrow> CapacityCompatibleGraphs c'' c"
@@ -112,8 +123,10 @@ locale Proper_Subgraph = CapacityCompatibleGraphs c' c
   for c' c :: "'capacity::linordered_idom graph"+
   assumes E'_pss: "E' \<subset> E"
 begin
+(*
 lemma c'_psg_c: "isProperSubgraph c' c"
   using cap_compatible E'_pss unfolding isProperSubgraph_def isSubgraph_def Graph.E_def by force
+*)
 
 sublocale Subgraph using E'_pss by unfold_locales blast
 end
@@ -121,6 +134,7 @@ end
 lemma (in Subgraph) Proper_SubgraphI[intro]: "\<exists>e \<in> E. e \<notin> E' \<Longrightarrow> Proper_Subgraph c' c"
   using E'_ss by unfold_locales blast
 
+(*
 lemma Proper_Subgraph_isProperSubgraphI[intro]: "isProperSubgraph c' c \<Longrightarrow> Proper_Subgraph c' c"
 proof -
   assume PSG: "isProperSubgraph c' c"
@@ -128,11 +142,19 @@ proof -
   from PSG obtain e where "c' e \<noteq> c e" unfolding isProperSubgraph_def by blast
   then show "Proper_Subgraph c' c" using E'_ss eq_if_E_eq by blast
 qed
+*)
+
+(* TODO use this instead of the old subgraph *)
+interpretation subgraph: order Subgraph Proper_Subgraph
+  unfolding Subgraph_def Subgraph_axioms_def Proper_Subgraph_def Proper_Subgraph_axioms_def
+  apply (unfold_locales, auto intro: CapComp_comm)
+  by (fastforce simp: CapacityCompatibleGraphs_def Graph.E_def)
 
 \<comment> \<open>Graphs with the same underlying capacity function\<close>
 
 subsection "Contained Graphs"
 
+(* TODO transfer to locales *)
 definition le_graph :: "'capacity::linordered_idom graph \<Rightarrow> _ graph \<Rightarrow> bool"
   where "le_graph c' c \<equiv> \<forall>e. c' e \<le> c e"
 
@@ -232,13 +254,11 @@ interpretation Nonnegative_Graph c using \<open>Nonnegative_Graph c\<close> .
 interpretation g': Nonnegative_Graph c' using Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
 lemma pathCap_eq: "set p \<subseteq> E' \<Longrightarrow> g'.pathCap p = pathCap p"
-(*
-  unfolding g'.pathCap_alt pathCap_alt
-  by (smt (verit, del_insts) List.finite_set Min_gr_iff c'_sg_c dual_order.irrefl finite_imageI g'.nonempty_path_cap_positive g'.pathCap_alt image_cong image_eqI image_is_empty isSubgraph_def set_empty) *)
+  (* unfolding g'.pathCap_alt pathCap_alt by (metis (no_types, lifting) List.finite_set Min_gr_iff c'_sg_c_old dual_order.irrefl finite_imageI g'.nonempty_path_cap_positive g'.pathCap_alt image_cong image_eqI image_is_empty set_empty) *)
 proof -
   assume "set p \<subseteq> E'"
   then have "(c' ` set p) = (c ` set p)"
-    by (smt (verit) c'_sg_c g'.E_def' image_cong isSubgraph_def mem_Collect_eq subsetD) (* TODO prettify *)
+    by (smt (verit) c'_sg_c_old g'.E_def' image_cong mem_Collect_eq subsetD) (* TODO prettify *)
   then show ?thesis unfolding g'.pathCap_alt pathCap_alt by simp
 qed
 
@@ -247,7 +267,7 @@ lemma path_induced_graph_eq: "set p \<subseteq> E' \<Longrightarrow> g'.path_ind
 
 lemma subtract_path_maintains_Subgraph: (* TODO remove or simplify with previous lemma *)
   "g'.isPath u p v \<Longrightarrow> Subgraph (g'.subtract_path p) (subtract_path p)"
-proof (intro Subgraph_isSubgraphI, unfold isSubgraph_def, clarify)
+proof (intro Subgraph_edgeI)
   assume "g'.isPath u p v"
   then have P_CAP_EQ: "g'.pathCap p = pathCap p" using pathCap_eq g'.isPath_alt by blast
 
@@ -258,7 +278,7 @@ proof (intro Subgraph_isSubgraphI, unfold isSubgraph_def, clarify)
     by (metis List.finite_set Min_le Orderings.order_eq_iff empty_iff finite_imageI g'.pathCap_alt g'.path_induced_graph_pos_contained_aux image_eqI list.set(1))
   then have C_EQ_C': "c (u, v) = c' (u, v)"
     by (metis cap_compatible cap_nonzero less_numeral_extra(3))
-  then show "g'.subtract_path p (u, v) = subtract_path p (u, v)"
+  then show "subtract_path p (u, v) = g'.subtract_path p (u, v)"
     unfolding subtract_path_def g'.subtract_path_def using P_CAP_EQ by auto
 qed
 end
