@@ -185,6 +185,8 @@ proof (intro conjI)
   interpret g': Nonnegative_Graph stl
     using cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
+  show "b \<le> n'.cf.min_dist s t" sorry
+
   show "Bounded_ST_Shortest_Path_Union (cleaningAbstract (g'.subtract_path p) s t) n'.cf s t b"
     unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
   proof
@@ -192,7 +194,7 @@ proof (intro conjI)
       by (metis ST_Graph.cl_is_c_if_st_connected Subgraph_edgeI cleaningAbstract_nz_iff)
       (*using cleaning_right_subgraph right_pass_subgraph subgraph.order.trans by blast*) (* TODO extract *)
     also have "Subgraph ... n'.cf" using aux
-      using PATH ST_Shortest_Path_Union_axioms by presburger
+      using PATH ST_Shortest_Path_Union_axioms by blast
     finally have "Subgraph (cleaningAbstract (g'.subtract_path p) s t) n'.cf" .
     then show "CapacityCompatibleGraphs (cleaningAbstract (g'.subtract_path p) s t) n'.cf"
       unfolding Subgraph_def by blast
@@ -205,10 +207,12 @@ proof (intro conjI)
     next
       fix u v
       assume "(u, v) \<in> \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}"
+      then obtain p' where "(u, v) \<in> set p'" "n'.cf.isShortestPath s p' t" "length p' \<le> b" by blast
+      with \<open>b \<le> n'.cf.min_dist s t\<close> have "length p' = b"
+        unfolding n'.cf.isShortestPath_min_dist_def by simp
       then show "(u, v) \<in> Graph.E (cleaningAbstract (g'.subtract_path p) s t)" sorry
     qed
   qed
-  show "b \<le> n'.cf.min_dist s t" sorry
 qed
 
 
