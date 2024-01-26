@@ -288,12 +288,12 @@ lemma rightPassRefine_final:
   assumes SUB: "Subgraph c' c"
     and S_CON: "\<And>u v. connected s u \<Longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
     and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - {s}. Graph.incoming c' u \<noteq> {}"
-  shows "rightPassAbstract c s = c'"
+  shows "right_pass c s = c'"
 proof (intro subgraph.order_antisym Subgraph_edgeI)
   fix u v
-  assume "rightPassAbstract c s (u, v) \<noteq> 0"
-  with S_CON show "c' (u, v) = rightPassAbstract c s (u, v)"
-    using rightPassAbstract_nz_iff S_Graph.rp_is_c_if_s_connected by metis
+  assume "right_pass c s (u, v) \<noteq> 0"
+  with S_CON show "c' (u, v) = right_pass c s (u, v)"
+    using right_pass_nz_iff S_Graph.rp_is_c_if_s_connected by metis
 next
   interpret g': Distance_Bounded_Graph c' b
     using SUB Subgraph.sg_Distance_Bounded Distance_Bounded_Graph_axioms by blast
@@ -303,16 +303,16 @@ next
   obtain w where W_CON: "g'.connected w u" and W_NO_IN: "g'.incoming w = {}" using g'.obtain_front_terminal_connected by blast
   from W_CON \<open>u \<in> g'.V\<close> have "w \<in> g'.V" by (meson g'.connected_inV_iff)
   with W_NO_IN NODE_HAS_IN have "w = s" by blast
-  with W_CON have "rightPassAbstract c s (u, v) = c (u, v)"
+  with W_CON have "right_pass c s (u, v) = c (u, v)"
     using SUB Subgraph.sg_connected_remains_base_connected S_Graph.rp_is_c_if_s_connected by fastforce
   also from SUB \<open>c' (u, v) \<noteq> 0\<close> have "... = c' (u, v)" by (metis Subgraph.c'_sg_c_old)
-  finally show "rightPassAbstract c s (u, v) = c' (u, v)" by simp
+  finally show "right_pass c s (u, v) = c' (u, v)" by simp
 qed (* TODO cleanup *)
 
 theorem rightPassRefine_partial_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
-  shows "rightPassRefine_partial c Q \<le> RETURN (rightPassAbstract c s)"
+  shows "rightPassRefine_partial c Q \<le> RETURN (right_pass c s)"
   unfolding rightPassRefine_partial_def
 proof (intro WHILE_rule[where I="rightPass_partial_invar c s"] refine_vcg, clarsimp_all)
   show "rightPass_partial_invar c s (c, Q)" unfolding rightPass_partial_invar_def using Q_START by blast
@@ -329,7 +329,7 @@ next
 next
   fix c'
   assume "rightPass_partial_invar c s (c', {})"
-  then show "rightPassAbstract c s = c'" unfolding rightPass_partial_invar_def using rightPassRefine_final by simp
+  then show "right_pass c s = c'" unfolding rightPass_partial_invar_def using rightPassRefine_final by simp
 qed
 end
 
@@ -418,7 +418,7 @@ begin
 theorem rightPassRefine_total_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine_total c Q \<le> RETURN (rightPassAbstract c s)"
+  shows "rightPassRefine_total c Q \<le> RETURN (right_pass c s)"
   unfolding rightPassRefine_total_def
 proof (intro WHILET_rule[where I="rightPass_total_invar c s"] refine_vcg, clarsimp_all)
   show "wf GraphWorkingSet_rel" by (rule wf_GraphWorkingSet_rel)
@@ -444,7 +444,7 @@ next
 next
   fix c'
   assume "rightPass_total_invar c s (c', {})"
-  then show "rightPassAbstract c s = c'" unfolding rightPass_total_invar_def rightPass_partial_invar_def
+  then show "right_pass c s = c'" unfolding rightPass_total_invar_def rightPass_partial_invar_def
     using rightPassRefine_final by simp
 qed
 
