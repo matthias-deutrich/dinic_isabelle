@@ -22,6 +22,8 @@ begin
 thm zero_flow_simp
 lemma residualGraph_alt: "residualGraph c f = (\<lambda>(u, v). if (u, v) \<in> E then c (u, v) - f(u, v) else f (v, u))"
   unfolding residualGraph_def by auto
+
+lemma contained: "Contained_Graph f c" using capacity_const by unfold_locales blast
 end
 
 context NPreflow
@@ -32,7 +34,121 @@ lemma resCap_pathCap: "resCap p = cf.pathCap p"
 lemma augmentingFlow_alt: "augmentingFlow p = cf.path_induced_graph p"
   unfolding augmentingFlow_def cf.path_induced_graph_def resCap_pathCap ..
 end
+
+(*find_theorems "?f = ?f' \<Longrightarrow>(\<lambda>x. ?f x) = (\<lambda>x. ?f' x)"*)
+context NFlow
+begin
+lemma augment_alt: "Contained_Graph f' cf \<Longrightarrow> cf_of (augment f') = cf.subtract_skew_graph f'"
+proof (rule ext, unfold split_paired_all)
+  fix u v
+  assume "Contained_Graph f' cf"
+  then interpret Contained_Graph f' cf .
+  show "cf_of (augment f') (u, v) = cf.subtract_skew_graph f' (u, v)"
+  proof (cases "(u, v) \<notin> E \<and> (v, u) \<notin> E")
+    case True
+    then have "f' (u, v) = 0" "f' (v, u) = 0"
+      using cap_abs_le NPreflow.cf_def NPreflow_axioms nle_le by fastforce+
+    then show ?thesis unfolding Graph.subtract_skew_graph_def augment_def residualGraph_def by auto
+  next
+    case False
+    then show ?thesis unfolding Graph.subtract_skew_graph_def augment_def residualGraph_def by auto
+  qed
+qed
+end
 \<comment> \<open>Alternative definitions\<close>
+
+subsection \<open>Auxiliary statements concerning the edges of augments\<close>
+context Pos_Contained_Graph
+begin
+lemma subtract_skew_edges_sub: "Graph.E (subtract_skew_graph c') \<subseteq> E \<union> E'\<inverse>"
+  unfolding subtract_skew_graph_def Graph.E_def
+  by auto (metis cap_le g'.cap_non_negative nle_le)
+
+lemma subtract_skew_edges_sup: "E \<subseteq> Graph.E (subtract_skew_graph c') \<union> E'"
+  unfolding subtract_skew_graph_def Graph.E_def
+  by auto (metis cap_le g'.cap_non_negative add_nonneg_eq_0_iff)
+end
+
+
+
+
+
+context NFlow
+begin
+(* TODO necessary? *)
+context
+  fixes f' :: "'capacity flow"
+  assumes f'_flow: "Flow cf s t f'"
+begin
+interpretation f': Flow cf s t f' using f'_flow .
+(* TODO necessary? *)
+interpretation Pos_Contained_Graph f' cf
+  using f'_flow unfolding Flow_def Preflow_def by unfold_locales auto
+
+interpretation f'': Flow c s t "augment f'" using f'_flow augment_flow_presv by blast
+
+interpretation n': NFlow c s t "augment f'" by intro_locales
+
+lemma augment_edges_sub: "n'.cf.E \<subseteq> cf.E \<union> E'\<inverse>"
+  unfolding augment_alt[OF f'.contained] using subtract_skew_edges_sub .
+proof (clarify,rule ccontr)
+  fix u v
+  assume "(u, v) \<notin> E" "(v, u) \<notin> E'"
+  then have [simp]: "c (u, v) = 0" "f (u, v) = 0" "f' (v, u) = 0" by simp_all
+    (*then have "f' (u, v) \<le> f (v, u)"
+      by (smt (verit, best) \<open>(u, v) \<notin> E\<close> cap_le residualGraph_alt split_conv)*)
+  assume "(u, v) \<in> n'.cf.E"
+  then have "0 < augment f' (v, u)"
+    unfolding f''.residualGraph_alt Graph.E_def by (simp add: f''.capacity_const less_le)
+  then have "f' (u, v) < f (v, u)" unfolding augment_def by (auto split:if_splits)
+  then show False sorry
+qed
+    with \<open>f' (u, v) \<le> f (v, u)\<close> have "f' (v, u) > 0" sorry
+    then have "f' (v, u) > 0" sorry
+    moreover have "f' (u, v) \<le> f (v, u)"
+      by (smt (verit, del_insts) \<open>(u, v) \<notin> E\<close> cap_le residualGraph_alt split_conv)
+    moreover have "f' (v, u) \<le> f' (u, v) - f (v, u)" sorry
+    ultimately show "(v, u) \<in> E'" unfolding g'.E_def by auto
+    then have "False" unfolding f''.residualGraph_alt
+      unfolding augment_def Graph.E_def apply (auto split: if_splits)
+      using \<open>(u, v) \<in> n'.cf.E\<close> f''.residualGraph_alt f''.zero_flow_simp n'.cf.E_def sorry by fastforce
+    then show "(v, u) \<in> E'" sorry
+  qed
+  then show ?thesis by clarify
+qed
+lemma augment_edges_sub: "n'.cf.E \<subseteq> E \<union> E'\<inverse>" (*apply clarify*)
+proof -
+  have "\<And>u v. \<lbrakk>(u, v) \<in> n'.cf.E; (u, v) \<notin> E\<rbrakk> \<Longrightarrow> (v, u) \<in> E'"
+  proof -
+    fix u v
+    assume "(u, v) \<notin> E"
+    then have [simp]: "c (u, v) = 0" "f (u, v) = 0" by simp_all
+    then have "f' (u, v) \<le> f (v, u)"
+      by (smt (verit, best) \<open>(u, v) \<notin> E\<close> cap_le residualGraph_alt split_conv)
+    assume "(u, v) \<in> n'.cf.E"
+    then have "0 < augment f' (v, u)"
+      unfolding f''.residualGraph_alt Graph.E_def by (simp add: f''.capacity_const less_le)
+    then have "f' (u, v) < f (v, u) + f' (v, u)" unfolding augment_def by (auto split:if_splits)
+    with \<open>f' (u, v) \<le> f (v, u)\<close> have "f' (v, u) > 0" sorry
+    then have "f' (v, u) > 0" sorry
+    moreover have "f' (u, v) \<le> f (v, u)"
+      by (smt (verit, del_insts) \<open>(u, v) \<notin> E\<close> cap_le residualGraph_alt split_conv)
+    moreover have "f' (v, u) \<le> f' (u, v) - f (v, u)" sorry
+    ultimately show "(v, u) \<in> E'" unfolding g'.E_def by auto
+    then have "False" unfolding f''.residualGraph_alt
+      unfolding augment_def Graph.E_def apply (auto split: if_splits)
+      using \<open>(u, v) \<in> n'.cf.E\<close> f''.residualGraph_alt f''.zero_flow_simp n'.cf.E_def sorry by fastforce
+    then show "(v, u) \<in> E'" sorry
+  qed
+  then show ?thesis by clarify
+qed
+
+
+
+(*(intro subrelI)*) (*unfolding residualGraph_def augment_def Graph.E_def apply auto*)
+lemma augment_edges_sup: "E \<subseteq> Graph.E (subtract_graph c') \<union> E'" oops
+end
+end
 
 (*
 context Network
@@ -133,9 +249,24 @@ lemma aux': "augmentingFlow p = g'.path_induced_graph p"
   unfolding augmentingFlow_alt
   using PATH g'.isPath_alt cf.Nonnegative_Graph_axioms by (auto simp: path_induced_graph_eq)
 
+
 lemma aux: "Subgraph (g'.subtract_path p) (cf_of (augment (augmentingFlow p)))"
   unfolding g'.subtract_path_alt aux'
   using subtract_augment_Subgraph[OF SPU g'.path_induced_graph_pos_contained] .
+(* TODO fix and use this instead *)
+(*
+proof -
+  have INDUCED: "augmentingFlow p = g'.path_induced_graph p" unfolding augmentingFlow_alt
+    using PATH g'.isPath_alt cf.Nonnegative_Graph_axioms by (auto simp: path_induced_graph_eq)
+
+  have "Contained_Graph (g'.path_induced_graph p) stl" using g'.path_induced_graph_pos_contained
+    by (simp add: Contained_Graph.intro Le_Graph.cap_le Nonnegative_Graph.cap_non_negative Pos_Contained_Graph_def) (* TODO *)
+  also have "Contained_Graph stl cf" by (simp add: Contained_Graph_axioms)
+  finally have CONT: "Contained_Graph (g'.path_induced_graph p) cf" .
+
+  show ?thesis unfolding g'.subtract_path_alt INDUCED augment_alt[OF CONT] sorry
+qed
+*)
 end
 thm aux
 
@@ -185,9 +316,14 @@ proof (intro conjI)
   interpret g': Nonnegative_Graph stl
     using cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
-  show "b \<le> n'.cf.min_dist s t" sorry
+  have "cf.min_dist s t \<le> n'.cf.min_dist s t" sorry
+  with B_EQ show "b \<le> n'.cf.min_dist s t" by simp
+
+  (*interpret tmp: CapacityCompatibleGraphs "(cleaning (g'.subtract_path p) s t)" n'.cf sorry*)
 
   show "Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_path p) s t) n'.cf s t b"
+    (*apply unfold_locales*)
+    (*apply intro_locales prefer 2 subgoal apply unfold_locales*)
     unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
   proof
     have "Subgraph (cleaning (g'.subtract_path p) s t) (g'.subtract_path p)"

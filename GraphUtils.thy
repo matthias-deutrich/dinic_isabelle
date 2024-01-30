@@ -321,7 +321,7 @@ locale Nonnegative_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
   assumes cap_non_negative: "c (u, v) \<ge> 0"
 
 locale Irreducible_Graph = Nonnegative_Graph +
-  assumes no_parallel_edge: "(u, v) \<in> E \<Longrightarrow> (v, u) \<notin> E"
+  assumes no_parallel_edge: "\<And>u v. (u, v) \<in> E \<Longrightarrow> (v, u) \<notin> E"
 begin
 lemma no_parallel_capacity: "c (u, v) \<noteq> 0 \<Longrightarrow> c (v, u) = 0"
   using no_parallel_edge unfolding E_def by blast
@@ -385,6 +385,34 @@ lemma connected_trans: "\<lbrakk>connected u v; connected v w\<rbrakk> \<Longrig
 
 
 (* TODO check if exists *)
+lemma vertex_cases[consumes 1]:
+  assumes "u \<in> V"
+  obtains (outgoing) v where "(u, v) \<in> E"
+    | (incoming) v where "(v, u) \<in> E"
+  using V_def assms by auto
+
+thm list.cases
+
+(* TODO improve, check if useful *)
+lemma parallel_edge_cases:
+  obtains (NO_EDGE) "(u, v) \<notin> E" "(v, u) \<notin> E"
+  | (EDGE) "(u, v) \<in> E" "(v, u) \<notin> E"
+  | (REV_EDGE) "(u, v) \<notin> E" "(v, u) \<in> E"
+  | (PARALLEL_EDGE) "(u, v) \<in> E" "(v, u) \<in> E"
+  by blast
+
+lemma parallel_edge_cases':
+  obtains (NO_EDGE) u v where "(u, v) \<notin> E" "(v, u) \<notin> E"
+  | (EDGE) u v where "(u, v) \<in> E" "(v, u) \<notin> E"
+  | (REV_EDGE) u v where "(u, v) \<notin> E" "(v, u) \<in> E"
+  | (PARALLEL_EDGE) u v where "(u, v) \<in> E" "(v, u) \<in> E"
+  by blast
+
+lemma parallel_edge_cases [case_names EDGE REV_EDGE NO_EDGE, cases pred]:
+  "\<lbrakk>\<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
+    \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v);
+    \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v)\<rbrakk>
+  \<Longrightarrow> P (u, v)" using no_parallel_edge by blast
 lemma vertex_cases[consumes 1]:
   assumes "u \<in> V"
   obtains (outgoing) v where "(u, v) \<in> E"

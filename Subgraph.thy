@@ -176,10 +176,16 @@ text \<open>Sometimes merely comparing two graphs based on their edge sets is in
 definition (in Graph) subtract_graph :: "_ graph \<Rightarrow> _ graph"
   where "subtract_graph c' \<equiv> \<lambda> (u, v). c (u, v) - c' (u, v)"
 
+definition (in Graph) subtract_skew_graph :: "_ graph \<Rightarrow> _ graph"
+  where "subtract_skew_graph c' \<equiv> \<lambda> (u, v). c (u, v) - c' (u, v) + c' (v, u)"
+
 locale Contained_Graph = GraphComparison c' c for c' c :: "'capacity:: linordered_idom graph" +
   assumes cap_abs_le:
     "(0 \<le> c' (u, v) \<and> c' (u, v) \<le> c (u, v)) \<or> (c (u, v) \<le> c' (u, v) \<and> c' (u, v) \<le> 0)"
 begin
+lemma edges_ss: "E' \<subseteq> E" unfolding Graph.E_def
+  by clarify (metis nle_le cap_abs_le)
+
 lemma contained_irreducible: "Irreducible_Graph c \<Longrightarrow> Irreducible_Graph c'"
   unfolding Irreducible_Graph_def
   by (metis (mono_tags, lifting) Irreducible_Graph_axioms_def Nonnegative_Graph_def cap_abs_le dual_order.antisym g'.E_def' mem_Collect_eq order_trans zero_cap_simp)
@@ -187,6 +193,8 @@ lemma contained_irreducible: "Irreducible_Graph c \<Longrightarrow> Irreducible_
 lemma subtract_contained: "Contained_Graph (subtract_graph c') c"
   unfolding subtract_graph_def using cap_abs_le by unfold_locales auto
 end
+lemma contained_trans[trans]: "\<lbrakk>Contained_Graph c'' c'; Contained_Graph c' c\<rbrakk> \<Longrightarrow> Contained_Graph c'' c"
+  unfolding Contained_Graph_def by (meson order_trans)
 
 sublocale Subgraph \<subseteq> Contained_Graph
   using cap_compatible cap_nonzero by unfold_locales (metis nle_le)
@@ -200,6 +208,7 @@ begin
 sublocale Nonnegative_Graph c using cap_le g'.cap_non_negative by unfold_locales (metis order_trans)
 
 sublocale Contained_Graph c' c using cap_le g'.cap_non_negative by unfold_locales blast
+thm Contained_Graph_axioms (* TODO how to make these available outside *)
 
 lemma subtract_le_contained: "Pos_Contained_Graph (subtract_graph c') c"
   unfolding subtract_graph_def using cap_le g'.cap_non_negative by unfold_locales auto
@@ -224,8 +233,7 @@ definition path_induced_graph :: "path \<Rightarrow> _ graph"
 lemma path_induced_graph_pos_contained_aux:
   "p \<noteq> [] \<Longrightarrow> 0 \<le> pathCap p" unfolding pathCap_alt using cap_non_negative by auto
 
-lemma path_induced_graph_pos_contained:
-  shows "Pos_Contained_Graph (path_induced_graph p) c"
+lemma path_induced_graph_pos_contained: "Pos_Contained_Graph (path_induced_graph p) c"
   unfolding path_induced_graph_def apply unfold_locales
   using cap_non_negative apply (simp add: pathCap_alt)
   by (fastforce intro: path_induced_graph_pos_contained_aux)
@@ -282,6 +290,16 @@ proof (intro Subgraph_edgeI)
     unfolding subtract_path_def g'.subtract_path_def using P_CAP_EQ by auto
 qed
 end
+end
+find_consts "('a \<times> 'b) set \<Rightarrow> ('b \<times> 'a) set"
+thm converse_def
+
+text \<open>Edges when subtracting graphs\<close>
+context Contained_Graph
+begin
+(* TODO *)
+lemma subtract_graph_edges_sub: "Graph.E (subtract_graph c') \<subseteq> E \<union> E'\<inverse>" oops
+lemma subtract_graph_edges_sup: "E \<subseteq> Graph.E (subtract_graph c') \<union> E'" oops
 end
 
 end
