@@ -3,11 +3,25 @@ theory LayerGraph
 begin
 
 subsection \<open>Layerings\<close>
+(* TODO use or remove *)
+(* locally prelayered? introducing set of vertices *)
+locale Prelayer_Graph = Graph +
+  fixes layer :: "node \<Rightarrow> nat"
+  assumes layer_edge_weak: "(u, v) \<in> E \<Longrightarrow> layer v \<le> Suc (layer u)"
+begin
+lemma path_prelayered: "isPath u p v \<Longrightarrow> layer v \<le> layer u + length p"
+  by (induction rule: isPath_front_induct) (auto dest: layer_edge_weak)
+
+corollary dist_prelayered: "dist u d v \<Longrightarrow> layer v \<le> layer u + d"
+  unfolding dist_def using path_prelayered by blast
+end
 
 locale Generic_Layer_Graph = Graph +
   fixes layer :: "node \<Rightarrow> nat"
   assumes layer_edge[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (layer u) = layer v"
 begin
+sublocale Prelayer_Graph by unfold_locales simp
+
 lemma path_ascends_layer: "isPath u p v \<Longrightarrow> layer v = layer u + length p"
   by (induction rule: isPath_front_induct) auto
 
@@ -225,6 +239,12 @@ proof (cases "u = v")
   with PATH' show ?thesis using path_ascends_layer by simp
 qed simp
 
+(* TODO not true, fix *)
+text \<open>Note: the previous proof almost gave us a Prelayer_Graph. However, there may still be multiple
+      weakly connected components in the subgraph, each of which may have a shifted layering. Actually
+      proofing Prelayer_Graph in this locale would require reasoning about the ability to choose a
+      correct layering function, which is somewhat involved and unnecessary for our purposes.\<close>
+
 lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow>  isShortestPath u p v" unfolding isShortestPath_def
   using path_ascends_layer path_respects_layer sg_paths_are_base_paths g'.connected_def by fastforce
 
@@ -261,6 +281,15 @@ qed
 
 sublocale Layered_Shortest_Path_Union c' c "{s}" T layer unfolding Layered_Shortest_Path_Union_def
   using Shortest_Path_Union_axioms Generic_Layer_Graph_axioms by blast
+
+(* TODO does this really work? there might be nodes not connected to s which may be assigned an arbitrary layer *)
+(*
+text \<open>Since s is connected to everything, the lemma path_respects_layer gives us a Prelayer_Graph.\<close>
+sublocale Prelayer_Graph
+proof
+  fix u v
+  assume "(u, v) \<in> E"
+*)
 
 (* TODO check if necessary, and if so, cleanup *)
 lemma shortest_s_path_remains_path: "\<lbrakk>u \<in> V'; isShortestPath s p u\<rbrakk> \<Longrightarrow> g'.isPath s p u"
