@@ -252,9 +252,30 @@ lemma nonempty_path_cap_positive: "\<lbrakk>p \<noteq> []; set p \<subseteq> E\<
   unfolding pathCap_alt E_def by (auto intro!: le_neq_trans[OF cap_non_negative])
 end
 
+(* TODO prettify *)
+lemma (in Subgraph) irreducible_contained_skew_subtract:
+  "\<lbrakk>Contained_Graph f c'; Irreducible_Graph c'\<rbrakk> \<Longrightarrow> Subgraph (g'.subtract_graph f) (subtract_skew_graph f)"
+  apply (intro Subgraph_edgeI)
+  unfolding g'.subtract_graph_def subtract_skew_graph_def
+  (*by (smt (verit, best) Contained_Graph.edges_ss Graph.E_def' Irreducible_Graph.no_parallel_capacity c'_sg_c_old case_prod_conv diff_0_right diff_diff_eq2 in_mono mem_Collect_eq) *)
+  apply auto
+  by (metis (no_types, opaque_lifting) Contained_Graph.cap_abs_le Irreducible_Graph.no_parallel_edge add_cancel_left_right cap_compatible cap_nonzero g'.zero_cap_simp nle_le)
 
 context Subgraph
 begin
+context
+  fixes f
+  assumes "Contained_Graph f c'"
+begin
+
+end
+
+
+
+
+
+
+
 context
   assumes "Nonnegative_Graph c"
 begin
