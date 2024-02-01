@@ -106,14 +106,46 @@ lemma f'_cont: "Contained_Graph f' cf"
 thm g'.E_def
 thm st_connected_iff
 
+interpretation cf': Graph "cf.subtract_skew_graph f'" .
+
+thm path_prelayered
+(* TODO check if using s is actually necessary *)
+lemma aux: "\<lbrakk>Graph.isPath (cf_of (augment f')) s p u; \<not> cf.isPath s p u\<rbrakk> \<Longrightarrow> cf.min_dist s u < length p"
+  unfolding augment_alt[OF f'_cont]
+proof (induction rule: cf'.isPath_back_induct)
+  case (SelfPath u)
+  then show ?case by simp
+next
+  case (EdgePath p u v)
+  thm path_prelayered
+  then have "cf.isPath s p u" sorry (* TODO make this work *)
+  then show ?case sorry
+qed
+  assume "cf'.isPath s p t" "\<not> cf.isPath s p t"
+  then obtain u v where "(u, v) \<in> set p" "(u, v) \<notin> cf.E"
+    unfolding Graph.isPath_alt by auto
+  with \<open>cf'.isPath s p t\<close> obtain p\<^sub>s p\<^sub>t where "cf'.isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
+    by (metis split_list)
+(* TODO rename *)
+(*
+lemma aux:
+  "\<lbrakk>Graph.isPath (cf_of (augment f')) s p t; \<not> cf.isPath s p t\<rbrakk> \<Longrightarrow> cf.min_dist s t < length p"
+  unfolding augment_alt[OF f'_cont]
+proof -
+  interpret cf': Graph "cf.subtract_skew_graph f'" .
+  assume "cf'.isPath s p t" "\<not> cf.isPath s p t"
+  then obtain u v where "(u, v) \<in> set p" "(u, v) \<notin> cf.E"
+    unfolding Graph.isPath_alt by auto
+  with \<open>cf'.isPath s p t\<close> obtain p\<^sub>s p\<^sub>t where "cf'.isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
+    by (metis split_list)
+*)
+
 (* TODO do we need the flow properties? *)
 lemma dinic_inner_flow_step:
   "cf.min_dist s t \<le> Graph.min_dist (cf_of (augment f')) s t \<and>
   Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_graph f') s t) (cf_of (augment f')) s t (cf.min_dist s t)"
   unfolding augment_alt[OF f'_cont]
 proof
-  interpret cf': Graph "cf.subtract_skew_graph f'" .
-
   show "cf.min_dist s t \<le> cf'.min_dist s t" sorry
 
   show "Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_graph f') s t) (cf.subtract_skew_graph f') s t (cf.min_dist s t)"

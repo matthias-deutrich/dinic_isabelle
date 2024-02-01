@@ -3,27 +3,62 @@ theory LayerGraph
 begin
 
 subsection \<open>Layerings\<close>
-(* TODO use or remove *)
-(* locally prelayered? introducing set of vertices *)
-locale Prelayer_Graph = Graph +
-  fixes layer :: "node \<Rightarrow> nat"
-  assumes layer_edge_weak: "(u, v) \<in> E \<Longrightarrow> layer v \<le> Suc (layer u)"
-begin
-lemma path_prelayered: "isPath u p v \<Longrightarrow> layer v \<le> layer u + length p"
-  by (induction rule: isPath_front_induct) (auto dest: layer_edge_weak)
+(* TODO we need some notion of locality (as the layer function only gives useful information on
+   some of the nodes). This may be done by restricting the nodes to be in some set or by setting the
+   layering to 0 for all unconcerned nodes. Check which approach is better *)
 
-corollary dist_prelayered: "dist u d v \<Longrightarrow> layer v \<le> layer u + d"
-  unfolding dist_def using path_prelayered by blast
+(* This version requires all nodes to be in S, and might be ugly to work with *)
+locale Local_Prelayer_Graph_Old = Graph +
+  fixes layer :: "node \<Rightarrow> nat"
+    and S
+  assumes layer_edge_weak: "\<And> u v. \<lbrakk>u \<in> S; v \<in> S; (u, v) \<in> E\<rbrakk> \<Longrightarrow> layer v \<le> Suc (layer u)"
+begin
+lemma path_prelayered: "\<lbrakk>isPath u p v; set (pathVertices u p) \<subseteq> S\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p"
+  apply (induction rule: isPath_front_induct)
+  apply auto
+  by (metis add_Suc add_le_imp_le_right empty.pathVertices_fwd_simps(5) layer_edge_weak le_antisym le_trans nat_le_linear pathVertices_fwd subset_code(1))
 end
+
+(* TODO this has a weaker precondition and is thus stronger. Check if this works and is still weak enough *)
+locale Local_Prelayer_Graph = Graph +
+  fixes layer :: "node \<Rightarrow> nat"
+    and S
+  assumes path_prelayered: "\<And> u p v. \<lbrakk>u \<in> S; v \<in> S; isPath u p v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p"
+begin
+corollary edge_prelayered: "\<lbrakk>u \<in> S; v \<in> S; (u, v) \<in> E\<rbrakk> \<Longrightarrow> layer v \<le> Suc (layer u)"
+  using path_prelayered[where p="[(u, v)]"] by simp
+
+corollary dist_prelayered: "\<lbrakk>u \<in> S; v \<in> S; dist u d v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + d"
+  unfolding dist_def using path_prelayered by blast
+
+(* TODO remove *)
+(*
+sublocale Local_Prelayer_Graph_Old
+proof
+  fix u v
+  assume "(u, v) \<in> E"
+  then have "isPath u [(u, v)] v" by simp
+  moreover assume "u \<in> S" "v \<in> S"
+  ultimately show "layer v \<le> Suc (layer u)"
+    using path_prelayered
+    by (metis One_nat_def add.commute length_Cons list.size(3) plus_1_eq_Suc)
+qed
+*)
+end
+
+(* TODO currently this has to be repeated for every flavour of prelayering *)
+lemma (in Subgraph) prelayer_transfer:
+  "Local_Prelayer_Graph c layer S \<Longrightarrow> Local_Prelayer_Graph c' layer S"
+  unfolding Local_Prelayer_Graph_def using sg_paths_are_base_paths by blast
 
 locale Generic_Layer_Graph = Graph +
   fixes layer :: "node \<Rightarrow> nat"
   assumes layer_edge[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (layer u) = layer v"
 begin
-sublocale Prelayer_Graph by unfold_locales simp
-
 lemma path_ascends_layer: "isPath u p v \<Longrightarrow> layer v = layer u + length p"
   by (induction rule: isPath_front_induct) auto
+
+sublocale Local_Prelayer_Graph c layer UNIV by unfold_locales (simp add: path_ascends_layer)
 
 corollary dist_layer: "dist u d v \<Longrightarrow> layer v = layer u + d"
   unfolding dist_def using path_ascends_layer by blast
@@ -282,6 +317,20 @@ qed
 sublocale Layered_Shortest_Path_Union c' c "{s}" T layer unfolding Layered_Shortest_Path_Union_def
   using Shortest_Path_Union_axioms Generic_Layer_Graph_axioms by blast
 
+(* TODO remove *)
+(*
+thm path_respects_layer
+sublocale old_prelayer: Local_Prelayer_Graph_Old c layer V'
+  apply unfold_locales
+  using min_dist_succ min_dist_transfer s_connected sg_connected_remains_base_connected by presburger
+*)
+
+(* TODO prettify *)
+sublocale Local_Prelayer_Graph c layer V'
+  apply unfold_locales
+  by (metis Graph.isPath_distD dist_trans min_dist_is_dist min_dist_minD min_dist_transfer s_connected sg_connected_remains_base_connected)
+
+thm dist_prelayered
 (* TODO does this really work? there might be nodes not connected to s which may be assigned an arbitrary layer *)
 (*
 text \<open>Since s is connected to everything, the lemma path_respects_layer gives us a Prelayer_Graph.\<close>
