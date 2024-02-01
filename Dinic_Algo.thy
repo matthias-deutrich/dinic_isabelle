@@ -108,6 +108,45 @@ thm st_connected_iff
 
 interpretation cf': Graph "cf.subtract_skew_graph f'" .
 
+find_consts name:filter
+thm filter.simps
+(* TODO is there something better than length (filter P) ? didn't find anything *)
+find_theorems length filter
+
+thm path_prelayered
+lemma aux: "Graph.isPath (cf_of (augment f')) u p v \<Longrightarrow> cf.min_dist u v + 2 * (length (filter (\<lambda>e. e \<notin> cf.E) p))\<le> length p"
+  unfolding augment_alt[OF f'_cont]
+proof (induction "length (filter (\<lambda>e. e \<notin> cf.E) p)")
+  case 0
+  then show ?case
+  proof (cases "p = []")
+    case True
+    with 0 show ?thesis by simp
+  next
+    case False
+    with 0 have "u \<in> cf.V" "v \<in> cf.V"
+      using cf'.isPath_fwd_cases cf.V_def apply fastforce
+      using False 0 cf'.isPath_bwd_cases cf.V_def by fastforce (* TODO improve *)
+    moreover from 0 have "cf.isPath u p v"
+      by (metis cf'.isPath_alt cf.isPath_alt empty_filter_conv length_0_conv subset_code(1))
+    ultimately show ?thesis using path_prelayered sorry
+  qed
+
+
+
+  then have "cf.isPath u p v"
+    sby (metis cf'.isPath_alt cf.isPath_alt empty_filter_conv length_0_conv subset_code(1))
+  moreover from 0 have 
+  then have "cf.min_dist u v \<le> length p"
+    using 
+  then show ?case
+    apply (simp add: 0)
+next
+  case (Suc x)
+  then show ?case sorry
+qed
+
+(*
 thm path_prelayered
 (* TODO check if using s is actually necessary *)
 lemma aux: "\<lbrakk>Graph.isPath (cf_of (augment f')) s p u; \<not> cf.isPath s p u\<rbrakk> \<Longrightarrow> cf.min_dist s u < length p"
@@ -126,6 +165,7 @@ qed
     unfolding Graph.isPath_alt by auto
   with \<open>cf'.isPath s p t\<close> obtain p\<^sub>s p\<^sub>t where "cf'.isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
     by (metis split_list)
+*)
 (* TODO rename *)
 (*
 lemma aux:
