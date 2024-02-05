@@ -2,6 +2,8 @@ theory GraphUtils
 imports "Flow_Networks.Graph"
 begin
 
+(* TODO intro for connected, then remove all the unfoldings *)
+
 section \<open>General utils\<close>
 text \<open>Shortcut for the default way of starting an equality proof of edge sets.\<close>
 lemma pair_set_eqI:

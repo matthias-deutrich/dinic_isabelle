@@ -90,7 +90,7 @@ context
   fixes stl f'
   assumes CONTAINED: "Contained_Graph f' stl"
       and STU: "ST_Shortest_Path_Union stl cf s t"
-      and SATURATING_FLOW: "\<exists>e. stl e = f' e \<and> f' e > 0"
+      and SATURATING_FLOW: "\<exists>e. stl e = f' e \<and> f' e > 0" (* TODO move *)
 begin
 interpretation ST_Shortest_Path_Union stl cf s t using STU .
 
@@ -196,13 +196,50 @@ proof
       using ST_Graph.cleaning_edge_set by blast
     with \<open>Subgraph (g'.subtract_graph f') cf'\<close> have "cf'.isPath s p t"
       using Subgraph.sg_paths_are_base_paths by blast
-      moreover have "length p = cf.min_dist s t" sorry
-      moreover note \<open>cf.min_dist s t \<le> cf'.min_dist s t\<close>
-      moreover note \<open>(u, v) \<in> set p\<close>
-      ultimately show "(u, v) \<in> \<Union> {set p |p. cf'.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
-        unfolding cf'.isShortestPath_min_dist_def
-        using cf'.isPath_distD cf'.min_dist_minD sby fastforce
-
+    moreover have "length p = cf.min_dist s t"
+    proof -
+      from \<open>Graph.isPath (g'.subtract_graph f') s p t\<close> have "g'.isPath s p t"
+        unfolding Graph.isPath_alt
+        using CONTAINED Contained_Graph.edges_ss Contained_Graph.subtract_contained by blast
+      then show ?thesis using cf.isShortestPath_min_dist_def shortest_path_transfer by presburger
+    qed
+    moreover from \<open>cf'.isPath s p t\<close> have "cf.min_dist s t \<le> cf'.min_dist s t"
+      using st_min_dist_non_decreasing cf'.connected_def by blast
+    moreover note \<open>(u, v) \<in> set p\<close>
+    ultimately show "(u, v) \<in> \<Union> {set p |p. cf'.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
+      unfolding cf'.isShortestPath_min_dist_def
+      using cf'.isPath_distD cf'.min_dist_minD by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. cf'.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
+    then obtain p where SP': "cf'.isShortestPath s p t" "length p \<le> cf.min_dist s t"
+      and UV_IN_P: "(u, v) \<in> set p" by blast
+    moreover from SATURATING_FLOW have IN_V': "s \<in> V'" "t \<in> V'" (* TODO improve *)
+      using g'.isEmpty_def s_in_V_if_nonempty t_in_V_if_nonempty by fastforce+
+    ultimately have "layer t + 2 * new_edge_count p \<le> layer s + cf.min_dist s t"
+      using cf'_new_edge_layered cf'.shortestPath_is_path by fastforce
+    then have "new_edge_count p = 0" by (simp add: IN_V'(1) min_dist_transfer st_connected)
+    with SP' have "cf.isShortestPath s p t"
+      unfolding new_edge_count_def Graph.isShortestPath_min_dist_def
+      by (metis cf'.connected_def Graph.isPath_alt empty_filter_conv length_0_conv nle_le st_min_dist_non_decreasing subset_code(1))
+    then have "g'.isPath s p t"
+      using IN_V'(2) shortest_s_path_remains_path by blast
+    then have "Graph.isPath (g'.subtract_graph f') s p t"
+      unfolding Graph.isPath_alt
+    proof clarify
+      fix u v
+      assume "(u, v) \<in> set p"
+      with \<open>cf'.isShortestPath s p t\<close> have "(u, v) \<in> cf'.E"
+        using cf'.isPath_edgeset cf'.shortestPath_is_path by blast
+      thm this[unfolded cf'.E_def cf.subtract_skew_graph_def]
+      then show "(u, v) \<in> Graph.E (g'.subtract_graph f')" sorry
+    qed
+    then have "Graph.isPath (cleaning (g'.subtract_graph f') s t) s p t"
+      using ST_Graph.cleaning_edge_set unfolding Graph.isPath_alt by blast
+    with UV_IN_P show "(u, v) \<in> Graph.E (cleaning (g'.subtract_graph f') s t)"
+      using Graph.isPath_edgeset by blast
+  qed
+qed
 
 (* TODO do we need the flow properties? *)
 lemma dinic_inner_flow_step:
