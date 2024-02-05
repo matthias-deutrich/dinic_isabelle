@@ -103,17 +103,103 @@ interpretation con: Contained_Graph f' stl using CONTAINED .
 lemma f'_cont: "Contained_Graph f' cf"
   using CONTAINED Contained_Graph_axioms contained_trans by blast
 
+interpretation tmp: Pos_Contained_Graph f' cf
+  by (metis CONTAINED Contained_Graph.cap_abs_le Contained_Graph.contained_irreducible Irreducible_Graph.axioms(1) Le_Graph.intro Nonnegative_Graph.cap_non_negative Pos_Contained_Graph_def antisym cf.Nonnegative_Graph_axioms f'_cont g'.Irreducible_Graph_axioms)
+
+(*lemma "V' = cf.V"*)
+
 thm g'.E_def
 thm st_connected_iff
 
-interpretation cf': Graph "cf.subtract_skew_graph f'" .
+abbreviation "cf' \<equiv> cf.subtract_skew_graph f'"
+interpretation cf': Graph cf' .
+
+thm path_prelayered
+
+(*
+lemma "Local_Prelayer_Graph_Old cf' layer V'"
+proof
+  fix u v
+  assume "u \<in> V'" "v \<in> V'" "(u, v) \<in> cf'.E"
+  then consider (OLD_EDGE) "(u, v) \<in> cf.E" | (REV_FLOW) "(v, u) \<in> Graph.E f'"
+    using tmp.subtract_skew_edges_sub by auto
+    (*by (smt (verit, best) CONTAINED Contained_Graph.edges_ss Graph.E_def cf.cap_non_negative cf.subtract_skew_graph_def edge'_if_edge le_add_diff_inverse mem_Collect_eq prod.simps(2) right_minus_eq subset_eq)*)
+  then show "layer v \<le> Suc (layer u)"
+  proof cases
+    case OLD_EDGE
+    with \<open>u \<in> V'\<close> \<open>v \<in> V' \<close> show ?thesis using edge_prelayered by blast
+  next
+    case REV_FLOW
+    then show ?thesis
+      by (metis CONTAINED Contained_Graph.edges_ss le_SucI le_add2 plus_1_eq_Suc s_layered subsetD)
+  qed
+qed
+*)
+
+lemma "Local_Prelayer_Graph cf' layer V'"
+proof (* TODO fix this mess *)
+  fix u v p
+  assume IN_V: "u \<in> V'" "v \<in> V'" and "cf'.isPath u p v"
+  then show "layer v \<le> layer u + length p"
+  proof (induction "length (filter (\<lambda>e. e \<notin> cf.E) p)" arbitrary: u v p rule: less_induct)
+    case less
+    then show ?case
+    proof (cases "length (filter (\<lambda>e. e \<notin> cf.E) p) = 0")
+      case True
+      with \<open>cf'.isPath u p v\<close> have "cf.isPath u p v"
+        by (metis cf.isPath_alt empty_filter_conv isLinked_if_isPath length_0_conv subset_code(1))
+      with less show ?thesis using path_prelayered by simp
+    next
+      case False
+      then obtain u' v' p\<^sub>1 p\<^sub>2 where "p = p\<^sub>1 @ (u', v') # p\<^sub>2" "(u', v') \<notin> cf.E"
+        by (metis empty_filter_conv in_set_conv_decomp length_0_conv subrelI subsetD)
+      then have "length (filter (\<lambda>e. e \<notin> cf.E) p)
+        = length (filter (\<lambda>e. e \<notin> cf.E) p\<^sub>1)
+        + length (filter (\<lambda>e. e \<notin> cf.E) [(u', v')])
+        + length (filter (\<lambda>e. e \<notin> cf.E) p\<^sub>2)"
+        by simp
+      with \<open>(u', v') \<notin> cf.E\<close> have
+        "length (filter (\<lambda>e. e \<notin> cf.E) p\<^sub>1) < length (filter (\<lambda>e. e \<notin> cf.E) p)"
+        and "length (filter (\<lambda>e. e \<notin> cf.E) p\<^sub>2) < length (filter (\<lambda>e. e \<notin> cf.E) p)"
+        by auto
+      moreover from \<open>cf'.isPath u p v\<close> \<open>p = p\<^sub>1 @ (u', v') # p\<^sub>2\<close> have "cf'.isPath u p\<^sub>1 u'" "cf'.isPath v' p\<^sub>2 v"
+        using cf'.isPath_append by auto
+      moreover have "u' \<in> V'" "v' \<in> V'" "layer u' = Suc (layer v')"
+      proof -
+        from \<open>(u', v') \<notin> cf.E\<close> have "(v', u') \<in> tmp.E'"
+          using tmp.subtract_skew_edges_sub \<open>p = p\<^sub>1 @ (u', v') # p\<^sub>2\<close> cf'.isPath_append less.prems(3) by auto
+        then have "(v', u') \<in> E'"
+          using CONTAINED Contained_Graph.edges_ss by blast
+        then show "u' \<in> V'" "v' \<in> V'" "layer u' = Suc (layer v')" unfolding g'.V_def by auto
+      qed
+      ultimately have "layer u' \<le> layer u + length p\<^sub>1" "layer v \<le> layer v' + length p\<^sub>2"
+        using less IN_V by blast+
+      moreover from \<open>p = p\<^sub>1 @ (u', v') # p\<^sub>2\<close> have "length p = length p\<^sub>1 + length p\<^sub>2 + 1" by simp
+      ultimately show ?thesis
+        using \<open>layer u' = Suc (layer v')\<close> by linarith
+    qed
+  qed
+qed
+
+
+(*
+  proof (induction "length (filter (\<lambda>e. e \<notin> cf.E) p)" arbitrary: p)
+    case 0
+    then have "cf.isPath u p v"
+      by (metis cf.isPath_alt empty_filter_conv isLinked_if_isPath length_0_conv subset_code(1))
+    with 0 show ?case using path_prelayered by simp
+  next
+    case (Suc x)
+    then show ?case sorry
+  qed
+*)
 
 find_consts name:filter
 thm filter.simps
-(* TODO is there something better than length (filter P) ? didn't find anything *)
+(* TODO is there something better than length (filter P)? didn't find anything *)
 find_theorems length filter
 
-thm path_prelayered
+(*
 lemma aux: "Graph.isPath (cf_of (augment f')) u p v \<Longrightarrow> cf.min_dist u v + 2 * (length (filter (\<lambda>e. e \<notin> cf.E) p))\<le> length p"
   unfolding augment_alt[OF f'_cont]
 proof (induction "length (filter (\<lambda>e. e \<notin> cf.E) p)")
@@ -144,7 +230,7 @@ proof (induction "length (filter (\<lambda>e. e \<notin> cf.E) p)")
 next
   case (Suc x)
   then show ?case sorry
-qed
+qed*)
 
 (*
 thm path_prelayered
@@ -186,7 +272,10 @@ lemma dinic_inner_flow_step:
   Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_graph f') s t) (cf_of (augment f')) s t (cf.min_dist s t)"
   unfolding augment_alt[OF f'_cont]
 proof
-  show "cf.min_dist s t \<le> cf'.min_dist s t" sorry
+  have "cf.connected s t" sorry
+  then have "cf.min_dist s t = g'.min_dist s t" by (simp add: min_dist_transfer st_connected_iff)
+  also have "g'.min_dist s t \<le> cf'.min_dist s t" sorry
+  finally show "cf.min_dist s t \<le> cf'.min_dist s t" .
 
   show "Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_graph f') s t) (cf.subtract_skew_graph f') s t (cf.min_dist s t)"
     unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
@@ -215,7 +304,14 @@ proof
       ultimately show "(u, v) \<in> \<Union> {set p |p. cf'.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
         unfolding cf'.isShortestPath_min_dist_def
         using cf'.isPath_distD cf'.min_dist_minD by fastforce
+    next
+      fix u v
+      assume "(u, v) \<in> \<Union> {set p |p. cf'.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
+      then obtain p where "cf'.isShortestPath s p t" "(u, v) \<in> set p" "length p \<le> cf.min_dist s t" by blast
+      then show "(u, v) \<in> Graph.E (cleaning (g'.subtract_graph f') s t)" sorry
+    qed
   qed
+qed
 end
 
 
