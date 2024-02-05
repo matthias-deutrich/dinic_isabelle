@@ -36,6 +36,7 @@ end
 
 context NFlow
 begin
+(*
 (* TODO deprecated, remove *)
 context
   fixes stl p
@@ -61,7 +62,7 @@ proof -
   show ?thesis unfolding g'.subtract_path_alt INDUCED augment_alt[OF CONT_CF]
     using CONT_STL g'.Irreducible_Graph_axioms by (intro irreducible_contained_skew_subtract)
 qed
-end
+end*)
 
 definition dinic_inner_partial :: "(_ flow \<times> nat) nres" where
   "dinic_inner_partial \<equiv> do {
@@ -103,7 +104,7 @@ interpretation con: Contained_Graph f' stl using CONTAINED .
 lemma f'_cont: "Contained_Graph f' cf"
   using CONTAINED Contained_Graph_axioms contained_trans by blast
 
-interpretation tmp: Pos_Contained_Graph f' cf
+interpretation f'_pos_cont: Pos_Contained_Graph f' cf
   by (metis CONTAINED Contained_Graph.cap_abs_le Contained_Graph.contained_irreducible Irreducible_Graph.axioms(1) Le_Graph.intro Nonnegative_Graph.cap_non_negative Pos_Contained_Graph_def antisym cf.Nonnegative_Graph_axioms f'_cont g'.Irreducible_Graph_axioms)
 
 (*lemma "V' = cf.V"*)
@@ -114,88 +115,58 @@ thm st_connected_iff
 abbreviation "cf' \<equiv> cf.subtract_skew_graph f'"
 interpretation cf': Graph cf' .
 
-thm path_prelayered
-
 (*
-lemma "Local_Prelayer_Graph_Old cf' layer V'"
-proof
-  fix u v
-  assume "u \<in> V'" "v \<in> V'" "(u, v) \<in> cf'.E"
-  then consider (OLD_EDGE) "(u, v) \<in> cf.E" | (REV_FLOW) "(v, u) \<in> Graph.E f'"
-    using tmp.subtract_skew_edges_sub by auto
-    (*by (smt (verit, best) CONTAINED Contained_Graph.edges_ss Graph.E_def cf.cap_non_negative cf.subtract_skew_graph_def edge'_if_edge le_add_diff_inverse mem_Collect_eq prod.simps(2) right_minus_eq subset_eq)*)
-  then show "layer v \<le> Suc (layer u)"
-  proof cases
-    case OLD_EDGE
-    with \<open>u \<in> V'\<close> \<open>v \<in> V' \<close> show ?thesis using edge_prelayered by blast
+lemma "\<lbrakk>u \<in> V'; v \<in> V'; cf'.isPath u p v\<rbrakk> \<Longrightarrow> cf.min_dist u v + 2 * new_edge_count p \<le> length p"
+*)
+
+definition new_edge_count :: "path \<Rightarrow> nat"
+  where "new_edge_count p \<equiv> length (filter (\<lambda>e. e \<notin> cf.E) p)"
+
+lemma cf'_new_edge_layered:
+  "\<lbrakk>u \<in> V'; v \<in> V'; cf'.isPath u p v\<rbrakk> \<Longrightarrow> layer v + 2 * new_edge_count p \<le> layer u + length p"
+proof (induction "new_edge_count p" arbitrary: u v p rule: less_induct)
+  case less
+  then show ?case
+  proof (cases "new_edge_count p = 0")
+    case True
+    with less.prems have "cf.isPath u p v" unfolding new_edge_count_def
+      by (metis cf.isPath_alt empty_filter_conv isLinked_if_isPath length_0_conv subset_code(1))
+    with True less.prems show ?thesis using path_prelayered cf.isPath_distD cf.min_dist_minD by force
   next
-    case REV_FLOW
-    then show ?thesis
-      by (metis CONTAINED Contained_Graph.edges_ss le_SucI le_add2 plus_1_eq_Suc s_layered subsetD)
+    case False
+    then obtain w\<^sub>1 w\<^sub>2 p\<^sub>1 p\<^sub>2 where P: "p = p\<^sub>1 @ (w\<^sub>1, w\<^sub>2) # p\<^sub>2" and W_NOT_CF: "(w\<^sub>1, w\<^sub>2) \<notin> cf.E"
+      unfolding new_edge_count_def
+      by (metis empty_filter_conv in_set_conv_decomp length_0_conv subrelI subsetD)
+    then have P1_COUNT: "new_edge_count p\<^sub>1 < new_edge_count p" and P2_COUNT: "new_edge_count p\<^sub>2 < new_edge_count p"
+      unfolding new_edge_count_def by auto
+
+    from less.prems P have P1_PATH: "cf'.isPath u p\<^sub>1 w\<^sub>1" and P2_PATH: "cf'.isPath w\<^sub>2 p\<^sub>2 v"
+      using cf'.isPath_append by auto
+
+    from P less.prems have "(w\<^sub>1, w\<^sub>2) \<in> cf'.E" using cf'.isPath_append by simp
+    with W_NOT_CF have "(w\<^sub>2, w\<^sub>1) \<in> f'_pos_cont.E'"
+      using f'_pos_cont.subtract_skew_edges_sub by blast
+    then have "(w\<^sub>2, w\<^sub>1) \<in> E'"
+      using CONTAINED Contained_Graph.edges_ss by blast
+    then have "w\<^sub>1 \<in> V'" "w\<^sub>2 \<in> V'" and W_L: "layer w\<^sub>1 = Suc (layer w\<^sub>2)" unfolding g'.V_def by auto
+
+    have "layer v + 2 * new_edge_count p = layer v + 2 * new_edge_count p\<^sub>1 + 2 * new_edge_count p\<^sub>2 + 2"
+      unfolding new_edge_count_def using P W_NOT_CF by simp
+    also have "... \<le> layer w\<^sub>2 + length p\<^sub>2 + 2 * new_edge_count p\<^sub>1 + 2"
+      using less.hyps[OF P2_COUNT \<open>w\<^sub>2 \<in> V'\<close> \<open>v \<in> V'\<close> P2_PATH] by simp
+    also have "... = layer w\<^sub>1 + length p\<^sub>2 + 2 * new_edge_count p\<^sub>1 + 1"
+      using W_L by simp
+    also have "... \<le> layer u + length p\<^sub>1 + length p\<^sub>2 + 1"
+      using less.hyps[OF P1_COUNT \<open>u \<in> V'\<close> \<open>w\<^sub>1 \<in> V'\<close> P1_PATH] by simp
+    also have "... = layer u + length p"
+      using P by simp
+    finally show ?thesis .
   qed
 qed
-*)
 
 lemma "Local_Prelayer_Graph cf' layer V'"
-proof (* TODO fix this mess *)
-  fix u v p
-  assume IN_V: "u \<in> V'" "v \<in> V'" and "cf'.isPath u p v"
-  then show "layer v \<le> layer u + length p"
-  proof (induction "length (filter (\<lambda>e. e \<notin> cf.E) p)" arbitrary: u v p rule: less_induct)
-    case less
-    then show ?case
-    proof (cases "length (filter (\<lambda>e. e \<notin> cf.E) p) = 0")
-      case True
-      with \<open>cf'.isPath u p v\<close> have "cf.isPath u p v"
-        by (metis cf.isPath_alt empty_filter_conv isLinked_if_isPath length_0_conv subset_code(1))
-      with less show ?thesis using path_prelayered by simp
-    next
-      case False
-      then obtain u' v' p\<^sub>1 p\<^sub>2 where "p = p\<^sub>1 @ (u', v') # p\<^sub>2" "(u', v') \<notin> cf.E"
-        by (metis empty_filter_conv in_set_conv_decomp length_0_conv subrelI subsetD)
-      then have "length (filter (\<lambda>e. e \<notin> cf.E) p)
-        = length (filter (\<lambda>e. e \<notin> cf.E) p\<^sub>1)
-        + length (filter (\<lambda>e. e \<notin> cf.E) [(u', v')])
-        + length (filter (\<lambda>e. e \<notin> cf.E) p\<^sub>2)"
-        by simp
-      with \<open>(u', v') \<notin> cf.E\<close> have
-        "length (filter (\<lambda>e. e \<notin> cf.E) p\<^sub>1) < length (filter (\<lambda>e. e \<notin> cf.E) p)"
-        and "length (filter (\<lambda>e. e \<notin> cf.E) p\<^sub>2) < length (filter (\<lambda>e. e \<notin> cf.E) p)"
-        by auto
-      moreover from \<open>cf'.isPath u p v\<close> \<open>p = p\<^sub>1 @ (u', v') # p\<^sub>2\<close> have "cf'.isPath u p\<^sub>1 u'" "cf'.isPath v' p\<^sub>2 v"
-        using cf'.isPath_append by auto
-      moreover have "u' \<in> V'" "v' \<in> V'" "layer u' = Suc (layer v')"
-      proof -
-        from \<open>(u', v') \<notin> cf.E\<close> have "(v', u') \<in> tmp.E'"
-          using tmp.subtract_skew_edges_sub \<open>p = p\<^sub>1 @ (u', v') # p\<^sub>2\<close> cf'.isPath_append less.prems(3) by auto
-        then have "(v', u') \<in> E'"
-          using CONTAINED Contained_Graph.edges_ss by blast
-        then show "u' \<in> V'" "v' \<in> V'" "layer u' = Suc (layer v')" unfolding g'.V_def by auto
-      qed
-      ultimately have "layer u' \<le> layer u + length p\<^sub>1" "layer v \<le> layer v' + length p\<^sub>2"
-        using less IN_V by blast+
-      moreover from \<open>p = p\<^sub>1 @ (u', v') # p\<^sub>2\<close> have "length p = length p\<^sub>1 + length p\<^sub>2 + 1" by simp
-      ultimately show ?thesis
-        using \<open>layer u' = Suc (layer v')\<close> by linarith
-    qed
-  qed
-qed
+  using cf'_new_edge_layered by unfold_locales fastforce
 
-
-(*
-  proof (induction "length (filter (\<lambda>e. e \<notin> cf.E) p)" arbitrary: p)
-    case 0
-    then have "cf.isPath u p v"
-      by (metis cf.isPath_alt empty_filter_conv isLinked_if_isPath length_0_conv subset_code(1))
-    with 0 show ?case using path_prelayered by simp
-  next
-    case (Suc x)
-    then show ?case sorry
-  qed
-*)
-
-find_consts name:filter
-thm filter.simps
 (* TODO is there something better than length (filter P)? didn't find anything *)
 find_theorems length filter
 
@@ -232,39 +203,6 @@ next
   then show ?case sorry
 qed*)
 
-(*
-thm path_prelayered
-(* TODO check if using s is actually necessary *)
-lemma aux: "\<lbrakk>Graph.isPath (cf_of (augment f')) s p u; \<not> cf.isPath s p u\<rbrakk> \<Longrightarrow> cf.min_dist s u < length p"
-  unfolding augment_alt[OF f'_cont]
-proof (induction rule: cf'.isPath_back_induct)
-  case (SelfPath u)
-  then show ?case by simp
-next
-  case (EdgePath p u v)
-  thm path_prelayered
-  then have "cf.isPath s p u" sorry (* TODO make this work *)
-  then show ?case sorry
-qed
-  assume "cf'.isPath s p t" "\<not> cf.isPath s p t"
-  then obtain u v where "(u, v) \<in> set p" "(u, v) \<notin> cf.E"
-    unfolding Graph.isPath_alt by auto
-  with \<open>cf'.isPath s p t\<close> obtain p\<^sub>s p\<^sub>t where "cf'.isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
-    by (metis split_list)
-*)
-(* TODO rename *)
-(*
-lemma aux:
-  "\<lbrakk>Graph.isPath (cf_of (augment f')) s p t; \<not> cf.isPath s p t\<rbrakk> \<Longrightarrow> cf.min_dist s t < length p"
-  unfolding augment_alt[OF f'_cont]
-proof -
-  interpret cf': Graph "cf.subtract_skew_graph f'" .
-  assume "cf'.isPath s p t" "\<not> cf.isPath s p t"
-  then obtain u v where "(u, v) \<in> set p" "(u, v) \<notin> cf.E"
-    unfolding Graph.isPath_alt by auto
-  with \<open>cf'.isPath s p t\<close> obtain p\<^sub>s p\<^sub>t where "cf'.isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
-    by (metis split_list)
-*)
 
 (* TODO do we need the flow properties? *)
 lemma dinic_inner_flow_step:
