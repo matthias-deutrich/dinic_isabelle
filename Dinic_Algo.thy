@@ -176,6 +176,35 @@ proof -
   finally show ?thesis using SP' cf'.isShortestPath_min_dist_def by simp
 qed
 
+(*
+lemma aux: "\<lbrakk>g'.isPath u p v; cf'.isPath u p v\<rbrakk> \<Longrightarrow> Graph.isPath (g'.subtract_graph f') u p v"
+proof (induction p arbitrary: u)
+  case Nil
+  then show ?case by (simp add: Graph.isPath.simps(1))
+next
+  case (Cons e p)
+  then obtain w where "(u, w) \<in> g'.E" "(u, w) \<in> cf'.E" "g'.isPath w p v" "cf'.isPath w p v"
+    by (metis Graph.isPath.simps(2) old.prod.exhaust)
+  with Cons.IH have "Graph.isPath (g'.subtract_graph f') w p v" by blast
+  moreover have 
+  then show ?case sorry
+qed
+*)
+
+lemma aux: "\<lbrakk>g'.isPath u p v; cf'.isPath u p v\<rbrakk> \<Longrightarrow> Graph.isPath (g'.subtract_graph f') u p v"
+proof (unfold Graph.isPath_alt, clarify)
+  fix w\<^sub>1 w\<^sub>2
+  assume "(w\<^sub>1, w\<^sub>2) \<in> set p" "set p \<subseteq> E'" "set p \<subseteq> cf'.E"
+  then have assms: "(w\<^sub>1, w\<^sub>2) \<in> E'" "(w\<^sub>1, w\<^sub>2) \<in> cf'.E" by auto
+  then have "(w\<^sub>2, w\<^sub>1) \<notin> E'" using no_parallel_edge by blast
+  then have "f' (w\<^sub>2, w\<^sub>1) = 0" 
+    using CONTAINED Contained_Graph.edges_ss f'_pos_cont.g'.zero_cap_simp by blast
+  with assms show "(w\<^sub>1, w\<^sub>2) \<in> Graph.E (g'.subtract_graph f')"
+    unfolding Graph.E_def g'.subtract_graph_def cf.subtract_skew_graph_def
+    by simp (metis cap_compatible cap_nonzero) (* TODO *)
+qed
+
+
 lemma cleaning_maintains_bounded_union:
   "Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_graph f') s t) cf' s t (cf.min_dist s t)"
   unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
@@ -224,16 +253,8 @@ proof
       by (metis cf'.connected_def Graph.isPath_alt empty_filter_conv length_0_conv nle_le st_min_dist_non_decreasing subset_code(1))
     then have "g'.isPath s p t"
       using IN_V'(2) shortest_s_path_remains_path by blast
-    then have "Graph.isPath (g'.subtract_graph f') s p t"
-      unfolding Graph.isPath_alt
-    proof clarify
-      fix u v
-      assume "(u, v) \<in> set p"
-      with \<open>cf'.isShortestPath s p t\<close> have "(u, v) \<in> cf'.E"
-        using cf'.isPath_edgeset cf'.shortestPath_is_path by blast
-      thm this[unfolded cf'.E_def cf.subtract_skew_graph_def]
-      then show "(u, v) \<in> Graph.E (g'.subtract_graph f')" sorry
-    qed
+    with SP' have "Graph.isPath (g'.subtract_graph f') s p t"
+      using aux cf'.shortestPath_is_path by blast
     then have "Graph.isPath (cleaning (g'.subtract_graph f') s t) s p t"
       using ST_Graph.cleaning_edge_set unfolding Graph.isPath_alt by blast
     with UV_IN_P show "(u, v) \<in> Graph.E (cleaning (g'.subtract_graph f') s t)"
