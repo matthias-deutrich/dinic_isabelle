@@ -405,7 +405,7 @@ sublocale T_Shortest_Path_Union c' c "{s}" t
   by unfold_locales (simp add: shortest_st_path_union)
 
 text \<open>Note that due connectivity being declared as intro for S/T_Layer_Graph, this proof is
-      completely automatic (as opposed to the ones in S/T_Shortest_Path_Union.\<close>
+      completely automatic (as opposed to the ones in S/T_Shortest_Path_Union).\<close>
 sublocale ST_Layer_Graph c' s t unfolding ST_Layer_Graph_def
   using edge_on_shortest_path g'.isShortestPath_level_edge(6) shortest_ST_path_remains by fastforce
 
