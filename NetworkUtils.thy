@@ -3,6 +3,10 @@ theory NetworkUtils
 begin
 text \<open>This file contains several additions to the AFP concerning networks and flows.\<close>
 
+lemma (in Pos_Contained_Graph) conservation_FlowI:
+  "\<forall>v \<in> V - {s, t}. (\<Sum>e \<in> incoming v. c' e) = (\<Sum>e \<in> outgoing v. c' e) \<Longrightarrow> Flow c s t c'"
+  using g'.cap_non_negative cap_le by unfold_locales auto
+
 text \<open>This is a workaround to introduce NFlow more easily, since it usually requires showing Preflow twice.\<close>
 lemma NFlowI: "\<lbrakk>Network c s t; Flow c s t f\<rbrakk> \<Longrightarrow> NFlow c s t f"
   unfolding NFlow_def NPreflow_def Flow_def by simp
@@ -69,7 +73,7 @@ lemma subtract_skew_edges_sup: "E \<subseteq> Graph.E (subtract_skew_graph c') \
   by auto (metis cap_le g'.cap_non_negative add_nonneg_eq_0_iff)
 end
 
-context NFlow
+context NFlow (* TODO use or remove *)
 begin
 context
   fixes f' :: "'capacity flow"
@@ -91,6 +95,62 @@ end
 (* TODO should be able to redo much of the following using this unfolding *)
 thm f'_augment_alt
 end
-
 \<comment> \<open>Auxiliary statements concerning the edges of augments\<close>
+
+context Subgraph
+begin
+context
+  fixes s t f
+  assumes FLOW: "Flow c' s t f"
+begin
+interpretation f: Flow c' s t f using FLOW .
+
+thm f.conservation_const
+
+thm sum_Un
+find_theorems "\<forall>x \<in> ?S. ?f x = 0 \<Longrightarrow> sum ?f ?S = 0"
+thm sum.neutral
+find_theorems "?x = ?y \<Longrightarrow> ?f ?x = ?f ?y"
+lemma "A = B \<Longrightarrow> sum f A = sum f B" using [[rule_trace]] oops
+  thm arg_cong
+
+lemma transfer_flow: "Network c s t \<Longrightarrow> Flow c s t f"
+proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative graph leading to Pos_Contained *)
+  assume "Network c s t"
+  then interpret Network c s t .
+  show "Pos_Contained_Graph f c"
+    apply unfold_locales
+     apply (metis c'_sg_c_old cap_non_negative f.capacity_const order_antisym_conv)
+    by (simp add: f.f_non_negative)
+
+  show "\<forall>v\<in>V - {s, t}. sum f (incoming v) = sum f (outgoing v)"
+  proof
+    fix v
+    assume "v \<in> V - {s, t}"
+
+    have "sum f (incoming v) = sum f (incoming v \<inter> E') + sum f (incoming v - E')"
+      by (simp add: sum.Int_Diff)
+    also have "... = sum f (incoming v \<inter> E')" by (auto intro: sum.neutral)
+    also have "... = sum f (g'.incoming v)"
+      using edges_ss unfolding Graph.incoming_def by (intro arg_cong[where f="sum f"]) auto (* TODO can this be improved? *)
+    also have "... = sum f (g'.outgoing v)"
+    proof (cases "v \<in> V'")
+      case True
+      with \<open>v \<in> V - {s, t}\<close> have "v \<in> V' - {s, t}" by simp
+      then show ?thesis using f.conservation_const by blast
+    next
+      case False
+      then have "g'.incoming v = {}" "g'.outgoing v = {}"
+        unfolding g'.V_def g'.incoming_def g'.outgoing_def by auto
+      then show ?thesis by simp
+    qed
+    also have "... = sum f (outgoing v \<inter> E')"
+      using edges_ss unfolding Graph.outgoing_def by (intro arg_cong[where f="sum f"]) auto
+    also have "... = sum f (outgoing v \<inter> E') + sum f (outgoing v - E')" by (auto intro: sum.neutral)
+    also have "... = sum f (outgoing v)" by (simp add: sum.Int_Diff[symmetric])
+    finally show "sum f (incoming v) = sum f (outgoing v)" .
+  qed
+qed
+end
+end
 end

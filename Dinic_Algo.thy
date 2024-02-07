@@ -212,6 +212,21 @@ next
   qed
 qed
 
+thm augment_flow_presv
+lemma augment_NFlow: "NFlow c s t (augment f')"
+proof -
+  have "Flow cf s t f'"
+    using F'_STL_FLOW apply (elim transfer_flow) sorry
+    
+    
+    
+    
+    unfolding Flow_def Flow_axioms_def Preflow_def apply auto (*intro NFlowI*)
+  using Network_axioms apply blast unfolding Flow_def Flow_axioms_def Preflow_def sorry apply auto sorry
+  
+  unfolding NFlow_def
+  apply unfold_locales
+
 (* TODO flow property + wellfounded if saturated edge *)
 
 (* TODO do we need the flow properties? *)

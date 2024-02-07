@@ -83,6 +83,12 @@ lemma c'_sg_c: "isSubgraph c' c"
 (* TODO rename or remove *)
 lemma c'_sg_c_old: "\<forall>e. c' e = c e \<or> c' e = 0" using cap_compatible cap_nonzero by auto
 
+(* TODO check whether this is useful *)
+lemma sg_cap_cases': "\<lbrakk>c' (u, v) = c (u, v) \<Longrightarrow> P (u, v); c' (u, v) = 0 \<Longrightarrow> P (u, v)\<rbrakk> \<Longrightarrow> P (u, v)"
+  using c'_sg_c_old by blast
+lemma sg_cap_cases: "\<And>u v. \<lbrakk>c' (u, v) = c (u, v) \<Longrightarrow> P; c' (u, v) = 0 \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P"
+  using c'_sg_c_old by blast
+
 lemma V_ss: "V' \<subseteq> V" unfolding Graph.V_def using E'_ss by blast
 
 lemma sg_paths_are_base_paths: "g'.isPath u p v \<Longrightarrow> isPath u p v"
