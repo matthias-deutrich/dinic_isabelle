@@ -14,10 +14,10 @@ lemma NFlowI: "\<lbrakk>Network c s t; Flow c s t f\<rbrakk> \<Longrightarrow> N
 sublocale Network \<subseteq> Irreducible_Graph
   using cap_non_negative no_parallel_edge by unfold_locales auto
 
-context NPreflow
-begin
-sublocale cf: Nonnegative_Graph cf using Nonnegative_Graph_def resE_nonNegative by blast
-end
+sublocale Flow \<subseteq> flow_pos_cont: Pos_Contained_Graph f c using capacity_const by unfold_locales auto
+
+sublocale NPreflow \<subseteq> cf: Nonnegative_Graph cf using Nonnegative_Graph_def resE_nonNegative by blast
+
 
 subsection \<open>Alternative definitions\<close>
 (* TODO check which of these are used *)
@@ -99,29 +99,18 @@ end
 
 context Subgraph
 begin
-context
-  fixes s t f
+lemma transfer_flow:
   assumes FLOW: "Flow c' s t f"
-begin
-interpretation f: Flow c' s t f using FLOW .
-
-thm f.conservation_const
-
-thm sum_Un
-find_theorems "\<forall>x \<in> ?S. ?f x = 0 \<Longrightarrow> sum ?f ?S = 0"
-thm sum.neutral
-find_theorems "?x = ?y \<Longrightarrow> ?f ?x = ?f ?y"
-lemma "A = B \<Longrightarrow> sum f A = sum f B" using [[rule_trace]] oops
-  thm arg_cong
-
-lemma transfer_flow: "Network c s t \<Longrightarrow> Flow c s t f"
+    and NONNEGATIVE: "Nonnegative_Graph c"
+    and FINITE: "Finite_Graph c"
+  shows"Flow c s t f"
 proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative graph leading to Pos_Contained *)
-  assume "Network c s t"
-  then interpret Network c s t .
+  interpret f: Flow c' s t f using FLOW .
+  interpret Nonnegative_Graph c using NONNEGATIVE .
+  interpret Finite_Graph c using FINITE .
+
   show "Pos_Contained_Graph f c"
-    apply unfold_locales
-     apply (metis c'_sg_c_old cap_non_negative f.capacity_const order_antisym_conv)
-    by (simp add: f.f_non_negative)
+    by unfold_locales (metis c'_sg_c_old cap_non_negative f.capacity_const order_antisym_conv)
 
   show "\<forall>v\<in>V - {s, t}. sum f (incoming v) = sum f (outgoing v)"
   proof
@@ -151,6 +140,5 @@ proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative
     finally show "sum f (incoming v) = sum f (outgoing v)" .
   qed
 qed
-end
 end
 end
