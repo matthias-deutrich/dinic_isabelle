@@ -100,6 +100,12 @@ corollary sg_connected_remains_base_connected: "g'.connected u v \<Longrightarro
 lemma shortest_path_remains_if_contained: "\<lbrakk>g'.isPath u p v; isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
   using sg_paths_are_base_paths by (meson Graph.isShortestPath_def)
 
+lemma incoming_ss: "g'.incoming u \<subseteq> incoming u"
+  unfolding Graph.incoming_def using edge'_if_edge by blast
+
+lemma outgoing_ss: "g'.outgoing u \<subseteq> outgoing u"
+  unfolding Graph.outgoing_def using edge'_if_edge by blast
+
 (* TODO is this the right location for this? *)
 text \<open>Transfer lemmas\<close>
 lemma sg_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distance_Bounded_Graph c' b"

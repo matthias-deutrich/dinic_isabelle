@@ -422,134 +422,65 @@ proof -
     from PATH show "cf.min_dist s t \<le> b"
       using cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer by force
   qed (rule B_LE)
-  with BOUNDED_UNION have "ST_Shortest_Path_Union stl cf s t" using min_st_dist_bound by blast
-  moreover have "Flow stl s t (augmentingFlow p)"
-  proof (intro Pos_Contained_Graph.conservation_FlowI)
-
-  qed
-  moreover note NFlow_axioms
-  ultimately interpret st_layered_flow: ST_Layered_Flow c s t f stl "augmentingFlow p"
-    by (intro  ST_Layered_Flow.intro)
-
-  interpret g': Nonnegative_Graph stl
-    using cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
-
-  have INDUCED: "augmentingFlow p = g'.path_induced_graph p" unfolding augmentingFlow_alt
-    using PATH g'.isPath_alt cf.Nonnegative_Graph_axioms by (auto simp: path_induced_graph_eq)
-
-  interpret p_con: Pos_Contained_Graph "g'.path_induced_graph p" stl
-    using g'.path_induced_graph_pos_contained .
-
-  have "NFlow c s t (augment (augmentingFlow p))"
-    apply (intro NFlowI, simp add: Network_axioms)
-    by (simp add: PATH augFlow_resFlow augment_flow_presv cf.shortestPath_is_simple isAugmentingPath_def shortest_path_transfer)
-  then show ?thesis unfolding B_EQ g'.subtract_path_alt INDUCED
-    using dinic_inner_flow_step[OF p_con.Contained_Graph_axioms ST_Shortest_Path_Union_axioms] by rule
-qed
-(*
-  thm p_con.Contained_Graph_axioms
-
-  show "NFlow c s t (augment (augmentingFlow p))"
-    apply (intro NFlowI, simp add: Network_axioms)
-    by (simp add: PATH augFlow_resFlow augment_flow_presv cf.shortestPath_is_simple isAugmentingPath_def shortest_path_transfer)
-  then interpret n': NFlow c s t "augment (augmentingFlow p)" .
-
-  interpret g': Nonnegative_Graph stl
-    using cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
-
-  have "cf.min_dist s t \<le> n'.cf.min_dist s t" sorry
-  with B_EQ show "b \<le> n'.cf.min_dist s t" by simp
-
-  (*interpret tmp: CapacityCompatibleGraphs "(cleaning (g'.subtract_path p) s t)" n'.cf sorry*)
-
-  show "Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_path p) s t) n'.cf s t b"
-    (*apply unfold_locales*)
-    (*apply intro_locales prefer 2 subgoal apply unfold_locales*)
-    unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
-  proof
-    have "Subgraph (cleaning (g'.subtract_path p) s t) (g'.subtract_path p)"
-      by (metis ST_Graph.cl_is_c_if_st_connected Subgraph_edgeI cleaning_nz_iff)
-      (*using cleaning_right_subgraph right_pass_subgraph subgraph.order.trans by blast*) (* TODO extract *)
-    also have "Subgraph ... n'.cf" using subtract_augment_Subgraph
-      using PATH ST_Shortest_Path_Union_axioms by blast
-    finally have "Subgraph (cleaning (g'.subtract_path p) s t) n'.cf" .
-    then show "CapacityCompatibleGraphs (cleaning (g'.subtract_path p) s t) n'.cf"
-      unfolding Subgraph_def by blast
-  next
-    show "Graph.E (cleaning (g'.subtract_path p) s t) = \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}"
-    proof (intro pair_set_eqI)
-      fix u v
-      assume "(u, v) \<in> Graph.E (cleaning (g'.subtract_path p) s t)"
-      then show "(u, v) \<in> \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}" sorry
-    next
-      fix u v
-      assume "(u, v) \<in> \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}"
-      then obtain p' where "(u, v) \<in> set p'" "n'.cf.isShortestPath s p' t" "length p' \<le> b" by blast
-      with \<open>b \<le> n'.cf.min_dist s t\<close> have "length p' = b"
-        unfolding n'.cf.isShortestPath_min_dist_def by simp
-      then show "(u, v) \<in> Graph.E (cleaning (g'.subtract_path p) s t)" sorry
-    qed
-  qed
-qed
-*)
-
-lemma dinic_inner_partial_step':
-  assumes PATH: "Graph.isPath stl s p t"
-      and BOUNDED_UNION: "Bounded_ST_Shortest_Path_Union stl cf s t b"
-      and B_LE: "b \<le> cf.min_dist s t"
-    shows "NFlow c s t (augment (augmentingFlow p))
-    \<and> Bounded_ST_Shortest_Path_Union (cleaning (Nonnegative_Graph.subtract_path stl p) s t) (cf_of (augment (augmentingFlow p))) s t b
-    \<and> b \<le> Graph.min_dist (cf_of (augment (augmentingFlow p))) s t"
-proof (intro conjI)
-  have B_EQ: "b = cf.min_dist s t"
-  proof (intro antisym)
-    interpret Bounded_ST_Shortest_Path_Union stl cf s t b using BOUNDED_UNION .
-    from PATH show "cf.min_dist s t \<le> b"
-      using cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer by force
-  qed (rule B_LE)
   with BOUNDED_UNION interpret ST_Shortest_Path_Union stl cf s t using min_st_dist_bound by blast
-
-  show "NFlow c s t (augment (augmentingFlow p))"
-    apply (intro NFlowI, simp add: Network_axioms)
-    by (simp add: PATH augFlow_resFlow augment_flow_presv cf.shortestPath_is_simple isAugmentingPath_def shortest_path_transfer)
-  then interpret n': NFlow c s t "augment (augmentingFlow p)" .
-
   interpret g': Nonnegative_Graph stl
     using cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
-  have "cf.min_dist s t \<le> n'.cf.min_dist s t" sorry
-  with B_EQ show "b \<le> n'.cf.min_dist s t" by simp
+  have INDUCED_EQ: "cf.path_induced_graph p = g'.path_induced_graph p"
+    using PATH cf.Nonnegative_Graph_axioms g'.isPath_alt path_induced_graph_eq by simp
+  have "Flow stl s t (augmentingFlow p)"
+  proof (intro Pos_Contained_Graph.conservation_FlowI)
+    from INDUCED_EQ show "Pos_Contained_Graph (augmentingFlow p) stl"
+      unfolding augmentingFlow_alt using g'.path_induced_graph_pos_contained by simp
 
-  (*interpret tmp: CapacityCompatibleGraphs "(cleaning (g'.subtract_path p) s t)" n'.cf sorry*)
+    show "\<forall>v\<in>V' - {s, t}. sum (augmentingFlow p) (g'.incoming v) = sum (augmentingFlow p) (g'.outgoing v)"
+    proof
+      fix v
+      assume "v \<in> V' - {s, t}"
+      then have "v \<in> V - {s, t}" using V_ss by auto
+      let ?aug_sum = "sum (augmentingFlow p)"
 
-  show "Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_path p) s t) n'.cf s t b"
-    (*apply unfold_locales*)
-    (*apply intro_locales prefer 2 subgoal apply unfold_locales*)
-    unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
-  proof
-    have "Subgraph (cleaning (g'.subtract_path p) s t) (g'.subtract_path p)"
-      by (metis ST_Graph.cl_is_c_if_st_connected Subgraph_edgeI cleaning_nz_iff)
-      (*using cleaning_right_subgraph right_pass_subgraph subgraph.order.trans by blast*) (* TODO extract *)
-    also have "Subgraph ... n'.cf" using subtract_augment_Subgraph
-      using PATH ST_Shortest_Path_Union_axioms by blast
-    finally have "Subgraph (cleaning (g'.subtract_path p) s t) n'.cf" .
-    then show "CapacityCompatibleGraphs (cleaning (g'.subtract_path p) s t) n'.cf"
-      unfolding Subgraph_def by blast
-  next
-    show "Graph.E (cleaning (g'.subtract_path p) s t) = \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}"
-    proof (intro pair_set_eqI)
-      fix u v
-      assume "(u, v) \<in> Graph.E (cleaning (g'.subtract_path p) s t)"
-      then show "(u, v) \<in> \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}" sorry
-    next
-      fix u v
-      assume "(u, v) \<in> \<Union> {set p |p. n'.cf.isShortestPath s p t \<and> length p \<le> b}"
-      then obtain p' where "(u, v) \<in> set p'" "n'.cf.isShortestPath s p' t" "length p' \<le> b" by blast
-      with \<open>b \<le> n'.cf.min_dist s t\<close> have "length p' = b"
-        unfolding n'.cf.isShortestPath_min_dist_def by simp
-      then show "(u, v) \<in> Graph.E (cleaning (g'.subtract_path p) s t)" sorry
+      (* TODO extract this *)
+      have "?aug_sum (g'.incoming v) = ?aug_sum (g'.incoming v) + ?aug_sum (cf.incoming v - E')"
+        using PATH unfolding augmentingFlow_alt cf.path_induced_graph_def g'.isPath_alt
+        by (fastforce intro: sum.neutral)
+      also have "... = ?aug_sum (g'.incoming v) + ?aug_sum (cf.incoming v - (g'.incoming v))"
+        unfolding Graph.incoming_def by (auto intro: arg_cong[where f="?aug_sum"])
+      also have "... = ?aug_sum (cf.incoming v \<inter> g'.incoming v) + ?aug_sum (cf.incoming v - (g'.incoming v))"
+        using incoming_ss by (auto intro!: arg_cong[where f="?aug_sum"])
+      also have "... = ?aug_sum (cf.incoming v)"
+        using sum.Int_Diff by (metis cf.incoming_edges cfE_of_finite rev_finite_subset)
+      also from \<open>v \<in> V - {s, t}\<close> have "... = ?aug_sum (cf.outgoing v)"
+        using Flow.conservation_const augFlow_resFlow PATH 
+        using cf.shortestPath_is_simple isAugmentingPath_def resV_netV shortest_path_transfer by blast
+        (* TODO prettify *)
+      also have "... = ?aug_sum (cf.outgoing v \<inter> g'.outgoing v) + ?aug_sum (cf.outgoing v - (g'.outgoing v))"
+        using sum.Int_Diff by (metis cf.outgoing_edges cfE_of_finite rev_finite_subset)
+      also have "... = ?aug_sum (g'.outgoing v) + ?aug_sum (cf.outgoing v - (g'.outgoing v))"
+        using outgoing_ss by (auto intro!: arg_cong[where f="?aug_sum"])
+      also have "... = ?aug_sum (g'.outgoing v) + ?aug_sum (cf.outgoing v - E')"
+        unfolding Graph.outgoing_def by (auto intro: arg_cong[where f="?aug_sum"])
+      also have "... = ?aug_sum (g'.outgoing v)"
+        using PATH unfolding augmentingFlow_alt cf.path_induced_graph_def g'.isPath_alt
+        by (fastforce intro: sum.neutral)
+
+      finally show "sum (augmentingFlow p) (g'.incoming v) = sum (augmentingFlow p) (g'.outgoing v)" .
     qed
   qed
+  then interpret st_layered_flow: ST_Layered_Flow c s t f stl "augmentingFlow p"
+    using NFlow_axioms ST_Shortest_Path_Union_axioms by (intro ST_Layered_Flow.intro)
+
+  show "NFlow c s t aug_f" unfolding aug_f_def using st_layered_flow.augment_NFlow .
+
+  show "Bounded_ST_Shortest_Path_Union stl' (cf_of aug_f) s t b"
+    using st_layered_flow.cleaning_maintains_bounded_union INDUCED_EQ B_EQ
+    unfolding stl'_def aug_f_def g'.subtract_path_alt augmentingFlow_alt by simp
+
+  show "Graph.connected (cf_of aug_f) s t \<longrightarrow> b \<le> Graph.min_dist (cf_of aug_f) s t"
+    unfolding aug_f_def using st_layered_flow.st_min_dist_non_decreasing B_EQ by simp
+
+  thm st_layered_flow.E_pss_if_saturated_edge
+  (* TODO termination *)
 qed
 
 
@@ -576,13 +507,13 @@ proof (refine_vcg WHILE_rule[where I="dinic_inner_partial_invar (cf.min_dist s t
        \<lbrakk>cf.connected s t; dinic_inner_partial_invar (cf.min_dist s t) (x1, ba); \<not> Graph.connected ba s t;
         NPreflow.isAugmentingPath c s t x1 p; length p \<le> cf.min_dist s t\<rbrakk>
        \<Longrightarrow> False" using LayerGraph.Bounded_ST_Shortest_Path_Union.st_connected_if_bound_path
-    using Graph.isSimplePath_def NFlow_def NPreflow.isAugmentingPath_def dinic_inner_partial_invar_def by fastforce
+    using Graph.isSimplePath_def NFlow_def NPreflow.isAugmentingPath_def dinic_inner_partial_invar_def sorry by fastforce
 
   show "\<And>aa ba x.
        \<lbrakk>cf.connected s t; dinic_inner_partial_invar (cf.min_dist s t) (aa, ba); Graph.connected ba s t; Graph.isPath ba s x t\<rbrakk>
        \<Longrightarrow> dinic_inner_partial_invar (cf.min_dist s t)
             (NFlow.augment c aa (NPreflow.augmentingFlow c aa x), cleaning (Nonnegative_Graph.subtract_path ba x) s t)"
-    unfolding dinic_inner_partial_invar_def using NFlow.dinic_inner_partial_step' by blast
+    unfolding dinic_inner_partial_invar_def using NFlow.dinic_inner_partial_step sorry
 qed
 end
 
