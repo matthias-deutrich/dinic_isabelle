@@ -186,28 +186,11 @@ end
 subsection \<open>Dinic inner loop\<close>
 context NFlow
 begin
-definition dinic_inner_partial' :: "(_ flow \<times> nat) nres" where
-  "dinic_inner_partial' \<equiv> do {
-    if Graph.connected cf s t
-      then do {
-        let n = Graph.min_dist cf s t;
-        let stl = induced_st_layering (residualGraph c f) s t;
-        (f', _) \<leftarrow> WHILE
-          (\<lambda>(_, stl). Graph.connected stl s t)
-          (\<lambda>(f', stl). do {
-            p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
-            let stl = cleaning (Nonnegative_Graph.subtract_path stl p) s t;
-            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-            RETURN (f', stl)})
-          (f, stl);
-        RETURN (f', n)}
-      else RETURN (f, (card V))}"
-
 definition dinic_inner_partial :: "_ flow nres" where
   "dinic_inner_partial \<equiv> do {
-    if Graph.connected cf s t
+    if cf.connected s t
       then do {
-        let stl = induced_st_layering (residualGraph c f) s t;
+        let stl = induced_st_layering cf s t;
         (f', _) \<leftarrow> WHILE
           (\<lambda>(_, stl). Graph.connected stl s t)
           (\<lambda>(f', stl). do {
@@ -219,185 +202,118 @@ definition dinic_inner_partial :: "_ flow nres" where
         RETURN f'}
       else RETURN f}"
 
-definition dinic_inner_partial_invar :: "nat \<Rightarrow> (_ flow \<times> _ graph) \<Rightarrow> bool" where
-  "dinic_inner_partial_invar b \<equiv> \<lambda>(f', stl). NFlow c s t f'
-    \<and> Bounded_ST_Shortest_Path_Union stl (residualGraph c f') s t b
-    \<and> (Graph.connected (residualGraph c f') s t \<longrightarrow> b \<le> (Graph.min_dist (residualGraph c f') s t))"
+definition dinic_inner_partial_invar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" where
+  "dinic_inner_partial_invar \<equiv> \<lambda>(f', stl). NFlow c s t f'
+    \<and> Bounded_ST_Shortest_Path_Union stl (cf_of f') s t (cf.min_dist s t)
+    \<and> (Graph.connected (cf_of f') s t \<longrightarrow> (cf.min_dist s t) \<le> (Graph.min_dist (cf_of f') s t))"
 
 lemma dinic_inner_partial_step:
+  fixes f' stl
   assumes PATH: "Graph.isPath stl s p t"
-      and BOUNDED_UNION: "Bounded_ST_Shortest_Path_Union stl cf s t b"
-      and B_LE: "b \<le> cf.min_dist s t"
-  defines "aug_f \<equiv> augment (augmentingFlow p)"
-      and "stl' \<equiv> cleaning (Nonnegative_Graph.subtract_path stl p) s t"
-    shows "NFlow c s t aug_f"
-      and "Bounded_ST_Shortest_Path_Union stl' (cf_of aug_f) s t b"
-      and "Graph.connected (cf_of aug_f) s t \<longrightarrow> b \<le> Graph.min_dist (cf_of aug_f) s t"
+      and INVAR: "dinic_inner_partial_invar (f', stl)"
+    shows "dinic_inner_partial_invar (NFlow.augment c f' (NPreflow.augmentingFlow c f' p), cleaning (Nonnegative_Graph.subtract_path stl p) s t)"
+      (is "dinic_inner_partial_invar (?aug_f', ?stl')")
 proof -
-  have B_EQ: "b = cf.min_dist s t"
-  proof (intro antisym)
-    interpret Bounded_ST_Shortest_Path_Union stl cf s t b using BOUNDED_UNION .
-    from PATH show "cf.min_dist s t \<le> b"
-      using cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer by force
-  qed (rule B_LE)
-  with BOUNDED_UNION interpret ST_Shortest_Path_Union stl cf s t using min_st_dist_bound by blast
-  interpret g': Nonnegative_Graph stl
-    using cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
+  from INVAR interpret f': NFlow c s t f' unfolding dinic_inner_partial_invar_def by blast
 
-  have INDUCED_EQ: "cf.path_induced_graph p = g'.path_induced_graph p"
-    using PATH cf.Nonnegative_Graph_axioms g'.isPath_alt path_induced_graph_eq by simp
+  have BOUND_EQ: "cf.min_dist s t = f'.cf.min_dist s t"
+  proof -
+    from INVAR interpret Bounded_ST_Shortest_Path_Union stl f'.cf s t "cf.min_dist s t"
+      unfolding dinic_inner_partial_invar_def by simp
+    show ?thesis
+    proof (intro antisym)
+      from PATH INVAR show "cf.min_dist s t \<le> f'.cf.min_dist s t"
+        unfolding dinic_inner_partial_invar_def Graph.connected_def
+        using sg_paths_are_base_paths by blast
+      from PATH show "f'.cf.min_dist s t \<le> cf.min_dist s t"
+      using f'.cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer by simp
+    qed
+  qed
+  with INVAR interpret ST_Shortest_Path_Union stl f'.cf s t
+    unfolding dinic_inner_partial_invar_def using min_st_dist_bound by fastforce
+
+  interpret g': Nonnegative_Graph stl
+    using f'.cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
+
+  have INDUCED_EQ: "f'.cf.path_induced_graph p = g'.path_induced_graph p"
+    using PATH f'.cf.Nonnegative_Graph_axioms g'.isPath_alt path_induced_graph_eq by simp
 
   (* TODO extract this, using augFlow_resFlow *)
-  have "Flow stl s t (augmentingFlow p)"
+  have "Flow stl s t (f'.augmentingFlow p)"
   proof (intro Pos_Contained_Graph.conservation_FlowI)
-    from INDUCED_EQ show "Pos_Contained_Graph (augmentingFlow p) stl"
-      unfolding augmentingFlow_alt using g'.path_induced_graph_pos_contained by simp
+    from INDUCED_EQ show "Pos_Contained_Graph (f'.augmentingFlow p) stl"
+      unfolding f'.augmentingFlow_alt using g'.path_induced_graph_pos_contained by simp
 
-    show "\<forall>v\<in>V' - {s, t}. sum (augmentingFlow p) (g'.incoming v) = sum (augmentingFlow p) (g'.outgoing v)"
+    show "\<forall>v\<in>V' - {s, t}. sum (f'.augmentingFlow p) (g'.incoming v) = sum (f'.augmentingFlow p) (g'.outgoing v)"
     proof
       fix v
       assume "v \<in> V' - {s, t}"
       then have "v \<in> V - {s, t}" using V_ss by auto
-      let ?aug_sum = "sum (augmentingFlow p)"
+      let ?aug_sum = "sum (f'.augmentingFlow p)"
 
-      have "?aug_sum (g'.incoming v) = ?aug_sum (g'.incoming v) + ?aug_sum (cf.incoming v - E')"
-        using PATH unfolding augmentingFlow_alt cf.path_induced_graph_def g'.isPath_alt
+      have "?aug_sum (g'.incoming v) = ?aug_sum (g'.incoming v) + ?aug_sum (f'.cf.incoming v - E')"
+        using PATH unfolding f'.augmentingFlow_alt f'.cf.path_induced_graph_def g'.isPath_alt
         by (fastforce intro: sum.neutral)
-      also have "... = ?aug_sum (g'.incoming v) + ?aug_sum (cf.incoming v - (g'.incoming v))"
+      also have "... = ?aug_sum (g'.incoming v) + ?aug_sum (f'.cf.incoming v - (g'.incoming v))"
         unfolding Graph.incoming_def by (auto intro: arg_cong[where f="?aug_sum"])
-      also have "... = ?aug_sum (cf.incoming v \<inter> g'.incoming v) + ?aug_sum (cf.incoming v - (g'.incoming v))"
+      also have "... = ?aug_sum (f'.cf.incoming v \<inter> g'.incoming v) + ?aug_sum (f'.cf.incoming v - (g'.incoming v))"
         using incoming_ss by (auto intro!: arg_cong[where f="?aug_sum"])
-      also have "... = ?aug_sum (cf.incoming v)"
-        using sum.Int_Diff by (metis cf.incoming_edges cfE_of_finite rev_finite_subset)
-      also from \<open>v \<in> V - {s, t}\<close> have "... = ?aug_sum (cf.outgoing v)"
-        using Flow.conservation_const augFlow_resFlow PATH 
-        using cf.shortestPath_is_simple isAugmentingPath_def resV_netV shortest_path_transfer by blast
+      also have "... = ?aug_sum (f'.cf.incoming v)"
+        using sum.Int_Diff by (metis f'.cf.incoming_edges cfE_of_finite rev_finite_subset)
+      also from \<open>v \<in> V - {s, t}\<close> have "... = ?aug_sum (f'.cf.outgoing v)"
+        using Flow.conservation_const f'.augFlow_resFlow PATH
+        using f'.cf.shortestPath_is_simple f'.isAugmentingPath_def f'.resV_netV shortest_path_transfer by blast
         (* TODO prettify *)
-      also have "... = ?aug_sum (cf.outgoing v \<inter> g'.outgoing v) + ?aug_sum (cf.outgoing v - (g'.outgoing v))"
-        using sum.Int_Diff by (metis cf.outgoing_edges cfE_of_finite rev_finite_subset)
-      also have "... = ?aug_sum (g'.outgoing v) + ?aug_sum (cf.outgoing v - (g'.outgoing v))"
+      also have "... = ?aug_sum (f'.cf.outgoing v \<inter> g'.outgoing v) + ?aug_sum (f'.cf.outgoing v - (g'.outgoing v))"
+        using sum.Int_Diff by (metis f'.cf.outgoing_edges cfE_of_finite rev_finite_subset)
+      also have "... = ?aug_sum (g'.outgoing v) + ?aug_sum (f'.cf.outgoing v - (g'.outgoing v))"
         using outgoing_ss by (auto intro!: arg_cong[where f="?aug_sum"])
-      also have "... = ?aug_sum (g'.outgoing v) + ?aug_sum (cf.outgoing v - E')"
+      also have "... = ?aug_sum (g'.outgoing v) + ?aug_sum (f'.cf.outgoing v - E')"
         unfolding Graph.outgoing_def by (auto intro: arg_cong[where f="?aug_sum"])
       also have "... = ?aug_sum (g'.outgoing v)"
-        using PATH unfolding augmentingFlow_alt cf.path_induced_graph_def g'.isPath_alt
+        using PATH unfolding f'.augmentingFlow_alt f'.cf.path_induced_graph_def g'.isPath_alt
         by (fastforce intro: sum.neutral)
 
-      finally show "sum (augmentingFlow p) (g'.incoming v) = sum (augmentingFlow p) (g'.outgoing v)" .
+      finally show "sum (f'.augmentingFlow p) (g'.incoming v) = sum (f'.augmentingFlow p) (g'.outgoing v)" .
     qed
   qed
-  then interpret st_layered_flow: ST_Layered_Flow c s t f stl "augmentingFlow p"
-    using NFlow_axioms ST_Shortest_Path_Union_axioms by (intro ST_Layered_Flow.intro)
+  then interpret st_layered_flow: ST_Layered_Flow c s t f' stl "f'.augmentingFlow p"
+    using f'.NFlow_axioms ST_Shortest_Path_Union_axioms by (intro ST_Layered_Flow.intro)
 
-  show "NFlow c s t aug_f" unfolding aug_f_def using st_layered_flow.augment_NFlow .
-
-  show "Bounded_ST_Shortest_Path_Union stl' (cf_of aug_f) s t b"
-    using st_layered_flow.cleaning_maintains_bounded_union INDUCED_EQ B_EQ
-    unfolding stl'_def aug_f_def g'.subtract_path_alt augmentingFlow_alt by simp
-
-  show "Graph.connected (cf_of aug_f) s t \<longrightarrow> b \<le> Graph.min_dist (cf_of aug_f) s t"
-    unfolding aug_f_def using st_layered_flow.st_min_dist_non_decreasing B_EQ by simp
+  have "NFlow c s t ?aug_f'" using st_layered_flow.augment_NFlow .
+  moreover have "Bounded_ST_Shortest_Path_Union ?stl' (cf_of ?aug_f') s t (cf.min_dist s t)"
+    using st_layered_flow.cleaning_maintains_bounded_union INDUCED_EQ BOUND_EQ
+    unfolding g'.subtract_path_alt f'.augmentingFlow_alt by simp
+  moreover have "(Graph.connected (cf_of ?aug_f') s t \<longrightarrow> cf.min_dist s t \<le> Graph.min_dist (cf_of ?aug_f') s t)"
+    using st_layered_flow.st_min_dist_non_decreasing BOUND_EQ by simp
+  ultimately show "dinic_inner_partial_invar (?aug_f', ?stl')"
+    unfolding dinic_inner_partial_invar_def by simp
 
   thm st_layered_flow.E_pss_if_saturated_edge
   (* TODO termination *)
 qed
 
 lemma dinic_inner_partial_final:
-  assumes INVAR: "dinic_inner_partial_invar (cf.min_dist s t) (f', stl)"
-and "\<not> Graph.connected stl s t"
-shows "NFlow c s t f' \<and> (\<nexists>p. NPreflow.isAugmentingPath c s t f' p \<and> (Graph.connected (cf_of f') s t \<longrightarrow> length p \<le> Graph.min_dist (cf_of f') s t))"
-  sorry
+  fixes f' stl
+    assumes DISCON: "\<not> Graph.connected stl s t"
+      and INVAR: "dinic_inner_partial_invar (f', stl)"
+    shows "NFlow c s t f' \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t < Graph.min_dist (cf_of f') s t)"
+proof
+  from INVAR interpret f': NFlow c s t f' unfolding dinic_inner_partial_invar_def by blast
+  show "NFlow c s t f'" using f'.NFlow_axioms .
+
+  from INVAR interpret Bounded_ST_Shortest_Path_Union stl f'.cf s t "cf.min_dist s t"
+    unfolding dinic_inner_partial_invar_def by blast
+  from DISCON show "f'.cf.connected s t \<longrightarrow> cf.min_dist s t < f'.cf.min_dist s t"
+    by (metis Bounded_ST_Shortest_Path_Union_axioms ST_Shortest_Path_Union.st_connected_iff le_eq_less_or_eq linorder_neqE_nat min_st_dist_bound)
+qed
 
 lemma dinic_inner_partial_correct:
-  "dinic_inner_partial \<le> SPEC (\<lambda>f'. NFlow c s t f'\<and> (\<nexists>p. NPreflow.isAugmentingPath c s t f' p \<and> (Graph.connected (cf_of f') s t \<longrightarrow> length p \<le> Graph.min_dist (cf_of f') s t)))"
+  "dinic_inner_partial \<le> SPEC (\<lambda>f'. NFlow c s t f'\<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t < Graph.min_dist (cf_of f') s t))"
   unfolding dinic_inner_partial_def
-proof (refine_vcg WHILE_rule[where I="dinic_inner_partial_invar (cf.min_dist s t)"], clarsimp_all)
-  interpret ST_Shortest_Path_Union "induced_st_layering cf s t" cf s t
-    using induced_st_shortest_path_union .
-
-  show "dinic_inner_partial_invar (cf.min_dist s t) (f, induced_st_layering cf s t)"
-    unfolding dinic_inner_partial_invar_def
-    by (auto simp: min_st_dist_bound intro: NFlow_axioms ST_Shortest_Path_Union_axioms)
-
-  show "\<And>f' stl. dinic_inner_partial_invar (cf.min_dist s t) (f', stl) \<Longrightarrow> NFlow c s t f'"
-    unfolding dinic_inner_partial_invar_def by blast
-
-  show "\<And>aa ba x.
-       \<lbrakk>cf.connected s t; dinic_inner_partial_invar (cf.min_dist s t) (aa, ba); Graph.connected ba s t;
-        Graph.isPath ba s x t\<rbrakk>
-       \<Longrightarrow> dinic_inner_partial_invar (cf.min_dist s t)
-            (NFlow.augment c aa (NPreflow.augmentingFlow c aa x), cleaning (Nonnegative_Graph.subtract_path ba x) s t)"
-    unfolding dinic_inner_partial_invar_def apply (auto intro!: NFlow.dinic_inner_partial_step)
-       apply (meson ST_Shortest_Path_Union.st_connected_iff min_st_dist_bound nle_le)
-      apply (meson ST_Shortest_Path_Union.st_connected_iff min_st_dist_bound nle_le)
-     apply (meson NFlow.dinic_inner_partial_step(3) ST_Shortest_Path_Union.st_connected_iff min_st_dist_bound nle_le)
-    using NFlow.dinic_inner_partial_step(3) by blast
-
-(*
-  show "\<And>f' stl p.
-       \<lbrakk>cf.connected s t; dinic_inner_partial_invar (cf.min_dist s t) (f', stl); \<not> Graph.connected stl s t;
-        NPreflow.isAugmentingPath c s t f' p\<rbrakk> \<Longrightarrow> Graph.connected (cf_of f') s t \<and> \<not> length p \<le> Graph.min_dist (cf_of f') s t"
-    using LayerGraph.Bounded_ST_Shortest_Path_Union.st_connected_if_bound_path
-    using Graph.isSimplePath_def NFlow_def NPreflow.isAugmentingPath_def dinic_inner_partial_invar_def
-    apply auto
-       apply (simp add: Graph.connected_def Graph.isSimplePath_def NFlow_def NPreflow.isAugmentingPath_def)
-      apply (simp add: Graph.connected_def Graph.isSimplePath_def NFlow_def NPreflow.isAugmentingPath_def)
-    using Graph.connected_def apply fastforce
-    sorry
-*)
-
-  show "\<And>f' stl p.
-       \<lbrakk>cf.connected s t; dinic_inner_partial_invar (cf.min_dist s t) (f', stl); \<not> Graph.connected stl s t;
-        NPreflow.isAugmentingPath c s t f' p\<rbrakk> \<Longrightarrow> Graph.connected (cf_of f') s t \<and> \<not> length p \<le> Graph.min_dist (cf_of f') s t"
-    using dinic_inner_partial_final by simp
-
-  show "NFlow c s t f" using NFlow_axioms .
-
-  show "\<And>p. \<lbrakk>\<not> cf.connected s t; isAugmentingPath p\<rbrakk> \<Longrightarrow> False"
-    by (simp add: isAugmentingPath_def cf.connected_def cf.isSimplePath_def)
-  (*
-  show "\<not> cf.connected s t \<Longrightarrow> \<nexists>p. isAugmentingPath p \<and> (cf.connected s t \<longrightarrow> length p \<le> cf.min_dist s t)"
-    by (simp add: isAugmentingPath_def cf.connected_def cf.isSimplePath_def)
-  *)
-
-  
-  proof -
-    fix f' stl
-    assume "dinic_inner_partial_invar (cf.min_dist s t) (f', stl)"
-    note this[unfolded dinic_inner_partial_invar_def, simplified]
-    unfolding dinic_inner_partial_invar_def apply clarify
-
-    apply (auto simp: dinic_inner_partial_invar_def)[]
-  apply (auto intro: dinic_inner_partial_step)[]
-
-proof (refine_vcg WHILE_rule[where I="dinic_inner_partial_invar (cf.min_dist s t)"], clarsimp_all)
-  interpret ST_Shortest_Path_Union "induced_st_layering cf s t" cf s t
-    using induced_st_shortest_path_union .
-
-  show "dinic_inner_partial_invar (cf.min_dist s t) (f, induced_st_layering cf s t)"
-    unfolding dinic_inner_partial_invar_def
-    by (auto simp: min_st_dist_bound intro: NFlow_axioms ST_Shortest_Path_Union_axioms)
-
-  show "NFlow c s t f" using NFlow_axioms .
-
-  show "\<And>p. \<lbrakk>\<not> cf.connected s t; isAugmentingPath p\<rbrakk> \<Longrightarrow> False"
-    unfolding isAugmentingPath_def cf.connected_def cf.isSimplePath_def by blast
-
-  show "\<And>f' stl. dinic_inner_partial_invar (cf.min_dist s t) (f', stl) \<Longrightarrow> NFlow c s t f'"
-    unfolding dinic_inner_partial_invar_def by blast
-
-  show "\<And>ba x1 p.
-       \<lbrakk>cf.connected s t; dinic_inner_partial_invar (cf.min_dist s t) (x1, ba); \<not> Graph.connected ba s t;
-        NPreflow.isAugmentingPath c s t x1 p; length p \<le> cf.min_dist s t\<rbrakk>
-       \<Longrightarrow> False" using LayerGraph.Bounded_ST_Shortest_Path_Union.st_connected_if_bound_path
-    using Graph.isSimplePath_def NFlow_def NPreflow.isAugmentingPath_def dinic_inner_partial_invar_def sorry by fastforce
-
-  show "\<And>aa ba x.
-       \<lbrakk>cf.connected s t; dinic_inner_partial_invar (cf.min_dist s t) (aa, ba); Graph.connected ba s t; Graph.isPath ba s x t\<rbrakk>
-       \<Longrightarrow> dinic_inner_partial_invar (cf.min_dist s t)
-            (NFlow.augment c aa (NPreflow.augmentingFlow c aa x), cleaning (Nonnegative_Graph.subtract_path ba x) s t)"
-    unfolding dinic_inner_partial_invar_def using NFlow.dinic_inner_partial_step sorry
-qed
+  apply (refine_vcg WHILE_rule[where I=dinic_inner_partial_invar])
+       apply (simp_all add: dinic_inner_partial_step dinic_inner_partial_final)
+  by (simp_all add: dinic_inner_partial_invar_def NFlow_axioms induced_st_shortest_path_union min_st_dist_bound)
 end
 
 
