@@ -303,11 +303,17 @@ proof (intro conjI)
   show "finite E'" using edges_ss finite_subset by auto
 qed
 
+(* TODO introduce notion of blocking flow or reuse from Push Relabel, then connect this concept *)
+definition res_dist_increasing_flow
+  where "res_dist_increasing_flow f' \<equiv>
+    NFlow c s t f' \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t < Graph.min_dist (cf_of f') s t)"
+
 lemma dinitz_phase_final:
   fixes f' stl
     assumes DISCON: "\<not> Graph.connected stl s t"
       and INVAR: "dinitz_phase_invar (f', stl)"
-    shows "NFlow c s t f' \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t < Graph.min_dist (cf_of f') s t)"
+    shows "res_dist_increasing_flow f'"
+  unfolding res_dist_increasing_flow_def
 proof
   from INVAR interpret f': NFlow c s t f' unfolding dinitz_phase_invar_def by blast
   show "NFlow c s t f'" using f'.NFlow_axioms .
@@ -319,43 +325,33 @@ proof
 qed
 
 lemma dinitz_phase_correct:
-  "dinitz_phase \<le> SPEC (\<lambda>f'. NFlow c s t f'\<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t < Graph.min_dist (cf_of f') s t))"
+  "dinitz_phase \<le> SPEC (\<lambda>f'. res_dist_increasing_flow f')"
   unfolding dinitz_phase_def
   apply (refine_vcg WHILET_rule[where I=dinitz_phase_invar and R="inv_image finite_psubset (Graph.E \<circ> snd)"])
        apply (simp_all add: dinitz_phase_step dinitz_phase_final)
-  by (simp_all add: dinitz_phase_invar_def NFlow_axioms induced_st_shortest_path_union min_st_dist_bound)
+  by (simp_all add: dinitz_phase_invar_def res_dist_increasing_flow_def NFlow_axioms induced_st_shortest_path_union min_st_dist_bound)
 end
 
+\<comment> \<open>Dinitz inner loop\<close>
 
-
-(*
+subsection \<open>Dinitz algorithm\<close>
 context Network
 begin
-
-(* TODO rework using inner *)
-definition dinic :: "_ flow nres" where
-  "dinic \<equiv> do {
-    (f, _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, n). n < card V)
-      (\<lambda>(f, _). do {
-        let stl = induced_st_layering (residualGraph c f) s t;
-        if Graph.connected stl s t
-          then do {
-            let n = Graph.min_dist stl s t;
-            (f, _) \<leftarrow> WHILE\<^sub>T
-              (\<lambda>(_, stl). Graph.connected stl s t)
-              (\<lambda>(f, stl). do {
-                p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
-                let stl = Nonnegative_Graph.subtract_path stl p;
-                let f = NFlow.augment c f (NPreflow.augmentingFlow c f p);
-                RETURN (f, stl)})
-              (f, stl);
-            RETURN (f, n)}
-          else RETURN (f, (card V))})
-      ((\<lambda>_. 0), 0);
+definition dinitz :: "_ flow nres" where
+  "dinitz \<equiv> do {
+    f \<leftarrow> WHILE
+      (\<lambda>f. Graph.connected (residualGraph c f) s t)
+      (\<lambda>f. NFlow.dinitz_phase c s t f)
+      (\<lambda>_. 0);
     RETURN f}"
 
-theorem dinic_correct: "dinic \<le> SPEC (\<lambda>f. isMaxFlow f)" oops
+theorem dinitz_correct: "dinitz \<le> SPEC (\<lambda>f. isMaxFlow f)"
+  unfolding dinitz_def
+  apply (refine_vcg WHILE_rule[where I="\<lambda>f'. NFlow c s t f'"])
+    apply (simp add: NFlowI Network_axioms zero_is_flow)
+   apply (metis NFlow.dinitz_phase_correct NFlow.res_dist_increasing_flow_def SPEC_cons_rule)
+  by (simp add: Graph.connected_def Graph.isSimplePath_def NFlow.ford_fulkerson(1) NFlow_def NPreflow.isAugmentingPath_def)
+(* TODO total correctness *)
 end
-*)
+
 end
