@@ -339,19 +339,39 @@ context Network
 begin
 definition dinitz :: "_ flow nres" where
   "dinitz \<equiv> do {
-    f \<leftarrow> WHILE
+    f \<leftarrow> WHILE\<^sub>T
       (\<lambda>f. Graph.connected (residualGraph c f) s t)
       (\<lambda>f. NFlow.dinitz_phase c s t f)
       (\<lambda>_. 0);
     RETURN f}"
 
+definition res_dist_rel :: "(_ flow) rel"
+  where "res_dist_rel \<equiv> {(f', f). Graph.connected (cf_of f) s t
+    \<and> (\<not> Graph.connected (cf_of f') s t \<or> Graph.min_dist (cf_of f) s t < Graph.min_dist (cf_of f') s t)}"
+
+lemma res_dist_wf: "wf res_dist_rel"
+proof (rule wf_subset)
+  show "wf (inv_image (less_than_bool <*lex*> (greater_bounded (card V))) (\<lambda>f. (Graph.connected (cf_of f) s t, Graph.min_dist (cf_of f) s t)))"
+    by blast
+
+  have "\<And>f. Graph.connected (cf_of f) s t \<Longrightarrow> Graph.min_dist (cf_of f) s t < card (Graph.V (cf_of f))"
+    by (simp add: Finite_Graph.min_dist_less_V Graph.Finite_Graph_EI Graph.distinct_nodes_in_V_if_connected(1))
+  moreover have "\<And>f. Graph.V (cf_of f) \<subseteq> V"
+    unfolding residualGraph_def Graph.V_def Graph.E_def by auto
+  ultimately have "\<And>f. Graph.connected (cf_of f) s t \<Longrightarrow> Graph.min_dist (cf_of f) s t < card V"
+    by (meson card_mono dual_order.strict_trans1 finite_V)
+  then show "res_dist_rel \<subseteq> inv_image (less_than_bool <*lex*> greater_bounded (card V))
+        (\<lambda>f. (Graph.connected (cf_of f) s t, Graph.min_dist (cf_of f) s t))"
+    by (fastforce simp: res_dist_rel_def greater_bounded_def)
+qed
+
 theorem dinitz_correct: "dinitz \<le> SPEC (\<lambda>f. isMaxFlow f)"
   unfolding dinitz_def
-  apply (refine_vcg WHILE_rule[where I="\<lambda>f'. NFlow c s t f'"])
+  apply (refine_vcg WHILET_rule[where I="\<lambda>f'. NFlow c s t f'" and R=res_dist_rel])
+     apply (rule res_dist_wf)
     apply (simp add: NFlowI Network_axioms zero_is_flow)
-   apply (metis NFlow.dinitz_phase_correct NFlow.res_dist_increasing_flow_def SPEC_cons_rule)
-  by (simp add: Graph.connected_def Graph.isSimplePath_def NFlow.ford_fulkerson(1) NFlow_def NPreflow.isAugmentingPath_def)
-(* TODO total correctness *)
+   apply (fastforce intro: NFlow.dinitz_phase_correct[THEN SPEC_cons_rule] simp: NFlow.res_dist_increasing_flow_def res_dist_rel_def)
+  by (simp add: Graph.connected_def Graph.isSimplePath_def NFlow.axioms(1) NFlow.ford_fulkerson(1) NPreflow.isAugmentingPath_def)
 end
 
 end

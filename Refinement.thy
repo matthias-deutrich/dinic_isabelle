@@ -41,7 +41,9 @@ definition (in Graph) pathFindingRefine_total :: "node \<Rightarrow> path nres" 
 
 context Distance_Bounded_Graph
 begin
+(* TODO redo with bounded measure *)
 term "measure (\<lambda>p. b - length p)"
+thm wf_bounded_measure
 
 (*definition bounded_path_measure :: "path rel" where "bounded_path_measure \<equiv> measure (\<lambda>p. b - length p)"
 definition bounded_path_measure' where "bounded_path_measure \<equiv> measure (\<lambda>p. b - length p)"
