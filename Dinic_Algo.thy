@@ -345,14 +345,17 @@ definition dinitz :: "_ flow nres" where
       (\<lambda>_. 0);
     RETURN f}"
 
+(* TODO check if something like this already exists *)
 definition res_dist_rel :: "(_ flow) rel"
   where "res_dist_rel \<equiv> {(f', f). Graph.connected (cf_of f) s t
     \<and> (\<not> Graph.connected (cf_of f') s t \<or> Graph.min_dist (cf_of f) s t < Graph.min_dist (cf_of f') s t)}"
 
 lemma res_dist_wf: "wf res_dist_rel"
 proof (rule wf_subset)
-  show "wf (inv_image (less_than_bool <*lex*> (greater_bounded (card V))) (\<lambda>f. (Graph.connected (cf_of f) s t, Graph.min_dist (cf_of f) s t)))"
-    by blast
+  let ?r = "less_than_bool <*lex*> (greater_bounded (card V))"
+    and ?f = "\<lambda>f. (Graph.connected (cf_of f) s t, Graph.min_dist (cf_of f) s t)"
+
+  show "wf (inv_image ?r ?f)" by blast
 
   have "\<And>f. Graph.connected (cf_of f) s t \<Longrightarrow> Graph.min_dist (cf_of f) s t < card (Graph.V (cf_of f))"
     by (simp add: Finite_Graph.min_dist_less_V Graph.Finite_Graph_EI Graph.distinct_nodes_in_V_if_connected(1))
@@ -360,8 +363,7 @@ proof (rule wf_subset)
     unfolding residualGraph_def Graph.V_def Graph.E_def by auto
   ultimately have "\<And>f. Graph.connected (cf_of f) s t \<Longrightarrow> Graph.min_dist (cf_of f) s t < card V"
     by (meson card_mono dual_order.strict_trans1 finite_V)
-  then show "res_dist_rel \<subseteq> inv_image (less_than_bool <*lex*> greater_bounded (card V))
-        (\<lambda>f. (Graph.connected (cf_of f) s t, Graph.min_dist (cf_of f) s t))"
+  then show "res_dist_rel \<subseteq> inv_image ?r ?f"
     by (fastforce simp: res_dist_rel_def greater_bounded_def)
 qed
 
