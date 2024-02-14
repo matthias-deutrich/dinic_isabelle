@@ -1,4 +1,4 @@
-theory Dinic_Algo
+theory Original_Dinitz_Algo
   imports Refinement NetworkUtils
 begin
 
