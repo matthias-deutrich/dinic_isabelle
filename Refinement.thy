@@ -167,7 +167,7 @@ end
 (* This is the exact definition, using the edge set*)
 definition rightPassRefine_original :: "_ graph \<Rightarrow> edge set \<Rightarrow> (_ graph) nres" where
   "rightPassRefine_original c Q \<equiv> do {
-    (c, _) \<leftarrow> WHILE (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
+    (c, _) \<leftarrow> WHILE (\<lambda>(_, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
       e \<leftarrow> SPEC (\<lambda>e. e \<in> Q);
       let Q = Q - {e};
       let v = snd e;
@@ -339,7 +339,7 @@ subsubsection \<open>Total correctness\<close>
 
 definition rightPassRefine_total :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
   "rightPassRefine_total c Q \<equiv> do {
-    (c, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
+    (c, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(_, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
       u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
       let Q = Q - {u};
       if Graph.incoming c u = {} then do {

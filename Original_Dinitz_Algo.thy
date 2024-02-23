@@ -1,7 +1,7 @@
 theory Original_Dinitz_Algo
   imports Refinement NetworkUtils
 begin
-
+(* TODO do we need f? *)
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
 locale ST_Layered_Flow = NFlow c s t f + ST_Shortest_Path_Union stl cf s t + f': Flow stl s t f'
   for c s t f stl f'
@@ -21,7 +21,7 @@ lemma aug_cf_alt: "cf_of (augment f') = cf.subtract_skew_graph f'"
 definition new_edge_count :: "path \<Rightarrow> nat"
   where "new_edge_count p \<equiv> length (filter (\<lambda>e. e \<notin> cf.E) p)"
 
-lemma aug_cf_new_edge_layered:
+lemma aug_cf_new_edge_prelayered:
   "\<lbrakk>u \<in> V'; v \<in> V'; aug_cf.isPath u p v\<rbrakk> \<Longrightarrow> layer v + 2 * new_edge_count p \<le> layer u + length p"
 proof (induction "new_edge_count p" arbitrary: u p v rule: less_induct)
   case less
@@ -71,7 +71,7 @@ next
     unfolding Graph.isEmpty_def by auto
   then have "cf.min_dist s t = layer t" using min_dist_transfer s_connected by simp
   also from SP' IN_V' have "layer t \<le> length p"
-    using aug_cf.shortestPath_is_path aug_cf_new_edge_layered by fastforce
+    using aug_cf.shortestPath_is_path aug_cf_new_edge_prelayered by fastforce
   finally show ?thesis using SP' aug_cf.isShortestPath_min_dist_def by simp
 qed
 
@@ -143,7 +143,7 @@ next
       then obtain p where SP': "aug_cf.isShortestPath s p t" "length p \<le> cf.min_dist s t"
         and UV_IN_P: "(u, v) \<in> set p" by blast
       with ST_IN_V' have "layer t + 2 * new_edge_count p \<le> layer s + cf.min_dist s t"
-        using aug_cf_new_edge_layered aug_cf.shortestPath_is_path by fastforce
+        using aug_cf_new_edge_prelayered aug_cf.shortestPath_is_path by fastforce
       with ST_IN_V' have "new_edge_count p = 0" using min_dist_transfer st_connected by simp
       with SP' have "cf.isShortestPath s p t"
         unfolding new_edge_count_def Graph.isShortestPath_min_dist_def
@@ -201,6 +201,7 @@ definition dinitz_phase :: "_ flow nres" where
           (f, stl);
         RETURN f'}
       else RETURN f}"
+thm Nonnegative_Graph.subtract_path_alt
 
 definition dinitz_phase_invar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" where
   "dinitz_phase_invar \<equiv> \<lambda>(f', stl).
@@ -240,8 +241,10 @@ proof (intro conjI)
   have INDUCED_EQ: "f'.cf.path_induced_graph p = g'.path_induced_graph p"
     using PATH f'.cf.Nonnegative_Graph_axioms g'.isPath_alt path_induced_graph_eq by simp
 
-  (* TODO extract this, using augFlow_resFlow *)
-  have "Flow stl s t (f'.augmentingFlow p)"
+  (* TODO the following is just a consequence of f'.augFlow_resFlow and Subgraphing, extract *)
+  thm f'.augFlow_resFlow
+
+  interpret st_layered_flow.f': Flow stl s t "f'.augmentingFlow p"
   proof (intro Pos_Contained_Graph.conservation_FlowI)
     from INDUCED_EQ show "Pos_Contained_Graph (f'.augmentingFlow p) stl"
       unfolding f'.augmentingFlow_alt using g'.path_induced_graph_pos_contained by simp
@@ -279,8 +282,7 @@ proof (intro conjI)
       finally show "sum (f'.augmentingFlow p) (g'.incoming v) = sum (f'.augmentingFlow p) (g'.outgoing v)" .
     qed
   qed
-  then interpret st_layered_flow: ST_Layered_Flow c s t f' stl "f'.augmentingFlow p"
-    using f'.NFlow_axioms ST_Shortest_Path_Union_axioms by (intro ST_Layered_Flow.intro)
+  interpret st_layered_flow: ST_Layered_Flow c s t f' stl "f'.augmentingFlow p" by intro_locales
 
   have "NFlow c s t aug_f'" unfolding aug_f'_def using st_layered_flow.augment_NFlow .
   moreover have "Bounded_ST_Shortest_Path_Union stl' (cf_of aug_f') s t (cf.min_dist s t)"
