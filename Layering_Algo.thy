@@ -37,6 +37,50 @@ definition ebfs_node :: "node \<Rightarrow> _ graph \<Rightarrow> node set \<Rig
 definition ebfs_phase :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
   "ebfs_phase c' Q \<equiv> foreach Q (\<lambda>u (c', Q'). ebfs_node u c' Q') (c', {})"
 
+definition ebfs_phase_invar :: "node \<Rightarrow> nat \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool" where
+  "ebfs_phase_invar s n Q \<equiv> \<lambda>(c', Q').
+    S_Shortest_Path_Union c' c s (boundedReachableNodes (n + 1) s - Q)
+    \<and> True" (* TODO Q' property *)
+
+lemma ebfs_phase_step:
+  assumes "u \<in> Q" and "Q \<subseteq> exactDistNodes (Suc n) s" and "ebfs_phase_invar s n Q (c', Q')"
+  shows "ebfs_node u c' Q' \<le> SPEC (ebfs_phase_invar s n (Q - {u}))"
+  sorry
+
+lemma ebfs_phase_final:
+  assumes INVAR: "ebfs_phase_invar s "
+
+lemma ebfs_phase_final: oops
+
+lemma ebfs_phase_correct:
+  fixes s c' Q n
+  assumes "S_Shortest_Path_Union c' c s (boundedReachableNodes n s)"
+    and "finite (exactDistNodes (Suc n) s)"
+  shows "ebfs_phase c' (exactDistNodes (Suc n) s) \<le> SPEC(\<lambda>(c'', Q'). S_Shortest_Path_Union c'' c s (boundedReachableNodes (Suc n) s) \<and> Q' = exactDistNodes (n + 2) s)"
+  unfolding ebfs_phase_def
+  apply (refine_vcg FOREACH_rule[where I="ebfs_phase_invar s n"])
+  using assms apply blast
+  using assms apply (simp add: ebfs_phase_invar_def exactDistNodes_alt boundedReachableNodes_mono double_diff)
+  using ebfs_phase_step apply simp
+
+thm FOREACH_rule
+(* TODO somewhere we need the fact that the set of reachable nodes (from s) is finite *)
+
+(* TODO is it better to remove any notion of Bounded locales from this part and rely entirely on restricted reachable sets? *)
+(*
+lemma ebfs_phase_correct:
+  fixes s c' Q n
+  assumes "Bounded_S_Shortest_Path_Union c' c s V n"
+    and "Q = {u. connected s u \<and> min_dist s u = n + 1}"
+    and "finite Q"
+  shows "ebfs_phase c' Q \<le> SPEC(\<lambda>(c'', Q'). Bounded_S_Shortest_Path_Union c'' c s V (n + 1) \<and> Q' = {u. connected s u \<and> min_dist s u = n + 2})"
+  unfolding ebfs_phase_def
+  apply (rule FOREACH_rule, clarsimp_all)
+proof (refine_vcg)
+*)
+
+
+
 definition ebfs :: "node \<Rightarrow> _ graph nres" where
   "ebfs s \<equiv> do {
     (c', _) \<leftarrow> WHILE\<^sub>T
@@ -46,10 +90,12 @@ definition ebfs :: "node \<Rightarrow> _ graph nres" where
     RETURN c'
   }"
 
+
+(* TODO the n exists only for analysis purposes, can we remove it? *)
 definition ebfs' :: "node \<Rightarrow> _ graph nres" where
   "ebfs' s \<equiv> do {
-    (c', _) \<leftarrow> WHILE
-      (\<lambda>(_, Q). Q \<noteq> {})
+    (c', _, _) \<leftarrow> WHILE
+      (\<lambda>(_, Q, _). Q \<noteq> {})
       (uncurry ebfs_phase)
       ((\<lambda>_. 0), {s});
     RETURN c'

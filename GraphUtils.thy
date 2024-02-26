@@ -473,6 +473,24 @@ corollary distinct_nodes_in_V_if_connected:
 (* TODO useful? *)
 lemma in_outgoingD[dest]: "(u', v) \<in> outgoing u \<Longrightarrow> (u, v) \<in> E \<and> u' = u"
   unfolding outgoing_def by blast
+
+
+section \<open>Set of nodes within a certain distance\<close>
+definition boundedReachableNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
+  "boundedReachableNodes b u \<equiv> {v. connected u v \<and> min_dist u v \<le> b}"
+
+lemma boundedReachableNodes_ss: "boundedReachableNodes b u \<subseteq> reachableNodes u"
+  unfolding boundedReachableNodes_def reachableNodes_def by blast
+
+lemma boundedReachableNodes_mono: "a \<le> b \<Longrightarrow> boundedReachableNodes a u \<subseteq> boundedReachableNodes b u"
+  unfolding boundedReachableNodes_def by auto
+
+definition exactDistNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
+  "exactDistNodes b u \<equiv> {v. connected u v \<and> min_dist u v = b}"
+
+lemma exactDistNodes_alt:
+  "exactDistNodes (Suc b) u = boundedReachableNodes (Suc b) u - boundedReachableNodes b u"
+  unfolding exactDistNodes_def boundedReachableNodes_def by auto
 end
 
 lemma min_dist_eqI: (* TODO use this wherever applicable *)

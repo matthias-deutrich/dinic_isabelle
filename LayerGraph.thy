@@ -325,7 +325,7 @@ sublocale old_prelayer: Local_Prelayer_Graph_Old c layer V'
   using min_dist_succ min_dist_transfer s_connected sg_connected_remains_base_connected by presburger
 *)
 
-(* TODO prettify *)
+(* TODO prettify, necessary? *)
 sublocale Local_Prelayer_Graph c layer V'
   apply unfold_locales
   by (metis Graph.isPath_distD dist_trans min_dist_is_dist min_dist_minD min_dist_transfer s_connected sg_connected_remains_base_connected)
@@ -339,6 +339,10 @@ proof
   fix u v
   assume "(u, v) \<in> E"
 *)
+
+lemma restrict_T_to_reachable: "S_Shortest_Path_Union c' c s (reachableNodes s \<inter> T)"
+  using shortest_s_path_union reachableNodes_def connected_def isShortestPath_min_dist_def
+  by unfold_locales auto
 
 (* TODO check if necessary, and if so, cleanup *)
 lemma shortest_s_path_remains_path: "\<lbrakk>u \<in> V'; isShortestPath s p u\<rbrakk> \<Longrightarrow> g'.isPath s p u"
@@ -519,8 +523,11 @@ proof (intro g'.Distance_Bounded_Graph_PathI)
     with PATH show ?thesis using path_ascends_layer by (auto elim: obtain_close_ST)
   qed simp
 qed
-
 end \<comment> \<open>Bounded_S_Shortest_Path_Union\<close>
+
+(* TODO finish or remove *)
+lemma (in CapacityCompatibleGraphs) bounded_min_dist_S_Shortest_Path_Union:
+  "Bounded_S_Shortest_Path_Union c' c s T b \<longleftrightarrow> S_Shortest_Path_Union c' c s (T \<inter> {t. conntected s t \<and> min_dist s t \<le> b})" oops
 
 locale Bounded_T_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes S t b
