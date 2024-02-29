@@ -370,6 +370,14 @@ next
 qed
 end \<comment> \<open>S_Shortest_Path_Union\<close>
 
+(* TODO generalize and use universally *)
+(* this will only work in one direction TODO fix or remove *)
+(*
+lemma (in CapacityCompatibleGraphs) S_Shortest_Path_Union_pathI:
+  "(\<And>t p. \<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t) \<Longrightarrow> S_Shortest_Path_Union c' c s T"
+proof
+*)
+
 locale T_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes S t
   assumes shortest_t_path_union: "E' = \<Union>{set p | p. \<exists>s. s \<in> S \<and> isShortestPath s p t}"

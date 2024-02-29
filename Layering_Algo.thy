@@ -94,16 +94,64 @@ definition ebfs_phase_invar :: "node \<Rightarrow> nat \<Rightarrow> node set \<
     \<and> Q' = exactDistNodes (n + 2) s \<inter> {v. \<exists>u \<in> Graph.V c'. (u, v) \<in> E}"
 
 lemma ebfs_node_final:
-  assumes NODE_INVAR: "ebfs_node_invar v c_init {} c'"
+  assumes V_DIST: "v \<in> Q" "Q \<subseteq> exactDistNodes (Suc n) s" (* TODO what exactly do we need here? *)
+    and NODE_INVAR: "ebfs_node_invar v c_init {} c'"
     and PHASE_INVAR: "ebfs_phase_invar s n Q (c_init, Q')"
-  shows "ebfs_phase_invar s n (Q - {v}) (c', Q' \<union> (E `` {u} - Graph.V c'))"
+  shows "ebfs_phase_invar s n (Q - {v}) (c', Q' \<union> (E `` {v} - Graph.V c'))"
   unfolding ebfs_phase_invar_def
 proof (intro case_prodI conjI)
-  show "S_Shortest_Path_Union c' c s (boundedReachableNodes (Suc n) s - (Q - {v}))"
-    using assms[unfolded ebfs_node_invar_def ebfs_phase_invar_def, simplified] sorry
+  from NODE_INVAR interpret Subgraph c' c unfolding ebfs_node_invar_def by blast
 
-  show "Q' \<union> (E `` {u} - Graph.V c') = exactDistNodes (n + 2) s \<inter> {v. \<exists>u\<in>Graph.V c'. (u, v) \<in> E}"
-    using assms[unfolded ebfs_node_invar_def ebfs_phase_invar_def, simplified] sorry
+  from PHASE_INVAR interpret init: S_Shortest_Path_Union c_init c s "boundedReachableNodes (Suc n) s - Q"
+    unfolding ebfs_phase_invar_def by blast
+
+  thm assms[unfolded ebfs_node_invar_def ebfs_phase_invar_def, simplified]
+  show "S_Shortest_Path_Union c' c s (boundedReachableNodes (Suc n) s - (Q - {v}))"
+  proof (unfold_locales, intro equalityI; intro subsetI)
+    fix e
+    assume "e \<in> E'"
+    then consider (old_edge) "e \<in> Graph.E c_init"
+      | (new_edge) "e \<in> incoming v \<inter> Graph.V c_init \<times> {v}"
+      using NODE_INVAR unfolding ebfs_node_invar_def by blast
+    then show "e \<in> \<Union> {set p |p. \<exists>t. t \<in> boundedReachableNodes (Suc n) s - (Q - {v}) \<and> isShortestPath s p t}"
+    proof cases
+      case old_edge
+      then obtain t p where "t \<in> boundedReachableNodes (Suc n) s - Q" "isShortestPath s p t" "e \<in> set p"
+        using init.shortest_s_path_union by fast
+      then show ?thesis by blast
+    next
+      case new_edge
+      then obtain u where "u \<in> Graph.V c_init" "(u, v) \<in> E" and [simp]: "e = (u, v)"
+        unfolding incoming_def Graph.V_def Graph.E_def by blast
+      (*then obtain p where "isShortestPath s p u" "length p \<le> n" oops*)
+      then show ?thesis sorry
+    qed
+  next
+    fix e
+    assume "e \<in> \<Union> {set p |p. \<exists>t. t \<in> boundedReachableNodes (Suc n) s - (Q - {v}) \<and> isShortestPath s p t}"
+    then consider p t where "e \<in> set p" "t \<in> boundedReachableNodes (Suc n) s - Q" "isShortestPath s p t"
+      | p where "e \<in> set p" "isShortestPath s p v" by blast
+    then show "e \<in> E'"
+    proof cases
+      case 1
+      then show ?thesis sorry
+    next
+      case 2
+      then show ?thesis sorry
+    qed
+  qed
+
+  (* TODO *)
+  have "init.V' = V' - {v}" using NODE_INVAR unfolding ebfs_node_invar_def Graph.V_def sorry
+  have "{v. \<exists>u\<in>init.V'. (u, v) \<in> E} \<union> (E `` {v}) = {v. \<exists>u\<in>V'. (u, v) \<in> E}"
+
+  thm assms[unfolded ebfs_node_invar_def ebfs_phase_invar_def, simplified]
+  have "Q' \<union> (E `` {v} - V') = exactDistNodes (n + 2) s \<inter> {v. \<exists>u\<in>init.V'. (u, v) \<in> E} \<union> (E `` {v} - V')"
+    using PHASE_INVAR unfolding ebfs_phase_invar_def by fast
+  also have "... = exactDistNodes (n + 2) s \<inter> {v. \<exists>u\<in>init.V'. (u, v) \<in> E} \<union> (E `` {v} - V')" sorry
+
+  show "Q' \<union> (E `` {v} - V') = exactDistNodes (n + 2) s \<inter> {v. \<exists>u\<in>V'. (u, v) \<in> E}"
+    using assms[unfolded ebfs_node_invar_def ebfs_phase_invar_def, simplified] oops
 qed
 
 lemma ebfs_phase_initial:
@@ -198,7 +246,7 @@ proof -
   using S_Shortest_Path_Union_axioms apply (blast intro: Finite_Graph.finite_V)
   using Subgraph_axioms apply (simp add: ebfs_node_invar_def) (* TODO can this work without the interpretation setup? *)
   using ebfs_node_step apply blast
-  using ebfs_node_final INVAR by fast
+  using ebfs_node_final assms by fast
 qed
 end
 
