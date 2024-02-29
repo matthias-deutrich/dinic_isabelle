@@ -13,24 +13,47 @@ text \<open>In this section, we present an extended version of breadth-first sea
       of Edmonds-Karp, there are multiple significant differences. First, unlike standard BFS, we
       care about the capacity of edges as we build a graph instead of a path. Second, we use two
       working sets, since we need to distinguish between nodes in the graph that were added in the
-      current phase (which are still eligible edge endpoints) and older nodes.\<close>
+      current phase (which are still eligible edge endpoints) and older nodes. Third, the setup
+      based on a single predecessor for each node does not work here as we do not necessarily have
+      a tree.\<close>
 
 (* TODO make the successor function parametric or enable inverting graphs*)
-definition (in Graph) inverted where "inverted \<equiv> c \<circ> prod.swap"
+definition invert_graph :: "_ graph \<Rightarrow> _ graph" where "invert_graph c \<equiv> c \<circ> prod.swap"
 
 thm swap_swap
-lemma inverted_inverted[simp]: "Graph.inverted (Graph.inverted c) = c"
-  unfolding Graph.inverted_def by fastforce
-
-find_consts "('a \<times> 'b \<Rightarrow> 'c) \<Rightarrow> ('b \<times> 'a) \<Rightarrow> 'c"
+lemma invert_invert[simp]: "invert_graph (invert_graph c) = c"
+  unfolding invert_graph_def by fastforce
 
 (* TODO check whether such a thing exists *)
 definition update_edge :: "'capacity graph \<Rightarrow> edge \<Rightarrow> 'capacity \<Rightarrow> 'capacity graph" where
   "update_edge c e cap \<equiv> c(e := cap)"
 
+lemma update_edge_apply: "update_edge c e cap e' = (if e' = e then cap else c e')"
+  unfolding update_edge_def using fun_upd_apply .
+
+(*
+lemma update_edge_id[simp]: "update_edge c e cap e = cap"
+  unfolding update_edge_def by simp
+lemma update_edge_in_E_transfer[simp]: "e \<in> Graph.E (update_edge c' e (c e)) \<longleftrightarrow> e \<in> Graph.E c"
+  unfolding Graph.E_def by simp
+*)
+
+lemma update_edge_Subgraph[intro]: "Subgraph c' c \<Longrightarrow> Subgraph (update_edge c' e (c e)) c"
+  by (intro Subgraph_edgeI) (auto simp: update_edge_apply elim!: Subgraph.sg_cap_cases)
+
+lemma update_edge_edgeset[simp]:
+  "Graph.E (update_edge c e cap) = Graph.E c - {e} \<union> (if cap = 0 then {} else {e})"
+  unfolding Graph.E_def by (auto simp: update_edge_apply)
+
+(*
+lemma update_edge_in_E_iff: "e \<in> Graph.E (update_edge c e cap) \<longleftrightarrow> cap \<noteq> 0"
+  unfolding update_edge_def Graph.E_def by simp
+*)
+
 context Graph
 begin
 
+(*
 definition ebfs_node :: "node \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
   "ebfs_node u c' Q' \<equiv> do {
     let S = (E``{u}) - (Graph.V c' - Q');
@@ -38,6 +61,29 @@ definition ebfs_node :: "node \<Rightarrow> _ graph \<Rightarrow> node set \<Rig
     let Q' = Q' \<union> S;
     RETURN (c', Q')
   }"
+*)
+
+find_consts "'a set \<Rightarrow> 'b set \<Rightarrow> ('a \<times> 'b) set "
+thm incoming_def
+thm image_def
+thm Image_def
+term image
+term Image
+find_consts "('a \<times> 'b) set \<Rightarrow> 'b set \<Rightarrow> 'a set"
+
+(* TODO is there a prettier way to phrase "incoming v \<inter> (Graph.V c' \<times> {v})" ? *)
+
+definition ebfs_node :: "node \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
+  "ebfs_node v c' Q' \<equiv> do {
+    c' \<leftarrow> foreach (incoming v \<inter> (Graph.V c' \<times> {v})) (\<lambda>e c'. RETURN (update_edge c' e (c e))) c';
+    let Q' = Q' \<union> (E``{v} - Graph.V c');
+    RETURN (c', Q')
+  }"
+
+definition ebfs_node_invar :: "node \<Rightarrow> _ graph \<Rightarrow> edge set \<Rightarrow> _ graph \<Rightarrow> bool" where
+  "ebfs_node_invar v c_init it c' \<equiv>
+    Subgraph c' c
+    \<and> Graph.E c' \<union> it = Graph.E c_init \<union> (incoming v \<inter> (Graph.V c_init \<times> {v}))"
 
 definition ebfs_phase :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
   "ebfs_phase c' Q \<equiv> foreach Q (\<lambda>u (c', Q'). ebfs_node u c' Q') (c', {})"
@@ -46,6 +92,19 @@ definition ebfs_phase_invar :: "node \<Rightarrow> nat \<Rightarrow> node set \<
   "ebfs_phase_invar s n Q \<equiv> \<lambda>(c', Q').
     S_Shortest_Path_Union c' c s (boundedReachableNodes (Suc n) s - Q)
     \<and> Q' = exactDistNodes (n + 2) s \<inter> {v. \<exists>u \<in> Graph.V c'. (u, v) \<in> E}"
+
+lemma ebfs_node_final:
+  assumes NODE_INVAR: "ebfs_node_invar v c_init {} c'"
+    and PHASE_INVAR: "ebfs_phase_invar s n Q (c_init, Q')"
+  shows "ebfs_phase_invar s n (Q - {v}) (c', Q' \<union> (E `` {u} - Graph.V c'))"
+  unfolding ebfs_phase_invar_def
+proof (intro case_prodI conjI)
+  show "S_Shortest_Path_Union c' c s (boundedReachableNodes (Suc n) s - (Q - {v}))"
+    using assms[unfolded ebfs_node_invar_def ebfs_phase_invar_def, simplified] sorry
+
+  show "Q' \<union> (E `` {u} - Graph.V c') = exactDistNodes (n + 2) s \<inter> {v. \<exists>u\<in>Graph.V c'. (u, v) \<in> E}"
+    using assms[unfolded ebfs_node_invar_def ebfs_phase_invar_def, simplified] sorry
+qed
 
 lemma ebfs_phase_initial:
   assumes "S_Shortest_Path_Union c' c s (boundedReachableNodes n s)"
@@ -73,7 +132,7 @@ proof (intro case_prodI conjI)
   then show "{} = exactDistNodes (n + 2) s \<inter> {v. \<exists>u\<in>Graph.V c'. (u, v) \<in> E}" by blast
 qed
 
-lemma ebfs_phase_final: (* TODO switch order *)
+lemma ebfs_phase_final:
   assumes "ebfs_phase_invar s n {} (c', Q')"
   shows "S_Shortest_Path_Union c' c s (boundedReachableNodes (Suc n) s) \<and> Q' = exactDistNodes (n + 2) s"
 proof
@@ -103,18 +162,54 @@ proof
   ultimately show "Q' = exactDistNodes (n + 2) s" by blast
 qed
 
+context
+  (* TODO check where we can be more precise *)
+  fixes s
+  assumes FINITE_REACHABLE: "finite (reachableNodes s)"
+begin
+lemma finite_if_spu[intro]: "S_Shortest_Path_Union c' c s T \<Longrightarrow> Finite_Graph c'"
+proof
+  assume "S_Shortest_Path_Union c' c s T"
+  then interpret S_Shortest_Path_Union c' c s T .
+  have "Graph.V c' \<subseteq> reachableNodes s"
+    unfolding reachableNodes_def using sg_connected_remains_base_connected by blast
+  then show "finite (Graph.V c')" using FINITE_REACHABLE finite_subset by blast
+qed
+
+lemma ebfs_node_step:
+  assumes "e \<in> it" "it \<subseteq> incoming v \<inter> V' \<times> {v}" and INVAR: "ebfs_node_invar v c_init it c'"
+  shows "ebfs_node_invar v c_init (it - {e}) (update_edge c' e (c e))"
+proof -
+  from assms have "c e \<noteq> 0"
+    using Graph.incoming_edges Graph.E_def unfolding split_paired_all by blast
+  with \<open>e \<in> it\<close> INVAR show ?thesis unfolding ebfs_node_invar_def by auto
+qed
+
 lemma ebfs_phase_step:
-  assumes "u \<in> Q" and "Q \<subseteq> exactDistNodes (Suc n) s" and "ebfs_phase_invar s n Q (c', Q')"
+  assumes "u \<in> Q" and "Q \<subseteq> exactDistNodes (Suc n) s" and INVAR: "ebfs_phase_invar s n Q (c', Q')"
   shows "ebfs_node u c' Q' \<le> SPEC (ebfs_phase_invar s n (Q - {u}))"
-  sorry
+proof -
+  from INVAR interpret S_Shortest_Path_Union c' c s "boundedReachableNodes (Suc n) s - Q"
+    unfolding ebfs_phase_invar_def by blast
+
+  show ?thesis
+  unfolding ebfs_node_def
+  apply (refine_vcg FOREACH_rule[where I="ebfs_node_invar u c'"])
+  using S_Shortest_Path_Union_axioms apply (blast intro: Finite_Graph.finite_V)
+  using Subgraph_axioms apply (simp add: ebfs_node_invar_def) (* TODO can this work without the interpretation setup? *)
+  using ebfs_node_step apply blast
+  using ebfs_node_final INVAR by fast
+qed
+end
 
 lemma ebfs_phase_correct:
   fixes s c' Q n
-  assumes "finite (exactDistNodes (Suc n) s)"
+  assumes "finite (reachableNodes s)" (*"finite (exactDistNodes (Suc n) s)"*)
     and "S_Shortest_Path_Union c' c s (boundedReachableNodes n s)"
   shows "ebfs_phase c' (exactDistNodes (Suc n) s) \<le> SPEC(\<lambda>(c'', Q'). S_Shortest_Path_Union c'' c s (boundedReachableNodes (Suc n) s) \<and> Q' = exactDistNodes (n + 2) s)"
   unfolding ebfs_phase_def
   apply (refine_vcg FOREACH_rule[where I="ebfs_phase_invar s n"])
+  using assms finite_subset apply (metis Diff_subset exactDistNodes_alt boundedReachableNodes_ss)
   using assms ebfs_phase_initial ebfs_phase_step ebfs_phase_final by simp_all
 
 thm FOREACH_rule
