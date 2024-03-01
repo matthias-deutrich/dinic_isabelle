@@ -164,6 +164,7 @@ definition ebfs_phase_invar :: "node \<Rightarrow> nat \<Rightarrow> node set \<
 definition ebfs_phase_invar :: "node \<Rightarrow> nat \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool" where
   "ebfs_phase_invar s n Q \<equiv> \<lambda>(c', Q').
     CapacityCompatibleGraphs c' c
+    \<and>
 
 
 
