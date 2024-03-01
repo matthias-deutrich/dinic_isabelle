@@ -491,6 +491,9 @@ definition exactDistNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" whe
 lemma exactDistNodes_alt:
   "exactDistNodes (Suc b) u = boundedReachableNodes (Suc b) u - boundedReachableNodes b u"
   unfolding exactDistNodes_def boundedReachableNodes_def by auto
+
+lemma exactDistNodes_reachable_ss: "exactDistNodes b u \<subseteq> boundedReachableNodes b u"
+  unfolding exactDistNodes_def boundedReachableNodes_def by blast
 end
 
 lemma min_dist_eqI: (* TODO use this wherever applicable *)
