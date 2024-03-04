@@ -533,6 +533,55 @@ proof (intro g'.Distance_Bounded_Graph_PathI)
 qed
 end \<comment> \<open>Bounded_S_Shortest_Path_Union\<close>
 
+(* TODO move or remove *)
+lemma Un_le_nat_extract: "\<Union> {S n |n. n \<le> (b :: nat)} = \<Union> {S n |n. n < b} \<union> S b"
+  unfolding Union_SetCompr_eq using nat_less_le by auto
+
+
+(* TODO prettify and generalize *)
+(* TODO create better setup for "exactDistNodes n s \<times> exactDistNodes (Suc n) s" *)
+
+(*
+(* TODO fix, needs \<inter> E *)
+lemma (in CapacityCompatibleGraphs) bounded_s_union_edges_iff:
+  "Bounded_S_Shortest_Path_Union c' c s V b \<longleftrightarrow> E' = \<Union>{exactDistNodes n s \<times> exactDistNodes (Suc n) s | n. n < b}"
+proof -
+  have "\<Union>{set p | p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> b} = \<Union>{exactDistNodes n s \<times> exactDistNodes (Suc n) s | n. n < b}"
+  proof (induction b)
+    case 0
+    then show ?case by auto
+  next
+    case (Suc b)
+    have "\<Union> {exactDistNodes n s \<times> exactDistNodes (Suc n) s |n. n < Suc b} = \<Union> {exactDistNodes n s \<times> exactDistNodes (Suc n) s |n. n < b} \<union> exactDistNodes b s \<times> exactDistNodes (Suc b) s"
+      unfolding Union_SetCompr_eq using less_Suc_eq by auto
+    also from Suc have "... = \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> b} \<union> exactDistNodes b s \<times> exactDistNodes (Suc b) s" by simp
+    also have "... = \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> Suc b}"
+    proof (intro pair_set_eqI)
+      fix u v
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> b} \<union> exactDistNodes b s \<times> exactDistNodes (Suc b) s"
+      then show "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> Suc b}"
+      proof
+        assume "(u, v) \<in> exactDistNodes b s \<times> exactDistNodes (Suc b) s"
+        (*
+        then have "connected s u" "min_dist s v = Suc (min_dist s u)"
+          unfolding exactDistNodes_def by auto
+        *)
+        thm shortestPath_append_edge
+
+        then have "connected s u" "Suc (min_dist s u) = min_dist s v" "(u, v) \<in> E"
+          unfolding exactDistNodes_def apply auto oops
+        then obtain p where "isShortestPath s (p @ [(u, v)]) v"
+        then show ?thesis sorry
+      qed sorry (fastforce)
+    next
+    finally show ?case by simp (* TODO *)
+  qed
+  then show ?thesis
+    by (simp add: Bounded_S_Shortest_Path_Union_axioms_def Bounded_S_Shortest_Path_Union_def CapacityCompatibleGraphs_axioms)
+qed
+*)
+
+
 (* TODO finish or remove *)
 lemma (in CapacityCompatibleGraphs) bounded_min_dist_S_Shortest_Path_Union:
   "Bounded_S_Shortest_Path_Union c' c s T b \<longleftrightarrow> S_Shortest_Path_Union c' c s (T \<inter> {t. conntected s t \<and> min_dist s t \<le> b})" oops
