@@ -110,6 +110,7 @@ definition isPathUnion :: "_ graph \<Rightarrow> path set \<Rightarrow> bool"
 
 context Graph
 begin
+(* TODO remove those *)
 definition allShortestPaths :: "node set \<Rightarrow> node set \<Rightarrow> path set"
   where "allShortestPaths s_set t_set \<equiv> {p. \<exists>s \<in> s_set. \<exists>t \<in> t_set. isShortestPath s p t}"
 
@@ -125,6 +126,7 @@ lemma allShortestPaths_singleton_simps[simp]:
   unfolding allShortestPaths_def shortestSPaths_def shortestSTPaths_def
   by simp_all
 
+(*
 lemma graph_is_all_shortest_paths_union:
   assumes no_self_loop: "\<forall>u. (u, u) \<notin> E"
   shows "isPathUnion c (allShortestPaths V V)" unfolding isPathUnion_def
@@ -149,6 +151,7 @@ next
   then show "(u, v) \<in> E" using isPath_edgeset shortestPath_is_path by blast
 qed
 end
+*)
 
 section \<open>Acyclic and distance-bounded graphs\<close>
 (* TODO what here is really necessary? *)
