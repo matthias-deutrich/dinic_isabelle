@@ -281,11 +281,45 @@ proof -
         using self_boundedReachable by auto
       then show "v \<in> E `` {u} - (g\<^sub>i.V \<union> {s})" using BSPU_V'_boundedReachable[OF BSPU] by blast
     qed
-    with Q Q'_EQ show Q'_NEW: "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
+    with Q Q'_EQ show "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
       by blast
 
-    show "Graph.E (transfer_edges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)"
-      using Q'_NEW sorry
+    (* TODO can we use any of the previous definitions for S or Q' \<union> S? *)
+
+    have "E \<inter> {u} \<times> (Q' - S) = {}"
+    proof auto (* TODO fix *)
+      fix v
+      assume "(u, v) \<in> E" "v \<in> Q'" "v \<notin> S"
+      thm this[unfolded Q'_EQ S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]]]
+      then have "v \<in> boundedReachableNodes n s" unfolding S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]] by simp
+      with \<open>v \<in> Q'\<close> show False unfolding Q'_EQ exactDistNodes_def boundedReachableNodes_def by simp
+    qed
+    then have TMP: "E \<inter> ({u} \<times> (Q' \<union> S)) = E \<inter> {u} \<times> S" by blast
+
+    have "E \<inter> (exactDistNodes n s - Q) \<times> (S - Q') = {}"
+    proof auto (* TODO fix *)
+      fix v w
+      assume "(v, w) \<in> E" "v \<in> exactDistNodes n s" "v \<notin> Q" "w \<in> S" "w \<notin> Q'"
+      thm this[unfolded Q'_EQ S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]]] Q
+
+      from \<open>w \<in> S\<close> Q have "w \<in> boundedReachableNodes (Suc n) s" unfolding S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]] unfolding exactDistNodes_def boundedReachableNodes_def using min_dist_succ
+        using \<open>S = exactDistNodes (Suc n) s \<inter> E `` {u}\<close> \<open>w \<in> S\<close> exactDistNodes_def by auto
+
+      with \<open>w \<in> S\<close> have "w \<in> exactDistNodes (Suc n) s" unfolding S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]] exactDistNodes_alt by blast
+      with \<open>w \<notin> Q'\<close> have "w \<notin> E `` (exactDistNodes n s - Q)" unfolding Q'_EQ by simp
+      with \<open>(v, w) \<in> E\<close> \<open>v \<in> exactDistNodes n s\<close> \<open>v \<notin> Q\<close> show False by auto
+    qed
+    then have TMP2: "E \<inter> ((exactDistNodes n s - Q) \<times> (Q' \<union> S)) = E \<inter> (exactDistNodes n s - Q) \<times> Q'" by blast
+
+    have "{u} \<times> S \<subseteq> E" unfolding S_def by blast
+    then have "Graph.E (transfer_edges ({u} \<times> S) c') = E' \<union> {u} \<times> S" using transfer_edges_ss_E by simp
+    also have "... = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - Q) \<times> Q' \<union> {u} \<times> S" using E'_EQ by simp
+    also have "... = g\<^sub>i.E \<union> E \<inter> ((exactDistNodes n s - Q) \<times> Q' \<union> {u} \<times> S)" using \<open>{u} \<times> S \<subseteq> E\<close> by blast
+    also have "... = g\<^sub>i.E \<union> E \<inter> ((exactDistNodes n s - Q) \<times> Q' \<union> (exactDistNodes n s - Q) \<times> S \<union> {u} \<times> S)" using TMP2 by blast
+    also have "... = g\<^sub>i.E \<union> E \<inter> ((exactDistNodes n s - Q) \<times> Q' \<union> (exactDistNodes n s - Q) \<times> S \<union> {u} \<times> Q' \<union> {u} \<times> S)" using TMP by blast
+    also have "... = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - Q \<union> {u}) \<times> (Q' \<union> S)" by blast
+    also have "... = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)" using Q by blast
+    finally show "Graph.E (transfer_edges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)" .
   qed
   finally show ?thesis .
 qed

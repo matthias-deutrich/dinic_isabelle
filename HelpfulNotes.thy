@@ -19,8 +19,11 @@ text \<open>Use "using [[rule_trace]] apply rule" to find which rule is being ap
 
 text \<open>When depending on large sessions like the Collections framework, open isabelle using:\<close>
 text \<open>isabelle jedit -l Collections <filename>.thy\<close>
-(* TODO find out how to make these logic images appear in the jedit session selector dropdown *)
 
 text \<open>To find out whether the locale hierarchy can be instantiated, use the following on top level:\<close>
 text \<open>interpretation ST_Layer_Graph undefined undefined undefined sorry\<close>
+
+(* TODO remove *)
+lemma "disjnt A B \<Longrightarrow> disjnt X Y \<Longrightarrow> A \<times> X \<union> B \<times> Y = (A \<union> B) \<times> (X \<union> Y) - A \<times> Y - B \<times> X" oops
+lemma "disjnt A B \<Longrightarrow> disjnt X Y \<Longrightarrow> A \<times> X \<union> B \<times> Y = (A \<union> B) \<times> X \<union> (A \<union> B) \<times> Y - A \<times> Y - B \<times> X" oops
 end
