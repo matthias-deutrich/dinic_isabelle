@@ -125,7 +125,7 @@ definition ebfs_phase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set 
     (\<lambda>u (c', Q'). do {
       let S = E `` {u} - V\<^sub>i;
       c' \<leftarrow> transfer_edges_algo ({u} \<times> S) c';
-      let Q = Q' \<union> S;
+      let Q' = Q' \<union> S;
       RETURN (c', Q')
     })
     (c', {})"
@@ -242,7 +242,7 @@ lemma ebfs_phase_step:
     and Q: "u \<in> Q" "Q \<subseteq> exactDistNodes n s"
     and INVAR: "ebfs_phase_invar s n c\<^sub>i Q (c', Q')"
   defines "S \<equiv> E `` {u} - (Graph.V c\<^sub>i \<union> {s})"
-  shows "transfer_edges_algo ({u} \<times> S) c' \<le> (spec c''. ebfs_phase_invar s n c\<^sub>i (Q - {u}) (c'', Q' \<union> S))" sorry
+  shows "transfer_edges_algo ({u} \<times> S) c' \<le> (spec c''. ebfs_phase_invar s n c\<^sub>i (Q - {u}) (c'', Q' \<union> S))"
 proof -
   from Q have "connected s u" unfolding exactDistNodes_def by blast
   then have "E `` {u} \<subseteq> reachableNodes s"
@@ -264,37 +264,28 @@ proof -
 
     (*from BSPU interpret g\<^sub>i: Bounded_S_Shortest_Path_Union c\<^sub>i c s V n .*)
     interpret g\<^sub>i: Graph c\<^sub>i .
-        (* TODO do we actually need the case distinction for both? *)
-    show "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
-      using BSPU_V_boundedReachable[OF BSPU] (* TODO finish the underlying proof *)
-    proof (elim disjE, elim conjE)
-      assume "g\<^sub>i.V = {}" "boundedReachableNodes n s = {s}"
-      with Q have "Q = {s}" "u = s" "exactDistNodes n s = {s}" using exactDistNodes_reachable_ss by fastforce+
-      with \<open>g\<^sub>i.V = {}\<close> \<open>boundedReachableNodes n s = {s}\<close> show ?thesis
-        unfolding S_def Q'_EQ exactDistNodes_alt boundedReachableNodes_alt apply simp unfolding exactDistNodes_def sorry
+    have "S = exactDistNodes (Suc n) s \<inter> E `` {u}" unfolding S_def
+    proof(intro equalityI; intro subsetI)
+      fix v
+      assume "v \<in> E `` {u} - (g\<^sub>i.V \<union> {s})"
+      then have "(u, v) \<in> E" "v \<notin> (g\<^sub>i.V \<union> {s})" by auto
+      with Q have "v \<in> boundedReachableNodes (Suc n) s"
+        unfolding exactDistNodes_def boundedReachableNodes_def
+        using connected_append_edge min_dist_succ by blast
+      with \<open>(u, v) \<in> E\<close> \<open>v \<notin> (g\<^sub>i.V \<union> {s})\<close> show "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
+        unfolding exactDistNodes_alt using BSPU_V'_boundedReachable[OF BSPU] by blast
     next
-      assume V_I: "g\<^sub>i.V = boundedReachableNodes n s"
-      have "S = exactDistNodes (Suc n) s \<inter> E `` {u}" unfolding S_def
-      proof(intro equalityI; intro subsetI)
-        fix v
-        assume "v \<in> E `` {u} - g\<^sub>i.V - {s}"
-        then have "(u, v) \<in> E" "v \<notin> g\<^sub>i.V" by auto
-        with Q have "v \<in> boundedReachableNodes (Suc n) s"
-          unfolding exactDistNodes_def boundedReachableNodes_def
-          using connected_append_edge min_dist_succ by blast
-        with \<open>(u, v) \<in> E\<close> \<open>v \<notin> g\<^sub>i.V\<close> V_I show "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
-          unfolding exactDistNodes_alt by blast
-      next
-        fix v
-        assume "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
-        then have "v \<notin> boundedReachableNodes n s" "(u, v) \<in> E" "v \<noteq> s" unfolding exactDistNodes_alt
-          using self_boundedReachable by auto
-        with V_I show "v \<in> E `` {u} - g\<^sub>i.V - {s}" by blast
-      qed
-      with Q Q'_EQ show ?thesis by blast
+      fix v
+      assume "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
+      then have "v \<notin> boundedReachableNodes n s" "(u, v) \<in> E" "v \<noteq> s" unfolding exactDistNodes_alt
+        using self_boundedReachable by auto
+      then show "v \<in> E `` {u} - (g\<^sub>i.V \<union> {s})" using BSPU_V'_boundedReachable[OF BSPU] by blast
     qed
+    with Q Q'_EQ show Q'_NEW: "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
+      by blast
 
-    show "Graph.E (transfer_edges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)" sorry
+    show "Graph.E (transfer_edges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)"
+      using Q'_NEW sorry
   qed
   finally show ?thesis .
 qed
@@ -306,7 +297,7 @@ lemma ebfs_phase_correct:
   unfolding ebfs_phase_def
   apply (refine_vcg FOREACH_rule[where I="ebfs_phase_invar s n c'"])
   using FINITE_REACHABLE finite_subset exactDistNodes_reachable_ss boundedReachableNodes_ss apply meson
-  using BSPU ebfs_phase_initial ebfs_phase_step ebfs_phase_final by auto
+  using BSPU ebfs_phase_initial ebfs_phase_step ebfs_phase_final by simp_all
 end
 
 

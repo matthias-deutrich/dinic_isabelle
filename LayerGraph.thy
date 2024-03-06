@@ -543,8 +543,8 @@ interpretation Bounded_S_Shortest_Path_Union c' c s "Graph.V c" b using BSPU .
 (*lemma "isPath u p v \<Longrightarrow> p \<noteq> [] \<Longrightarrow> u \<in> V" (* TODO remove *)
   using V_def isPath_fwd_cases by fastforce*)
 
-(*
-lemma V'_boundedReachableNodes: "V' \<union> {s} = boundedReachableNodes b s"
+
+lemma BSPU_V'_boundedReachable: "V' \<union> {s} = boundedReachableNodes b s"
 proof (intro equalityI; intro subsetI)
   fix u
   assume "u \<in> V' \<union> {s}"
@@ -567,7 +567,7 @@ next
       by (metis Graph.connected_def Graph.distinct_nodes_in_V_if_connected(2) Graph.shortestPath_is_path UnCI bounded_shortest_ST_path_remains singleton_iff)
   qed
 qed
-*)
+
 
 (*
 lemma V'_boundedReachableNodes: "V' \<noteq> {} \<Longrightarrow> V' = boundedReachableNodes b s"
@@ -597,6 +597,7 @@ next
 qed
 *)
 
+(*
 lemma BSPU_V_boundedReachable:
   "V' = {} \<and> boundedReachableNodes b s = {s} \<or> V' = boundedReachableNodes b s"
 proof (cases "V' = {}")
@@ -631,6 +632,7 @@ next
   qed
   then show ?thesis by blast
 qed
+*)
 end
 
 (* TODO move or remove *)
