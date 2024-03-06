@@ -482,8 +482,19 @@ section \<open>Set of nodes within a certain distance\<close>
 definition boundedReachableNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
   "boundedReachableNodes b u \<equiv> {v. connected u v \<and> min_dist u v \<le> b}"
 
+(* TODO prettify proof *)
+lemma boundedReachableNodes_alt:
+  "boundedReachableNodes (Suc b) u = boundedReachableNodes b u \<union> E `` boundedReachableNodes b u"
+  unfolding boundedReachableNodes_def
+  apply auto
+    apply (metis (no_types, lifting) ImageI le_antisym mem_Collect_eq min_dist_suc not_less_eq_eq)
+  using connected_append_edge min_dist_succ le_trans by blast+
+
 lemma boundedReachableNodes_ss: "boundedReachableNodes b u \<subseteq> reachableNodes u"
   unfolding boundedReachableNodes_def reachableNodes_def by blast
+
+lemma self_boundedReachable: "u \<in> boundedReachableNodes b u"
+  unfolding boundedReachableNodes_def by simp
 
 lemma boundedReachableNodes_mono: "a \<le> b \<Longrightarrow> boundedReachableNodes a u \<subseteq> boundedReachableNodes b u"
   unfolding boundedReachableNodes_def by auto

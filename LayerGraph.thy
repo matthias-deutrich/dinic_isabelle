@@ -569,6 +569,7 @@ next
 qed
 *)
 
+(*
 lemma V'_boundedReachableNodes: "V' \<noteq> {} \<Longrightarrow> V' = boundedReachableNodes b s"
 proof (intro equalityI; intro subsetI)
   fix u
@@ -593,6 +594,42 @@ next
     with \<open>s \<in> V'\<close> SP show ?thesis
       by (metis Graph.connected_def Graph.distinct_nodes_in_V_if_connected(2) Graph.shortestPath_is_path bounded_shortest_ST_path_remains insert_iff)
   qed
+qed
+*)
+
+lemma BSPU_V_boundedReachable:
+  "V' = {} \<and> boundedReachableNodes b s = {s} \<or> V' = boundedReachableNodes b s"
+proof (cases "V' = {}")
+  case True
+  then have "boundedReachableNodes b s = {s}" sorry
+  with True show ?thesis by simp
+next
+  case False
+  have "V' = boundedReachableNodes b s"
+  proof (intro equalityI; intro subsetI)
+    fix u
+    assume "u \<in> V'"
+    then obtain p where "isShortestPath s p u" "length p \<le> b"
+      using g'.connected_def path_length_bounded shortest_path_transfer by blast
+    then show "u \<in> boundedReachableNodes b s"
+      unfolding boundedReachableNodes_def isShortestPath_min_dist_def connected_def by auto
+  next
+    fix u
+    from False have "s \<in> V'" by (simp add: g'.isEmptyV s_in_V_if_nonempty)
+    assume "u \<in> boundedReachableNodes b s"
+    then obtain p where SP: "isShortestPath s p u" "length p \<le> b" unfolding boundedReachableNodes_def
+      using obtain_shortest_path isShortestPath_min_dist_def by auto
+    then show "u \<in> V'"
+    proof (cases "p = []")
+      case True
+      with \<open>s \<in> V'\<close> SP show ?thesis using shortestPath_is_path by fastforce
+    next
+      case False
+      with \<open>s \<in> V'\<close> SP show ?thesis
+        by (metis Graph.connected_def Graph.distinct_nodes_in_V_if_connected(2) Graph.shortestPath_is_path bounded_shortest_ST_path_remains insert_iff)
+    qed
+  qed
+  then show ?thesis by blast
 qed
 end
 

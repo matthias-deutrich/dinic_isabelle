@@ -4,6 +4,8 @@ theory Layering_Algo
     EdmondsKarp_Maxflow.Augmenting_Path_BFS
 begin
 
+no_notation Heap_Monad.return ("return")
+
 subsection \<open>Extended BFS\<close>
 text \<open>In this section, we present an extended version of breadth-first search, which builds a graph
       consisting of all shortest paths starting at a source node, instead of only a single shortest
@@ -26,6 +28,8 @@ lemma invert_invert[simp]: "invert_graph (invert_graph c) = c"
 
 (* TODO check whether such a thing exists *)
 (* TODO still necessary? *)
+
+(*
 definition update_edge :: "'capacity graph \<Rightarrow> edge \<Rightarrow> 'capacity \<Rightarrow> 'capacity graph" where
   "update_edge c e cap \<equiv> c(e := cap)"
 
@@ -49,6 +53,7 @@ lemma update_edge_edgeset[simp]:
 (*
 lemma update_edge_in_E_iff: "e \<in> Graph.E (update_edge c e cap) \<longleftrightarrow> cap \<noteq> 0"
   unfolding update_edge_def Graph.E_def by simp
+*)
 *)
 
 context Graph
@@ -92,15 +97,38 @@ lemma transfer_edges_ss_E: "S \<subseteq> E \<Longrightarrow> Graph.E (transfer_
 
 subsection \<open>Extended Breadth First Search phase\<close>
 
-definition ebfs_phase :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
-  "ebfs_phase c\<^sub>i Q \<equiv> foreach Q
+(* TODO fix description *)
+text \<open>NOTE: The phase algorithm does need to know the source node in order to avoid problems in
+      cases where the source node has a self loop. This is a consequence of the graph model, where
+      nodes without edges cannot exists, which results in the graph being empty during the first
+      iteration even though s is within distance 0 of itself.
+      If we did not explicitly exclude the source node from the set of relevant neighbours, then if
+      there were a self loop of s, the first phase iteration would add s to the queue for the next
+      iteration (as it is an outgoing neighbor of s and not contained in the graph), violating the
+      invariant.
+      The alternative would be to only proof correctness for graphs without a self loop of s,
+      leading to a loss of generality.\<close>
+(*
+definition ebfs_phase :: "node \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
+  "ebfs_phase s c\<^sub>i Q \<equiv> foreach Q
     (\<lambda>u (c', Q). do {
-      let S = E `` {u} - Graph.V c\<^sub>i;
-      c' \<leftarrow> transfer_edges_algo ({u} \<times>S) c';
+      let S = E `` {u} - Graph.V c\<^sub>i - {s};
+      c' \<leftarrow> transfer_edges_algo ({u} \<times> S) c';
       let Q = Q \<union> S;
       RETURN (c', Q)
     })
     (c\<^sub>i, {})"
+*)
+
+definition ebfs_phase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
+  "ebfs_phase V\<^sub>i c' Q \<equiv> foreach Q
+    (\<lambda>u (c', Q'). do {
+      let S = E `` {u} - V\<^sub>i;
+      c' \<leftarrow> transfer_edges_algo ({u} \<times> S) c';
+      let Q = Q' \<union> S;
+      RETURN (c', Q')
+    })
+    (c', {})"
 
 definition ebfs_phase_invar :: "node \<Rightarrow> nat \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool" where
   "ebfs_phase_invar s n c\<^sub>i Q \<equiv> \<lambda>(c', Q').
@@ -213,8 +241,8 @@ lemma ebfs_phase_step:
   assumes BSPU: "Bounded_S_Shortest_Path_Union c\<^sub>i c s V n"
     and Q: "u \<in> Q" "Q \<subseteq> exactDistNodes n s"
     and INVAR: "ebfs_phase_invar s n c\<^sub>i Q (c', Q')"
-  defines "S \<equiv> E `` {u} - Graph.V c\<^sub>i"
-  shows "transfer_edges_algo ({u} \<times> S) c' \<le> (spec c''. ebfs_phase_invar s n c\<^sub>i (Q - {u}) (c'', Q' \<union> S))"
+  defines "S \<equiv> E `` {u} - (Graph.V c\<^sub>i \<union> {s})"
+  shows "transfer_edges_algo ({u} \<times> S) c' \<le> (spec c''. ebfs_phase_invar s n c\<^sub>i (Q - {u}) (c'', Q' \<union> S))" sorry
 proof -
   from Q have "connected s u" unfolding exactDistNodes_def by blast
   then have "E `` {u} \<subseteq> reachableNodes s"
@@ -231,34 +259,40 @@ proof -
       unfolding ebfs_phase_invar_def by auto
     then interpret CapacityCompatibleGraphs c' c by simp
 
-    (*from BSPU interpret g\<^sub>i: Bounded_S_Shortest_Path_Union c\<^sub>i c s V n .*)
-    interpret g\<^sub>i: Graph c\<^sub>i .
-        (* TODO use "g\<^sub>i.V = {} \<or> g\<^sub>i.V = ... *)
-    from BSPU have "g\<^sub>i.V \<union> {s} = boundedReachableNodes n s" using V'_boundedReachableNodes by blast
-
     show "CapacityCompatibleGraphs (transfer_edges ({u} \<times> S) c') c"
       using \<open>CapacityCompatibleGraphs c' c\<close> transfer_edges_capcomp by blast
 
-    have "S = exactDistNodes (Suc n) s \<inter> E `` {u}" unfolding S_def
-    proof(intro equalityI; intro subsetI)
-      fix v
-      assume "v \<in> E `` {u} - g\<^sub>i.V"
-      then have "(u, v) \<in> E" "v \<notin> g\<^sub>i.V" by auto
-      with Q have "v \<in> boundedReachableNodes (Suc n) s"
-        unfolding exactDistNodes_def boundedReachableNodes_def
-        using connected_append_edge min_dist_succ by blast
-      moreover from \<open>v \<notin> g\<^sub>i.V\<close> have "v \<notin> boundedReachableNodes n s" sorry
-      moreover note \<open>(u, v) \<in> E\<close>
-      ultimately show "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
-        unfolding exactDistNodes_alt by blast
+    (*from BSPU interpret g\<^sub>i: Bounded_S_Shortest_Path_Union c\<^sub>i c s V n .*)
+    interpret g\<^sub>i: Graph c\<^sub>i .
+        (* TODO do we actually need the case distinction for both? *)
+    show "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
+      using BSPU_V_boundedReachable[OF BSPU] (* TODO finish the underlying proof *)
+    proof (elim disjE, elim conjE)
+      assume "g\<^sub>i.V = {}" "boundedReachableNodes n s = {s}"
+      with Q have "Q = {s}" "u = s" "exactDistNodes n s = {s}" using exactDistNodes_reachable_ss by fastforce+
+      with \<open>g\<^sub>i.V = {}\<close> \<open>boundedReachableNodes n s = {s}\<close> show ?thesis
+        unfolding S_def Q'_EQ exactDistNodes_alt boundedReachableNodes_alt apply simp unfolding exactDistNodes_def sorry
     next
-      fix v
-      assume "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
-      then have "v \<notin> boundedReachableNodes n s" "(u, v) \<in> E" unfolding exactDistNodes_alt by auto
-      then show "v \<in> E `` {u} - g\<^sub>i.V" sorry
+      assume V_I: "g\<^sub>i.V = boundedReachableNodes n s"
+      have "S = exactDistNodes (Suc n) s \<inter> E `` {u}" unfolding S_def
+      proof(intro equalityI; intro subsetI)
+        fix v
+        assume "v \<in> E `` {u} - g\<^sub>i.V - {s}"
+        then have "(u, v) \<in> E" "v \<notin> g\<^sub>i.V" by auto
+        with Q have "v \<in> boundedReachableNodes (Suc n) s"
+          unfolding exactDistNodes_def boundedReachableNodes_def
+          using connected_append_edge min_dist_succ by blast
+        with \<open>(u, v) \<in> E\<close> \<open>v \<notin> g\<^sub>i.V\<close> V_I show "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
+          unfolding exactDistNodes_alt by blast
+      next
+        fix v
+        assume "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
+        then have "v \<notin> boundedReachableNodes n s" "(u, v) \<in> E" "v \<noteq> s" unfolding exactDistNodes_alt
+          using self_boundedReachable by auto
+        with V_I show "v \<in> E `` {u} - g\<^sub>i.V - {s}" by blast
+      qed
+      with Q Q'_EQ show ?thesis by blast
     qed
-    with Q Q'_EQ show "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
-      sorry by blast
 
     show "Graph.E (transfer_edges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)" sorry
   qed
@@ -268,11 +302,11 @@ qed
 lemma ebfs_phase_correct:
   fixes c' Q n
   assumes BSPU: "Bounded_S_Shortest_Path_Union c' c s V n"
-  shows "ebfs_phase c' (exactDistNodes n s) \<le> SPEC (\<lambda>(c'', Q'). Bounded_S_Shortest_Path_Union c'' c s V (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
+  shows "ebfs_phase (Graph.V c' \<union> {s}) c' (exactDistNodes n s) \<le> SPEC (\<lambda>(c'', Q'). Bounded_S_Shortest_Path_Union c'' c s V (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
   unfolding ebfs_phase_def
   apply (refine_vcg FOREACH_rule[where I="ebfs_phase_invar s n c'"])
   using FINITE_REACHABLE finite_subset exactDistNodes_reachable_ss boundedReachableNodes_ss apply meson
-  using BSPU ebfs_phase_initial ebfs_phase_step ebfs_phase_final by simp_all
+  using BSPU ebfs_phase_initial ebfs_phase_step ebfs_phase_final by auto
 end
 
 
