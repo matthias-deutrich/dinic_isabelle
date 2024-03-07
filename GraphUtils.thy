@@ -12,6 +12,18 @@ lemma pair_set_eqI:
 
 lemma set_emptyI: "(\<And>x. x \<notin> S) \<Longrightarrow> S = {}" by blast (* TODO necessary? *)
 
+lemma split_list_min_len: "n \<le> length xs \<Longrightarrow> \<exists>ys zs. xs = ys @ zs \<and> n = length ys"
+proof (induction n arbitrary: xs)
+  case 0
+  then show ?case by simp
+next
+  case (Suc n)
+  then obtain x ys where XS: "xs = x # ys" by (meson Suc_le_length_iff)
+  with Suc.prems have "n \<le> length ys" by simp
+  with Suc.IH obtain zs1 zs2 where YS: "ys = zs1 @ zs2" "n = length zs1" by blast
+  with XS show ?case by (metis append_Cons length_Cons)
+qed
+
 section \<open>Empty graph\<close>
 (* TODO decide which variant is better *)
 context Graph

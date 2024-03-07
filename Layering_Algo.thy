@@ -247,14 +247,7 @@ end
 
 
 
-
-
-
-
-
-
-
-
+(*
 definition ebfs :: "node \<Rightarrow> _ graph nres" where
   "ebfs s \<equiv> do {
     (c', _) \<leftarrow> WHILE\<^sub>T
@@ -263,66 +256,77 @@ definition ebfs :: "node \<Rightarrow> _ graph nres" where
       ((\<lambda>_. 0), {s});
     RETURN c'
   }"
+*)
 
-
+thm ebfs_phase_correct
 (* TODO the n exists only for analysis purposes, can we remove it? *)
-definition ebfs' :: "node \<Rightarrow> _ graph nres" where
-  "ebfs' s \<equiv> do {
+(* TODO curry *)
+(* TODO update V\<^sub>i by adding Q instead of recomputing it *)
+definition ebfs :: "node \<Rightarrow> _ graph nres" where
+  "ebfs s \<equiv> do {
     (c', _, _) \<leftarrow> WHILE
       (\<lambda>(_, Q, _). Q \<noteq> {})
-      (uncurry ebfs_phase)
-      ((\<lambda>_. 0), {s});
+      (\<lambda>(c', Q, n). do {
+        (c', Q') \<leftarrow> ebfs_phase (Graph.V c' \<union> {s}) c' Q;
+        RETURN (c', Q', Suc n)
+      })
+      ((\<lambda>_. 0), {s}, 0);
     RETURN c'
   }"
 
-(*
-thm WHILET_rule
-thm FOREACH_rule
-lemma ebfs_phase_correct: "ebfs_phase_invar s n Q c' \<Longrightarrow> ebfs_phase Q c' \<le> SPEC (uncurry (\<lambda>Q' c'. ebfs_phase_invar s (n + 1) Q' c'))"
-thm FOREACH_rule[where I="ebfs_phase_invar s n"]
-  unfolding ebfs_phase_def
-  apply (refine_vcg FOREACH_rule[where I="ebfs_phase_invar s n"])
-*)
+find_consts "'a \<Rightarrow> 'b \<Rightarrow> ('a \<times> 'b)"
+term Pair
 
-(*definition ebfs_phase_invar :: *)
-
-(*
-definition ebfs_invar :: "node \<Rightarrow> nat \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool" where
-  "ebfs_invar s n \<equiv> \<lambda>(c', Q).
+definition ebfs_invar :: "node \<Rightarrow> (_ graph \<times> node set \<times> nat) \<Rightarrow> bool" where
+  "ebfs_invar s \<equiv> \<lambda>(c', Q, n).
     Bounded_S_Shortest_Path_Union c' c s V n
-    \<and> Q = {u. connected s u \<and> min_dist s u = n + 1}"
-*)
+    \<and> Q = exactDistNodes n s"
 
-(* TODO use or remove *)
-definition ebfs_invar' :: "node \<Rightarrow> (nat \<times> _ graph \<times> node set) \<Rightarrow> bool" where
-  "ebfs_invar' s \<equiv> \<lambda>(n, c', Q).
-    Bounded_S_Shortest_Path_Union c' c s V n
-    \<and> Q = {u. connected s u \<and> min_dist s u = n + 1}"
+lemma ebfs_final:
+  assumes INVAR: "ebfs_invar s (c', {}, n)"
+  shows "S_Shortest_Path_Union c' c s V"
+proof -
+  from INVAR interpret Bounded_S_Shortest_Path_Union c' c s V n unfolding ebfs_invar_def by blast
 
-definition ebfs_invar :: "node \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool" where
-  "ebfs_invar s \<equiv> \<lambda>(c', Q). \<exists> n.
-    Bounded_S_Shortest_Path_Union c' c s V n
-    \<and> Q = {u. connected s u \<and> min_dist s u = n + 1}"
+  show ?thesis
+  proof (unfold_locales, intro equalityI subsetI)
+    fix e
+    assume "e \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t}"
+    then obtain p t where P: "e \<in> set p" "t \<in> V" "isShortestPath s p t" by blast
+    have "length p < n"
+    proof (rule ccontr)
+      assume "\<not> length p < n"
+      with P obtain p' u where "isShortestPath s p' u" "length p' = n"
+        using split_list_min_len split_shortest_path by (metis not_le)
+      then have "u \<in> exactDistNodes n s"
+        unfolding exactDistNodes_def isShortestPath_min_dist_def connected_def by auto
+      with INVAR show False unfolding ebfs_invar_def by simp
+    qed
+    with P show "e \<in> E'" using bounded_shortest_s_path_union by fastforce
+  qed (auto simp: bounded_shortest_s_path_union)
+qed
 
-lemma ebfs_phase_correct': "ebfs_invar' s (n, c', Q) \<Longrightarrow> ebfs_phase c' Q \<le> SPEC (\<lambda>x. ebfs_invar' s (Suc n, x))" sorry
+context
+  fixes s
+  assumes FINITE_REACHABLE: "finite (reachableNodes s)"
+begin
+thm ebfs_phase_correct[OF FINITE_REACHABLE]
 
-lemma ebfs_phase_correct: "ebfs_invar s (c', Q) \<Longrightarrow> ebfs_phase c' Q \<le> SPEC (\<lambda>x. ebfs_invar s x)" sorry
-
-thm WHILE_rule
-theorem ebfs'_correct: "ebfs' s \<le> (spec x. S_Shortest_Path_Union c' c s V)"
-  unfolding ebfs'_def
+theorem ebfs_correct: "ebfs s \<le> (spec c'. S_Shortest_Path_Union c' c s V)"
+  unfolding ebfs_def
   apply (refine_vcg WHILE_rule[where I="ebfs_invar s"])
 
+  subgoal
+    unfolding ebfs_invar_def exactDistNodes_def
+    apply auto
+    apply unfold_locales
+    unfolding Graph.E_def
+    by auto
+  
+  using ebfs_phase_correct[OF FINITE_REACHABLE] ebfs_invar_def apply simp
 
+  using ebfs_final by simp
+end
 
-
-  thm WHILE_rule[where I="ebfs_invar s" and f="uncurry ebfs_phase"]
-  apply (rule WHILE_rule[where I="ebfs_invar s"])
-  prefer 3
-  apply refine_vcg
-  apply (rule WHILE_rule)
-  thm WHILE_rule
-  thm WHILE_rule[where I="ebfs_invar s" and \<Phi>="\<lambda>c'. S_Shortest_Path_Union c' c s V"]
-  sorry apply (refine_vcg WHILE_rule[where I="ebfs_invar s"])
 end
 end
