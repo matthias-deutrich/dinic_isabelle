@@ -26,36 +26,6 @@ thm swap_swap
 lemma invert_invert[simp]: "invert_graph (invert_graph c) = c"
   unfolding invert_graph_def by fastforce
 
-(* TODO check whether such a thing exists *)
-(* TODO still necessary? *)
-
-(*
-definition update_edge :: "'capacity graph \<Rightarrow> edge \<Rightarrow> 'capacity \<Rightarrow> 'capacity graph" where
-  "update_edge c e cap \<equiv> c(e := cap)"
-
-lemma update_edge_apply: "update_edge c e cap e' = (if e' = e then cap else c e')"
-  unfolding update_edge_def using fun_upd_apply .
-
-(*
-lemma update_edge_id[simp]: "update_edge c e cap e = cap"
-  unfolding update_edge_def by simp
-lemma update_edge_in_E_transfer[simp]: "e \<in> Graph.E (update_edge c' e (c e)) \<longleftrightarrow> e \<in> Graph.E c"
-  unfolding Graph.E_def by simp
-*)
-
-lemma update_edge_Subgraph[intro]: "Subgraph c' c \<Longrightarrow> Subgraph (update_edge c' e (c e)) c"
-  by (intro Subgraph_edgeI) (auto simp: update_edge_apply elim!: Subgraph.sg_cap_cases)
-
-lemma update_edge_edgeset[simp]:
-  "Graph.E (update_edge c e cap) = Graph.E c - {e} \<union> (if cap = 0 then {} else {e})"
-  unfolding Graph.E_def by (auto simp: update_edge_apply)
-
-(*
-lemma update_edge_in_E_iff: "e \<in> Graph.E (update_edge c e cap) \<longleftrightarrow> cap \<noteq> 0"
-  unfolding update_edge_def Graph.E_def by simp
-*)
-*)
-
 context Graph
 begin
 
@@ -97,28 +67,14 @@ lemma transfer_edges_ss_E: "S \<subseteq> E \<Longrightarrow> Graph.E (transfer_
 
 subsection \<open>Extended Breadth First Search phase\<close>
 
-(* TODO fix description *)
-text \<open>NOTE: The phase algorithm does need to know the source node in order to avoid problems in
-      cases where the source node has a self loop. This is a consequence of the graph model, where
-      nodes without edges cannot exists, which results in the graph being empty during the first
-      iteration even though s is within distance 0 of itself.
-      If we did not explicitly exclude the source node from the set of relevant neighbours, then if
-      there were a self loop of s, the first phase iteration would add s to the queue for the next
-      iteration (as it is an outgoing neighbor of s and not contained in the graph), violating the
-      invariant.
-      The alternative would be to only proof correctness for graphs without a self loop of s,
-      leading to a loss of generality.\<close>
-(*
-definition ebfs_phase :: "node \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
-  "ebfs_phase s c\<^sub>i Q \<equiv> foreach Q
-    (\<lambda>u (c', Q). do {
-      let S = E `` {u} - Graph.V c\<^sub>i - {s};
-      c' \<leftarrow> transfer_edges_algo ({u} \<times> S) c';
-      let Q = Q \<union> S;
-      RETURN (c', Q)
-    })
-    (c\<^sub>i, {})"
-*)
+text \<open>NOTE: For the correctness proofs, we need "V_i = Graph.V c' \<union> s", that is, we need to assure
+      that the source node is contained in this vertex set. This is a consequence of the graph
+      model, where nodes without edges cannot exists, which results in the graph being empty during
+      the first iteration even though s is within distance 0 of itself.
+      If we merely had "V_i = Graph.V c'" (making it unnecessary to pass V_i as a separate parameter),
+      then if there were a self loop of s, the first phase iteration would add s to the queue for
+      the next iteration (as it is an outgoing neighbor of s and not contained in the graph),
+      violating the invariant.\<close>
 
 definition ebfs_phase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
   "ebfs_phase V\<^sub>i c' Q \<equiv> foreach Q
@@ -198,7 +154,7 @@ proof
   next
     fix u v
     assume "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> Suc n}"
-    then obtain t p where "(u, v) \<in> set p" (*"t \<in> V"*) "isShortestPath s p t" "length p \<le> Suc n" by blast
+    then obtain t p where "(u, v) \<in> set p" "isShortestPath s p t" "length p \<le> Suc n" by blast
     then obtain p' where SP: "isShortestPath s (p' @ [(u, v)]) v" and LEN: "length p' \<le> n"
       by (fastforce dest: split_list split_shortest_path_around_edge)
     then have "(u, v) \<in> E" by (simp add: isPath_append isShortestPath_def)
@@ -223,7 +179,6 @@ proof
 qed
 
 context
-  (* TODO check where we can be more precise *)
   fixes s
   assumes FINITE_REACHABLE: "finite (reachableNodes s)"
 begin
@@ -262,63 +217,19 @@ proof -
     show "CapacityCompatibleGraphs (transfer_edges ({u} \<times> S) c') c"
       using \<open>CapacityCompatibleGraphs c' c\<close> transfer_edges_capcomp by blast
 
-    (*from BSPU interpret g\<^sub>i: Bounded_S_Shortest_Path_Union c\<^sub>i c s V n .*)
     interpret g\<^sub>i: Graph c\<^sub>i .
-    have "S = exactDistNodes (Suc n) s \<inter> E `` {u}" unfolding S_def
-    proof(intro equalityI; intro subsetI)
-      fix v
-      assume "v \<in> E `` {u} - (g\<^sub>i.V \<union> {s})"
-      then have "(u, v) \<in> E" "v \<notin> (g\<^sub>i.V \<union> {s})" by auto
-      with Q have "v \<in> boundedReachableNodes (Suc n) s"
-        unfolding exactDistNodes_def boundedReachableNodes_def
-        using connected_append_edge min_dist_succ by blast
-      with \<open>(u, v) \<in> E\<close> \<open>v \<notin> (g\<^sub>i.V \<union> {s})\<close> show "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
-        unfolding exactDistNodes_alt using BSPU_V'_boundedReachable[OF BSPU] by blast
-    next
-      fix v
-      assume "v \<in> exactDistNodes (Suc n) s \<inter> E `` {u}"
-      then have "v \<notin> boundedReachableNodes n s" "(u, v) \<in> E" "v \<noteq> s" unfolding exactDistNodes_alt
-        using self_boundedReachable by auto
-      then show "v \<in> E `` {u} - (g\<^sub>i.V \<union> {s})" using BSPU_V'_boundedReachable[OF BSPU] by blast
-    qed
+    from Q have "E `` {u} \<subseteq> boundedReachableNodes (Suc n) s"
+      unfolding boundedReachableNodes_alt using exactDistNodes_reachable_ss by blast
+    with BSPU have S_alt: "S = exactDistNodes (Suc n) s \<inter> E `` {u}"
+      unfolding S_def exactDistNodes_alt using BSPU_V'_boundedReachable by blast
     with Q Q'_EQ show "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
       by blast
 
-    (* TODO can we use any of the previous definitions for S or Q' \<union> S? *)
-
-    have "E \<inter> {u} \<times> (Q' - S) = {}"
-    proof auto (* TODO fix *)
-      fix v
-      assume "(u, v) \<in> E" "v \<in> Q'" "v \<notin> S"
-      thm this[unfolded Q'_EQ S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]]]
-      then have "v \<in> boundedReachableNodes n s" unfolding S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]] by simp
-      with \<open>v \<in> Q'\<close> show False unfolding Q'_EQ exactDistNodes_def boundedReachableNodes_def by simp
-    qed
-    then have TMP: "E \<inter> ({u} \<times> (Q' \<union> S)) = E \<inter> {u} \<times> S" by blast
-
-    have "E \<inter> (exactDistNodes n s - Q) \<times> (S - Q') = {}"
-    proof auto (* TODO fix *)
-      fix v w
-      assume "(v, w) \<in> E" "v \<in> exactDistNodes n s" "v \<notin> Q" "w \<in> S" "w \<notin> Q'"
-      thm this[unfolded Q'_EQ S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]]] Q
-
-      from \<open>w \<in> S\<close> Q have "w \<in> boundedReachableNodes (Suc n) s" unfolding S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]] unfolding exactDistNodes_def boundedReachableNodes_def using min_dist_succ
-        using \<open>S = exactDistNodes (Suc n) s \<inter> E `` {u}\<close> \<open>w \<in> S\<close> exactDistNodes_def by auto
-
-      with \<open>w \<in> S\<close> have "w \<in> exactDistNodes (Suc n) s" unfolding S_def[unfolded BSPU_V'_boundedReachable[OF BSPU]] exactDistNodes_alt by blast
-      with \<open>w \<notin> Q'\<close> have "w \<notin> E `` (exactDistNodes n s - Q)" unfolding Q'_EQ by simp
-      with \<open>(v, w) \<in> E\<close> \<open>v \<in> exactDistNodes n s\<close> \<open>v \<notin> Q\<close> show False by auto
-    qed
-    then have TMP2: "E \<inter> ((exactDistNodes n s - Q) \<times> (Q' \<union> S)) = E \<inter> (exactDistNodes n s - Q) \<times> Q'" by blast
-
     have "{u} \<times> S \<subseteq> E" unfolding S_def by blast
-    then have "Graph.E (transfer_edges ({u} \<times> S) c') = E' \<union> {u} \<times> S" using transfer_edges_ss_E by simp
-    also have "... = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - Q) \<times> Q' \<union> {u} \<times> S" using E'_EQ by simp
-    also have "... = g\<^sub>i.E \<union> E \<inter> ((exactDistNodes n s - Q) \<times> Q' \<union> {u} \<times> S)" using \<open>{u} \<times> S \<subseteq> E\<close> by blast
-    also have "... = g\<^sub>i.E \<union> E \<inter> ((exactDistNodes n s - Q) \<times> Q' \<union> (exactDistNodes n s - Q) \<times> S \<union> {u} \<times> S)" using TMP2 by blast
-    also have "... = g\<^sub>i.E \<union> E \<inter> ((exactDistNodes n s - Q) \<times> Q' \<union> (exactDistNodes n s - Q) \<times> S \<union> {u} \<times> Q' \<union> {u} \<times> S)" using TMP by blast
-    also have "... = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - Q \<union> {u}) \<times> (Q' \<union> S)" by blast
-    also have "... = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)" using Q by blast
+    then have "Graph.E (transfer_edges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> ((exactDistNodes n s - Q) \<times> Q' \<union> {u} \<times> S)"
+      using transfer_edges_ss_E E'_EQ by blast
+    also have "... = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)"
+      unfolding S_alt Q'_EQ using Q by blast
     finally show "Graph.E (transfer_edges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)" .
   qed
   finally show ?thesis .
