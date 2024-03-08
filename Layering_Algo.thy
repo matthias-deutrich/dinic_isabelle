@@ -236,7 +236,6 @@ proof -
 qed
 
 lemma ebfs_phase_correct:
-  fixes c' Q n
   assumes BSPU: "Bounded_S_Shortest_Path_Union c' c s V n"
   shows "ebfs_phase (Graph.V c' \<union> {s}) c' (exactDistNodes n s) \<le> SPEC (\<lambda>(c'', Q'). Bounded_S_Shortest_Path_Union c'' c s V (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
   unfolding ebfs_phase_def
@@ -258,13 +257,17 @@ definition ebfs :: "node \<Rightarrow> _ graph nres" where
   }"
 *)
 
+find_consts "'a \<Rightarrow> 'b \<Rightarrow> ('a \<times> 'b)"
+term Pair
+
+
 thm ebfs_phase_correct
 (* TODO the n exists only for analysis purposes, can we remove it? *)
 (* TODO curry *)
 (* TODO update V\<^sub>i by adding Q instead of recomputing it *)
 definition ebfs :: "node \<Rightarrow> _ graph nres" where
   "ebfs s \<equiv> do {
-    (c', _, _) \<leftarrow> WHILE
+    (c', _, _) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, Q, _). Q \<noteq> {})
       (\<lambda>(c', Q, n). do {
         (c', Q') \<leftarrow> ebfs_phase (Graph.V c' \<union> {s}) c' Q;
@@ -273,9 +276,6 @@ definition ebfs :: "node \<Rightarrow> _ graph nres" where
       ((\<lambda>_. 0), {s}, 0);
     RETURN c'
   }"
-
-find_consts "'a \<Rightarrow> 'b \<Rightarrow> ('a \<times> 'b)"
-term Pair
 
 definition ebfs_invar :: "node \<Rightarrow> (_ graph \<times> node set \<times> nat) \<Rightarrow> bool" where
   "ebfs_invar s \<equiv> \<lambda>(c', Q, n).
@@ -311,10 +311,48 @@ context
   assumes FINITE_REACHABLE: "finite (reachableNodes s)"
 begin
 thm ebfs_phase_correct[OF FINITE_REACHABLE]
+thm greater_bounded_def
+term greater_bounded
+find_consts "('a \<times> 'b \<times> 'c) \<Rightarrow> 'c"
+value "(snd \<circ> snd) ((1::nat), (2::nat), (3::nat))"
+term inv_image
+term less_than_bool
+find_consts "(nat \<times> nat) set"
+thm greater_bounded_Suc_iff
+find_theorems "_ \<Longrightarrow> _ \<le> SPEC _"
+thm SPEC_rule
+find_theorems pathVertices reachableNodes
+find_theorems pathVertices isSimplePath
+thm pathVertices_fwd
+thm distinct_card
+find_theorems pathVertices length
+
+(* TODO fix this hot mess *)
+lemma ebfs_step:
+  assumes INVAR: "ebfs_invar s (c', Q, n)" and Q: "Q \<noteq> {}"
+  shows "ebfs_phase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). ebfs_invar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
+proof -
+  from INVAR have "ebfs_phase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). Bounded_S_Shortest_Path_Union c'' c s V (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
+    using ebfs_phase_correct[OF FINITE_REACHABLE] unfolding ebfs_invar_def by blast
+  also have "... \<le> SPEC (\<lambda>(c'', Q'). ebfs_invar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
+  proof (auto simp: ebfs_invar_def)
+    from INVAR Q obtain p u where "isShortestPath s p u" "length p = n"
+      unfolding ebfs_invar_def exactDistNodes_def
+      using obtain_shortest_path isShortestPath_min_dist_def by simp metis
+    then have "card (set (pathVertices s p)) = Suc n" apply (auto dest!: shortestPath_is_simple simp: isSimplePath_def)
+      using length_pathVertices_eq distinct_card by fastforce (* TODO *)
+    with \<open>isShortestPath s p u\<close>[THEN shortestPath_is_path, THEN pathVertices_reachable] show "Suc n \<le> card (reachableNodes s)"
+      by (metis FINITE_REACHABLE card_mono)
+  qed
+  finally show ?thesis .
+qed
 
 theorem ebfs_correct: "ebfs s \<le> (spec c'. S_Shortest_Path_Union c' c s V)"
   unfolding ebfs_def
-  apply (refine_vcg WHILE_rule[where I="ebfs_invar s"])
+  apply (refine_vcg WHILET_rule[where I="ebfs_invar s"
+      and R="inv_image (greater_bounded (card (reachableNodes s))) (snd \<circ> snd)"])
+
+  apply blast
 
   subgoal
     unfolding ebfs_invar_def exactDistNodes_def
@@ -322,10 +360,8 @@ theorem ebfs_correct: "ebfs s \<le> (spec c'. S_Shortest_Path_Union c' c s V)"
     apply unfold_locales
     unfolding Graph.E_def
     by auto
-  
-  using ebfs_phase_correct[OF FINITE_REACHABLE] ebfs_invar_def apply simp
 
-  using ebfs_final by simp
+  using ebfs_step ebfs_final by simp_all
 end
 
 end

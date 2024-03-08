@@ -137,6 +137,7 @@ lemma allShortestPaths_singleton_simps[simp]:
   "shortestSPaths s {t} = shortestSTPaths s t"
   unfolding allShortestPaths_def shortestSPaths_def shortestSTPaths_def
   by simp_all
+end
 
 (*
 lemma graph_is_all_shortest_paths_union:
@@ -520,7 +521,25 @@ lemma exactDistNodes_alt:
 
 lemma exactDistNodes_reachable_ss: "exactDistNodes b u \<subseteq> boundedReachableNodes b u"
   unfolding exactDistNodes_def boundedReachableNodes_def by blast
+
+
+
+
+
+
+(* TODO move *)
+lemma pathVertices_reachable: "isPath u p v \<Longrightarrow> set (pathVertices u p) \<subseteq> reachableNodes u"
+proof (induction p arbitrary: u)
+  case Nil
+  then show ?case unfolding reachableNodes_def by auto
+next
+  case (Cons a p)
+  then show ?case unfolding reachableNodes_def
+    by (metis connected_def mem_Collect_eq pathVertices_fwd split_path_at_vertex subsetI)
+qed
 end
+
+
 
 lemma min_dist_eqI: (* TODO use this wherever applicable *)
   "\<lbrakk>Graph.isShortestPath c u p v; Graph.isShortestPath c' u p v\<rbrakk> \<Longrightarrow> Graph.min_dist c u v = Graph.min_dist c' u v"
