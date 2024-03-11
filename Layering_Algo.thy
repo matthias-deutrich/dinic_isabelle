@@ -1,6 +1,6 @@
 theory Layering_Algo
   imports
-    Refinement
+    Cleaning_Algo
     EdmondsKarp_Maxflow.Augmenting_Path_BFS
 begin
 

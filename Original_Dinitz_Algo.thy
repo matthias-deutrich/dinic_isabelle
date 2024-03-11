@@ -1,5 +1,5 @@
 theory Original_Dinitz_Algo
-  imports Refinement NetworkUtils
+  imports Cleaning_Algo NetworkUtils
 begin
 (* TODO do we need f? *)
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>

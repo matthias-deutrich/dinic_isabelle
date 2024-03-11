@@ -1,5 +1,5 @@
-theory Refinement
-  imports "Refine_Monadic.Refine_Monadic" LayerMaintenance
+theory Cleaning_Algo
+  imports "Refine_Monadic.Refine_Monadic" LayerMaintenance Graph_Inversion
 begin
 
 subsection \<open>PathFinding\<close>
