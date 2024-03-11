@@ -19,13 +19,6 @@ text \<open>In this section, we present an extended version of breadth-first sea
       based on a single predecessor for each node does not work here as we do not necessarily have
       a tree.\<close>
 
-(* TODO make the successor function parametric or enable inverting graphs*)
-definition invert_graph :: "_ graph \<Rightarrow> _ graph" where "invert_graph c \<equiv> c \<circ> prod.swap"
-
-thm swap_swap
-lemma invert_invert[simp]: "invert_graph (invert_graph c) = c"
-  unfolding invert_graph_def by fastforce
-
 context Graph
 begin
 
