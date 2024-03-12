@@ -9,7 +9,7 @@ begin
 definition pathFindingRefine_partial :: "node \<Rightarrow> path nres" where
   "pathFindingRefine_partial s \<equiv> do {
     (p, _) \<leftarrow> WHILE (\<lambda>(p, u). outgoing u \<noteq> {}) (\<lambda>(p, u). do {
-      e \<leftarrow> SPEC (\<lambda>e. e \<in> outgoing u);
+      e \<leftarrow> RES (outgoing u);
       let p = p @ [e];
       let u = snd e;
       RETURN (p, u)
@@ -31,7 +31,7 @@ subsubsection \<open>Total correctness\<close>
 definition (in Graph) pathFindingRefine_total :: "node \<Rightarrow> path nres" where
   "pathFindingRefine_total s \<equiv> do {
     (p, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(p, u). outgoing u \<noteq> {}) (\<lambda>(p, u). do {
-      e \<leftarrow> SPEC (\<lambda>e. e \<in> outgoing u);
+      e \<leftarrow> RES (outgoing u);
       let p = p @ [e];
       let u = snd e;
       RETURN (p, u)
@@ -139,10 +139,6 @@ end
 
 \<comment> \<open>PathFinding\<close>
 
-
-
-subsection \<open>RightPass\<close>
-
 definition removeEdge :: "_ graph \<Rightarrow> edge \<Rightarrow> _ graph" where
   "removeEdge c e \<equiv> c(e := 0)"
 
@@ -164,11 +160,13 @@ end
 
 (* TODO refine removeEdges and use the refined version *)
 
+
+subsection \<open>RightPass\<close>
 (* This is the exact definition, using the edge set*)
 definition rightPassRefine_original :: "_ graph \<Rightarrow> edge set \<Rightarrow> (_ graph) nres" where
   "rightPassRefine_original c Q \<equiv> do {
     (c, _) \<leftarrow> WHILE (\<lambda>(_, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
-      e \<leftarrow> SPEC (\<lambda>e. e \<in> Q);
+      e \<leftarrow> RES Q;
       let Q = Q - {e};
       let v = snd e;
       if Graph.incoming c v = {} then do {
@@ -183,8 +181,9 @@ definition rightPassRefine_original :: "_ graph \<Rightarrow> edge set \<Rightar
 
 text \<open>This definition is slightly adapted in that it works on the set of edge tails,
       instead of on the edges themselves.\<close>
-definition rightPassRefine_partial :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine_partial c Q \<equiv> do {
+(* TODO swap tuple *)
+definition rightPassRefine_partial :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine_partial Q c \<equiv> do {
     (c, _) \<leftarrow> WHILE (\<lambda>(c, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
       u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
       let Q = Q - {u};
@@ -314,7 +313,7 @@ qed (* TODO cleanup *)
 theorem rightPassRefine_partial_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
-  shows "rightPassRefine_partial c Q \<le> RETURN (right_pass c s)"
+  shows "rightPassRefine_partial Q c \<le> RETURN (right_pass c s)"
   unfolding rightPassRefine_partial_def
 proof (intro WHILE_rule[where I="rightPass_partial_invar c s"] refine_vcg, clarsimp_all)
   show "rightPass_partial_invar c s (c, Q)" unfolding rightPass_partial_invar_def using Q_START by blast
@@ -337,10 +336,10 @@ end
 
 subsubsection \<open>Total correctness\<close>
 
-definition rightPassRefine_total :: "_ graph \<Rightarrow> node set \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine_total c Q \<equiv> do {
+definition right_pass_refine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+  "right_pass_refine Q c \<equiv> do {
     (c, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(_, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
-      u \<leftarrow> SPEC (\<lambda>u. u \<in> Q);
+      u \<leftarrow> RES Q;
       let Q = Q - {u};
       if Graph.incoming c u = {} then do {
         let R = Graph.outgoing c u;
@@ -379,7 +378,7 @@ thm subgraph.wf
 *)
 
 
-lemma (in Finite_Graph) rightPassRefine_total_step:
+lemma (in Finite_Graph) right_pass_refine_step:
   assumes S_NO_IN: "incoming s = {}"
     and "u \<in> Q"
     and U_NO_IN: "Graph.incoming c' u = {}"
@@ -417,32 +416,26 @@ qed
 
 context Finite_Bounded_Graph
 begin
-theorem rightPassRefine_total_correct:
+theorem right_pass_refine_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine_total c Q \<le> RETURN (right_pass c s)"
-  unfolding rightPassRefine_total_def
+  shows "right_pass_refine Q c \<le> RETURN (right_pass c s)"
+  unfolding right_pass_refine_def
 proof (intro WHILET_rule[where I="rightPass_total_invar c s"] refine_vcg, clarsimp_all)
   show "wf GraphWorkingSet_rel" by (rule wf_GraphWorkingSet_rel)
 next
   show "rightPass_total_invar c s (c, Q)" unfolding rightPass_partial_invar_def rightPass_total_invar_def
-    using Q_START by blast
+    using Q_START apply clarify (* TODO *) by blast
 next
   fix c' Q u
   assume step_assms: "rightPass_total_invar c s (c', Q)" "u \<in> Q"
-  then have SUB: "Subgraph c' c"
-    and "s \<notin> Q"
-    and S_CON: "\<forall>u v. connected s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
-    and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {}"
-    and "finite Q"
-    unfolding rightPass_total_invar_def rightPass_partial_invar_def by simp_all
-  with \<open>u \<in> Q\<close> show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_total_invar c s (c', Q - {u}) \<and> ((c', Q - {u}), (c', Q)) \<in> GraphWorkingSet_rel"
+  then show "Graph.incoming c' u \<noteq> {} \<Longrightarrow> rightPass_total_invar c s (c', Q - {u}) \<and> ((c', Q - {u}), (c', Q)) \<in> GraphWorkingSet_rel"
     by (auto simp: rightPass_total_invar_def rightPass_partial_invar_def GraphWorkingSet_rel_def)
 
   let ?c'' = "removeEdges c' (Graph.outgoing c' u)"
   let ?Q' = "Q - {u} \<union> snd ` Graph.outgoing c' u"
   from S_NO_IN step_assms show "Graph.incoming c' u = {} \<Longrightarrow> rightPass_total_invar c s (?c'', ?Q') \<and> ((?c'', ?Q'), (c', Q)) \<in> GraphWorkingSet_rel"
-    using rightPassRefine_total_step by blast
+    using right_pass_refine_step by blast
 next
   fix c'
   assume "rightPass_total_invar c s (c', {})"
@@ -452,7 +445,254 @@ qed
 
 end
 
-
 \<comment> \<open>RightPass\<close>
+
+subsection \<open>LeftPass\<close>
+(* TODO swap tuple *)
+definition left_pass_refine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+  "left_pass_refine Q c \<equiv> do {
+    (c, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(_, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
+      u \<leftarrow> RES Q;
+      let Q = Q - {u};
+      if Graph.outgoing c u = {} then do {
+        let L = Graph.incoming c u;
+        let Q = Q \<union> (snd ` L);
+        let c = removeEdges c L;
+        RETURN (c, Q)}
+      else RETURN (c, Q)
+    }) (c, Q);
+    RETURN c
+  }"
+
+
+definition left_pass_refine' :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+  "left_pass_refine' Q c \<equiv> do {
+    WHILE\<^sub>T (\<lambda>(_, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
+      u \<leftarrow> RES Q;
+      let Q = Q - {u};
+      if Graph.outgoing c u = {} then do {
+        let L = Graph.incoming c u;
+        let Q = Q \<union> (snd ` L);
+        let c = removeEdges c L;
+        RETURN (c, Q)}
+      else RETURN (c, Q)
+    }) (c, Q)
+  } \<bind> RETURN \<circ> fst"
+
+thm comp_apply case_prod_unfold cond_case_prod_eta fst_conv
+
+(*
+lemma "left_pass_refine' = left_pass_refine" unfolding left_pass_refine'_def left_pass_refine_def
+  by (metis comp_apply cond_case_prod_eta fst_conv)
+  by (metis case_prod_unfold comp_apply)
+*)
+
+find_theorems bind conc_fun RETURN
+find_theorems bind "(\<le>)" RETURN
+thm RETURN_def
+
+find_theorems "RETURN \<circ> fst"
+
+find_theorems "bind _ _ \<le> _ \<bind> _"
+find_theorems "bind _ _ \<le> \<Down> _ _"
+thm ignore_snd_refine_conv
+term RETURN
+term SPEC
+term RES
+thm ibind_mono
+thm bind_mono
+thm WHILET_refine
+
+
+lemma "Dual_Graph_Algorithms (right_pass_refine Q) (left_pass_refine Q)"
+proof
+  fix c :: "('capacity::linordered_idom) graph"
+  show "right_pass_refine Q c \<le> \<Down> invert_graph_rel (left_pass_refine Q (invert_graph c))"
+    unfolding right_pass_refine_def left_pass_refine_def
+    apply refine_vcg apply (auto simp: invert_graph_rel_def) nitpick oops
+
+    apply (refine_rcg WHILET_refine[where R="inv_image invert_graph_rel fst"])
+          apply (auto simp: invert_graph_rel_def)[]
+         defer
+    defer
+         apply (auto simp: invert_graph_rel_def)[]
+        apply (auto simp: invert_graph_rel_def)[]
+       apply (auto simp: invert_graph_rel_def)[]
+      apply (auto simp: invert_graph_rel_def)[]
+     defer
+    apply (auto simp: invert_graph_rel_def)
+     apply (simp add: invert_graph_rel_def invert_graph_def)
+    apply (auto simp: invert_graph_rel_def)[]
+          
+    
+          
+          
+          
+          apply simp_all unfolding invert_graph_rel_def apply simp_all
+  proof (refine_rcg)
+    show "((c, Q), invert_graph c, Q) \<in> inv_image invert_graph_rel fst" unfolding invert_graph_rel_def by simp
+    (*apply (refine_rcg WHILET_refine[where R="inv_image invert_graph_rel fst"])*)
+    apply refine_rcg
+
+    apply rule
+    apply simp 
+    apply (auto intro!: WHILET_refine)
+    apply (intro WHILET_refine)
+    apply (auto intro: refine)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+thm rightPass_total_invar_def[unfolded rightPass_partial_invar_def, simplified]
+definition "left_pass_invar c t \<equiv> \<lambda>(c', Q). rightPass_total_invar (invert_graph c) t (invert_graph c', Q)"
+context Finite_Bounded_Graph
+begin
+lemma left_pass_alt: "left_pass c t = invert_graph (right_pass (invert_graph c) t)"
+  unfolding right_pass_def left_pass_def by auto
+
+
+
+
+
+theorem left_pass_refine_correct:
+  assumes T_NO_OUT: "outgoing t = {}"
+    and Q_START: "t \<notin> Q" "\<forall>u \<in> V - Q - {t}. outgoing u \<noteq> {}" "finite Q"
+  shows "left_pass_refine c Q \<le> RETURN (left_pass c t)"
+  unfolding left_pass_refine_def
+proof (refine_vcg WHILET_rule[where I="left_pass_invar c t" and R=GraphWorkingSet_rel], simp_all)
+  show "wf GraphWorkingSet_rel" by (rule wf_GraphWorkingSet_rel)
+next
+  show "left_pass_invar c t (c, Q)" unfolding left_pass_invar_def rightPass_partial_invar_def rightPass_total_invar_def
+    using Q_START by fastforce
+next
+  fix c' Q u
+  assume step_assms: "left_pass_invar c t (c', Q)" "u \<in> Q"
+  {
+    assume "Graph.outgoing c' u \<noteq> {}"
+    with step_assms show "left_pass_invar c t (c', Q - {u})" "((c', Q - {u}), (c', Q)) \<in> GraphWorkingSet_rel"
+      unfolding left_pass_invar_def rightPass_total_invar_def rightPass_partial_invar_def GraphWorkingSet_rel_def by auto
+  }
+  {
+    let ?c'' = "removeEdges c' (Graph.incoming c' u)"
+    let ?Q' = "Q - {u} \<union> snd ` Graph.incoming c' u"
+    assume "Graph.outgoing c' u = {}" "Finite_Graph c" (* TODO second *)
+    with T_NO_OUT step_assms have "left_pass_invar c t (?c'', ?Q')" unfolding left_pass_invar_def
+      using Finite_Graph.right_pass_refine_step[of "invert_graph c" t u Q "invert_graph c'"] apply auto unfolding rightPass_total_invar_def rightPass_partial_invar_def apply simp oops
+  }
+  then have SUB: "Subgraph c' c"
+    and "t \<notin> Q"
+    and T_CON: "\<forall>u v. connected s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
+    and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {}"
+    and "finite Q"
+    unfolding rightPass_total_invar_def rightPass_partial_invar_def by simp_all
+
+
+
+    find_consts "('a \<Rightarrow> 'b) \<Rightarrow> ('a \<times> 'c) \<Rightarrow> ('b \<times> 'c)"
+thm bind_mono
+  thm refine_mono
+  thm refine_vcg
+  thm refine
+  thm pw_eq_iff
+  thm pw_eqI
+  thm refine_pw_simps
+  thm WHILE_rule
+  find_theorems "WHILE _ _ _ \<le> WHILE _ _ _"
+  thm WHILE_mono_prover_rule
+  find_theorems nofail WHILE
+  term rwof
+  thm generic_WHILE_rules_def
+  thm generic_WHILE_def
+
+(*
+lemma "do { ASSERT (fst p > 2); SPEC (\<lambda>x. x\<le>(2::nat)*(fst p + snd p)) }
+  \<le> do { let (x,y)=p; z\<leftarrow>SPEC (\<lambda>z. z\<le>x+y); 
+          a\<leftarrow>SPEC (\<lambda>a. a\<le>x+y); ASSERT (x>2); RETURN (a+z)}"
+  apply (rule pw_leI)
+  apply (auto simp add: refine_pw_simps split: prod.split)
+
+  apply (rename_tac a b x)
+  apply (case_tac "x\<le>a+b")
+  apply (rule_tac x=0 in exI)
+  apply simp
+  apply (rule_tac x="a+b" in exI)
+  apply (simp)
+  apply (rule_tac x="x-(a+b)" in exI)
+  apply simp
+  done
+
+(* TODO can this be simplified *)
+find_consts "('a \<Rightarrow> 'b) \<Rightarrow> 'a nres \<Rightarrow> 'b nres"
+lemma left_pass_refine_alt:
+  "left_pass_refine c Q = do {
+    c \<leftarrow> right_pass_refine (invert_graph c) Q;
+    RETURN (invert_graph c)
+  }" unfolding left_pass_refine_def right_pass_refine_def 
+  apply (rule pw_eqI)
+  apply (auto split: prod.split)
+     apply (auto simp add: refine_pw_simps split: prod.split)
+  oops
+*)
+
+theorem left_pass_refine_correct:
+  assumes T_NO_OUT: "outgoing t = {}"
+    and Q_START: "t \<notin> Q" "\<forall>u \<in> V - Q - {t}. outgoing u \<noteq> {}" "finite Q"
+  shows "left_pass_refine c Q \<le> RETURN (left_pass c t)"
+  (*unfolding left_pass_alt using assms Finite_Bounded_Graph.right_pass_refine_correct[of "invert_graph c" b t Q] oops*)
+proof -
+  (* TODO reverse *)
+  have "RETURN (left_pass c t) \<ge> RETURN (invert_graph (right_pass (invert_graph c) t))"
+    using left_pass_alt by simp
+
+  have "do {c \<leftarrow> RETURN (right_pass (invert_graph c) t); RETURN (invert_graph c)} \<le> RETURN (left_pass c t)"
+    using left_pass_alt by simp
+
+  thm bind_mono
+  thm refine_mono
+  thm refine_vcg
+  thm refine
+  thm pw_eq_iff
+  thm pw_eqI
+  thm refine_pw_simps
+  thm WHILE_rule
+  find_theorems "WHILE _ _ _ \<le> WHILE _ _ _"
+  find_theorems "WHILEIT _ _ _ _"
+  find_theorems name:WHILE name:unfold
+  find_theorems name:while name:induct
+  thm WHILE_mono_prover_rule
+  find_theorems "\<lbrakk>?M \<le> ?M'; \<And>x. RETURN x \<le> ?M \<Longrightarrow> ?f x \<le> ?f' x\<rbrakk> \<Longrightarrow> ?M \<bind> ?f \<le> ?M' \<bind> ?f'"
+  thm ibind_mono
+  find_theorems "?P (WHILE _ _ _) (?B :: _ nres)"
+  thm WHILEIT_refine
+  thm WHILET_refine
+  term conc_fun
+  thm conc_fun_def
+  term abs_fun
+  thm Finite_Bounded_Graph.right_pass_refine_correct[of "invert_graph c" b t Q]
+  have "Finite_Bounded_Graph (invert_graph c) b" "Graph.incoming (invert_graph c) t = {}" "t \<notin> Q" "\<forall>u\<in>Graph.V (invert_graph c) - Q - {t}. Graph.incoming (invert_graph c) u \<noteq> {}" "finite Q"
+    sorry
+  then have "do {c \<leftarrow> right_pass_refine (invert_graph c) Q; RETURN (invert_graph c)} \<le> do {c \<leftarrow> RETURN (right_pass (invert_graph c) t); RETURN (invert_graph c)}"
+    using Finite_Bounded_Graph.right_pass_refine_correct by refine_mono
+    (*apply (auto intro!: Finite_Bounded_Graph.right_pass_refine_correct)*)
+
+
+  oops
+end
 
 end
