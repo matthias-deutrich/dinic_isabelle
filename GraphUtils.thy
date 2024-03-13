@@ -298,12 +298,26 @@ lemma (in Graph) Distance_Bounded_Graph_PathI:
   "(\<And>u p v. isPath u p v \<Longrightarrow> length p \<le> b) \<Longrightarrow> Distance_Bounded_Graph c b"
   unfolding Distance_Bounded_Graph_def dist_def by blast
 
+text \<open>Note that due to the possible existence of cycles, Finite_Graph does not immediately imply
+      Distance_Bounded_Graph.\<close>
 locale Finite_Bounded_Graph = Finite_Graph + Distance_Bounded_Graph
 
-(*
-lemma (in Acyclic_Graph) finite_imp_bounded:
-  "Finite_Graph c \<Longrightarrow> \<exists>b. Distance_Bounded_Graph c b"
-*)
+lemma (in Finite_Graph) bounded_if_acyclic:
+  "Acyclic_Graph c \<Longrightarrow> \<exists>b. Distance_Bounded_Graph c b"
+proof
+  assume "Acyclic_Graph c"
+  then interpret Acyclic_Graph c .
+  show "Distance_Bounded_Graph c (card V)"
+  proof
+    fix u n v
+    assume "dist u n v"
+    then obtain p where "isSimplePath u p v" "length p = n"
+      unfolding dist_def using paths_are_simple by blast
+    then show "n \<le> card V" (* TODO simplify *)
+      (*by (smt (verit, del_insts) Finite_Graph.simplePath_length_less_V Finite_Graph_EI Graph.V_def Graph.dist_cases Graph.dist_def Vfin_imp_Efin \<open>dist u n v\<close> finite_V isPath_fwd_cases le_add1 le_add_same_cancel1 less_or_eq_imp_le mem_Collect_eq)*)
+      by (smt (verit, ccfv_SIG) Graph.V_def Graph.isSimplePath_fwd \<open>dist u n v\<close> dist_cases isPath_fwd_cases leD mem_Collect_eq not_less_eq_eq order_less_imp_le simplePath_length_less_V zero_less_Suc)
+  qed
+qed
 
 
 section \<open>Reducing Graphs\<close>

@@ -86,6 +86,13 @@ lemma invert_min_dist:
   by (meson Graph.min_dist_is_dist Graph.min_dist_minD invert_connected invert_dist order_antisym_conv)
 
 (* TODO add stuff from GraphUtils *)
+lemma invert_Distance_Bounded_Graph:
+  "Distance_Bounded_Graph (invert_graph c) b \<longleftrightarrow> Distance_Bounded_Graph c b"
+  unfolding Distance_Bounded_Graph_def by (auto simp: invert_dist)
+
+corollary invert_Finite_Bounded_Graph:
+  "Finite_Bounded_Graph (invert_graph c) b \<longleftrightarrow> Finite_Bounded_Graph c b"
+  unfolding Finite_Bounded_Graph_def by (simp add: invert_Finite_Graph invert_Distance_Bounded_Graph)
 
 text \<open>The following lemmas relate properties of the inverted graph to the corresponding ones in the
       non-inverted graph.\<close>
@@ -107,6 +114,9 @@ lemmas invert_graph_simps[simp] =
   (* invert_isSimplePath *)
   invert_dist
   invert_min_dist
+
+  invert_Distance_Bounded_Graph
+  invert_Finite_Bounded_Graph
 
 subsection \<open>Refinement setup\<close>
 
@@ -153,6 +163,24 @@ locale Dual_Graph_Algorithms =
 begin
 lemma dual_alg': "\<And>c. alg' c = \<Down> invert_graph_rel (alg (invert_graph c))"
   using dual_alg by (simp add: conc_fun_chain)
+
+(* TODO rewrite conclusion? *)
+term SPEC
+term RES
+term RETURN
+
+lemma transfer_spec:
+  fixes spec spec' :: "_ graph \<Rightarrow> _ graph" and c
+  assumes dual_spec: "spec = invert_graph \<circ> spec' \<circ> invert_graph"
+    and spec'_correct: "alg' (invert_graph c) \<le> RETURN (spec' (invert_graph c))"
+  shows "alg c \<le> RETURN (spec c)"
+proof -
+  from assms dual_alg have "alg c \<le> \<Down> invert_graph_rel (RETURN (invert_graph (spec c)))"
+    using ref_two_step by fastforce
+  also have "... \<le> RETURN (spec c)" unfolding invert_graph_rel_alt
+    by (smt (verit, best) conc_fun_RETURN in_br_conv invert_invert lhs_step_SPEC pw_leI) (* TODO *)
+  finally show ?thesis .
+qed
 end
 
 (* TODO can it be sufficient to only show one direction? *)

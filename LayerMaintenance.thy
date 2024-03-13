@@ -6,23 +6,23 @@ begin
 
 subsection \<open>Right Pass\<close>
 
-definition right_pass :: "_ graph \<Rightarrow> node \<Rightarrow> _ graph"
-  where "right_pass c s \<equiv> \<lambda>(u, v).
+definition right_pass :: "node \<Rightarrow> _ graph \<Rightarrow> _ graph"
+  where "right_pass s c \<equiv> \<lambda>(u, v).
     if Graph.connected c s u then
       c (u, v)
     else
       0"
 
-lemma right_pass_nz_iff: "right_pass c s (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u"
+lemma right_pass_nz_iff: "right_pass s c (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u"
   unfolding right_pass_def by simp
 
-lemma right_pass_Subgraph: "Subgraph (right_pass c s) c"
+lemma right_pass_Subgraph: "Subgraph (right_pass s c) c"
   unfolding right_pass_def by fastforce
 
 locale S_Graph = Graph +
   fixes s :: node
 begin
-abbreviation "rp \<equiv> right_pass c s"
+abbreviation "rp \<equiv> right_pass s c"
 
 interpretation Subgraph rp c using right_pass_Subgraph .
 
@@ -72,23 +72,23 @@ end
 
 subsection \<open>Left Pass\<close>
 
-definition left_pass :: "_ graph \<Rightarrow> node \<Rightarrow> _ graph"
-  where "left_pass c t \<equiv> \<lambda>(u, v).
+definition left_pass :: "node \<Rightarrow> _ graph \<Rightarrow> _ graph"
+  where "left_pass t c \<equiv> \<lambda>(u, v).
     if Graph.connected c v t then
       c (u, v)
     else
       0"
 
-lemma left_pass_nz_iff: "left_pass c t (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c v t"
+lemma left_pass_nz_iff: "left_pass t c (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c v t"
   unfolding left_pass_def by simp
 
-lemma left_pass_Subgraph: "Subgraph (left_pass c s) c"
+lemma left_pass_Subgraph: "Subgraph (left_pass t c) c"
   unfolding left_pass_def by fastforce
 
 locale T_Graph = Graph +
   fixes t :: node
 begin
-abbreviation "lp \<equiv> left_pass c t"
+abbreviation "lp \<equiv> left_pass t c"
 
 interpretation Subgraph lp c using left_pass_Subgraph .
 
@@ -139,26 +139,26 @@ end
 (* TODO refactor *)
 subsection \<open>Cleaning\<close>
 
-definition cleaning :: "_ graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> _ graph"
-  where "cleaning c s t \<equiv> \<lambda>(u, v).
+definition cleaning :: "node \<Rightarrow> node \<Rightarrow> _ graph \<Rightarrow> _ graph"
+  where "cleaning s t c \<equiv> \<lambda>(u, v).
     if Graph.connected c s u \<and> Graph.connected c v t then
       c (u, v)
     else
       0"
 
 lemma cleaning_nz_iff:
-  "cleaning c s t (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u \<and> Graph.connected c v t"
+  "cleaning s t c (u, v) \<noteq> 0 \<longleftrightarrow> c (u, v) \<noteq> 0 \<and> Graph.connected c s u \<and> Graph.connected c v t"
   unfolding cleaning_def by simp
 
-lemma cleaning_rp_Subgraph: "Subgraph (cleaning c s t) (right_pass c s)"
+lemma cleaning_rp_Subgraph: "Subgraph (cleaning s t c) (right_pass s c)"
   unfolding cleaning_def right_pass_def by fastforce
 
-lemma cleaning_lp_Subgraph: "Subgraph (cleaning c s t) (left_pass c t)"
+lemma cleaning_lp_Subgraph: "Subgraph (cleaning s t c) (left_pass t c)"
   unfolding cleaning_def left_pass_def by fastforce
 
 locale ST_Graph = S_Graph + T_Graph
 begin
-abbreviation "cl \<equiv> cleaning c s t"
+abbreviation "cl \<equiv> cleaning s t c"
 
 (*
 (* TODO necessary subgraphs *)
@@ -240,15 +240,15 @@ next
     using st_connected_edges_remain cl_graph.isPath_append_edge connected_def
 qed*)
 
-lemma left_right_pass_is_cleaning: "cl = left_pass rp t"
+lemma left_right_pass_is_cleaning: "cl = left_pass t rp"
 proof (rule ext, unfold split_paired_all)
   fix u v
   (*interpret g: Graph c .*) (* TODO why does this not work *)
-  show "cl (u, v) = left_pass rp t (u, v)"
+  show "cl (u, v) = left_pass t rp (u, v)"
   proof (cases "cl (u, v) = 0", clarsimp)
     case True
     then have "c (u, v) = 0 \<or> \<not> connected s u \<or> \<not> connected v t" unfolding cleaning_def by auto
-    then show "left_pass rp t (u, v) = 0"
+    then show "left_pass t rp (u, v) = 0"
       by (auto simp: left_pass_def right_pass_def rp_sg.sg_connected_remains_base_connected)
   next
     case False
@@ -261,14 +261,14 @@ proof (rule ext, unfold split_paired_all)
   qed
 qed
 
-lemma right_left_pass_com: "left_pass rp t = right_pass lp s"
+lemma right_left_pass_com: "left_pass t rp = right_pass s lp"
 proof (rule ext, unfold split_paired_all)
   fix u v
-  show "left_pass rp t (u, v) = right_pass lp s (u, v)"
+  show "left_pass t rp (u, v) = right_pass s lp (u, v)"
     by (metis Graph.connected_refl S_Graph.rp_is_c_if_s_connected cl_is_c_if_st_connected cleaning_nz_iff connected_prepend_edge left_pass_nz_iff left_right_pass_is_cleaning lp_distinct_connected_iff lp_is_c_if_t_connected right_pass_nz_iff zero_cap_simp)
 qed (* TODO prettiffy *)
 
-corollary right_left_pass_is_cleaning: "cl = right_pass lp s"
+corollary right_left_pass_is_cleaning: "cl = right_pass s lp"
   using left_right_pass_is_cleaning right_left_pass_com by simp
 end
 
