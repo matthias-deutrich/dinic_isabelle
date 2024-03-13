@@ -456,7 +456,7 @@ definition left_pass_refine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ 
       let Q = Q - {u};
       if Graph.outgoing c u = {} then do {
         let L = Graph.incoming c u;
-        let Q = Q \<union> (snd ` L);
+        let Q = Q \<union> (fst ` L);
         let c = removeEdges c L;
         RETURN (c, Q)}
       else RETURN (c, Q)
@@ -472,7 +472,7 @@ definition left_pass_refine' :: "node set \<Rightarrow> _ graph \<Rightarrow> (_
       let Q = Q - {u};
       if Graph.outgoing c u = {} then do {
         let L = Graph.incoming c u;
-        let Q = Q \<union> (snd ` L);
+        let Q = Q \<union> (fst ` L);
         let c = removeEdges c L;
         RETURN (c, Q)}
       else RETURN (c, Q)
@@ -503,42 +503,45 @@ thm ibind_mono
 thm bind_mono
 thm WHILET_refine
 
+term "inv_image invert_graph_rel fst"
+(*
+definition tmp_rel :: "(_ graph \<times> nat set) rel"
+  where "tmp_rel \<equiv> {((c, Q), c', Q'). (c, c') \<in> invert_graph_rel \<and> Q = {} \<longleftrightarrow> Q' = {}}"
+*)
+(*definition tmp_rel' :: "(_ graph \<times> nat set) rel"
+  where "tmp_rel' \<equiv> {((c, Q), c', Q'). (c, c') \<in> invert_graph_rel \<and> Q = Q'}"
+
+definition tmp_rel :: "(_ graph \<times> nat set) rel"
+  where "tmp_rel \<equiv> {((c, Q), c', Q'). (c, c') \<in> invert_graph_rel \<and> (Q, Q') \<in> Id}"
+
+(* TODO how to express this *)
+lemma "tmp_rel = invert_graph_rel \<times>\<^sub>r Id" unfolding tmp_rel_def by fastforce*)
+find_consts "'a rel \<Rightarrow> 'b rel \<Rightarrow> ('a \<times> 'b) rel"
+find_consts "('a \<times> 'b) rel"
+find_consts "('a \<times> 'b) set \<Rightarrow> ('c \<times> 'd) set \<Rightarrow> (('a \<times> 'c) \<times> 'b \<times> 'd) set"
+term prod_rel
+term prod_rel_syn
+
+find_theorems "RES _ \<le> \<Down> _ (RES _)"
+thm RES_refine
 
 lemma "Dual_Graph_Algorithms (right_pass_refine Q) (left_pass_refine Q)"
 proof
   fix c :: "('capacity::linordered_idom) graph"
+
   show "right_pass_refine Q c \<le> \<Down> invert_graph_rel (left_pass_refine Q (invert_graph c))"
     unfolding right_pass_refine_def left_pass_refine_def
-    apply refine_vcg apply (auto simp: invert_graph_rel_def) nitpick oops
+    apply (refine_rcg WHILET_refine[where R="invert_graph_rel \<times>\<^sub>r Id"] RES_refine[where R=Id])
+    by (auto simp: invert_graph_rel_def removeEdges_def)
 
-    apply (refine_rcg WHILET_refine[where R="inv_image invert_graph_rel fst"])
-          apply (auto simp: invert_graph_rel_def)[]
-         defer
-    defer
-         apply (auto simp: invert_graph_rel_def)[]
-        apply (auto simp: invert_graph_rel_def)[]
-       apply (auto simp: invert_graph_rel_def)[]
-      apply (auto simp: invert_graph_rel_def)[]
-     defer
-    apply (auto simp: invert_graph_rel_def)
-     apply (simp add: invert_graph_rel_def invert_graph_def)
-    apply (auto simp: invert_graph_rel_def)[]
-          
-    
-          
-          
-          
-          apply simp_all unfolding invert_graph_rel_def apply simp_all
-  proof (refine_rcg)
-    show "((c, Q), invert_graph c, Q) \<in> inv_image invert_graph_rel fst" unfolding invert_graph_rel_def by simp
-    (*apply (refine_rcg WHILET_refine[where R="inv_image invert_graph_rel fst"])*)
-    apply refine_rcg
+  show "left_pass_refine Q c \<le> \<Down> invert_graph_rel (right_pass_refine Q (invert_graph c))"
+    unfolding right_pass_refine_def left_pass_refine_def
+    apply (refine_rcg WHILET_refine[where R="invert_graph_rel \<times>\<^sub>r Id"] RES_refine[where R=Id])
+    by (auto simp: invert_graph_rel_def removeEdges_def)
+qed
 
-    apply rule
-    apply simp 
-    apply (auto intro!: WHILET_refine)
-    apply (intro WHILET_refine)
-    apply (auto intro: refine)
+
+
 
 
 
