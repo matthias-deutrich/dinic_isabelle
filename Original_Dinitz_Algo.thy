@@ -10,7 +10,7 @@ interpretation g': Irreducible_Graph stl
   unfolding Irreducible_Graph_def Irreducible_Graph_axioms_def
   using no_parallel_edge cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
-interpretation aug_cf: GraphComparison "cleaning (g'.subtract_graph f') s t" "cf_of (augment f')" .
+interpretation aug_cf: GraphComparison "cleaning s t (g'.subtract_graph f')" "cf_of (augment f')" .
 
 interpretation f'_cont_cf: Pos_Contained_Graph f' cf
   by unfold_locales (metis NPreflow.resE_nonNegative NPreflow_axioms c'_sg_c_old f'.flow_pos_cont.cap_le order_trans)
@@ -90,12 +90,12 @@ proof (unfold Graph.isPath_alt, clarify)
 qed
 
 lemma cleaning_maintains_bounded_union:
-  "Bounded_ST_Shortest_Path_Union (cleaning (g'.subtract_graph f') s t) (cf_of (augment f')) s t (cf.min_dist s t)"
+  "Bounded_ST_Shortest_Path_Union (cleaning s t (g'.subtract_graph f')) (cf_of (augment f')) s t (cf.min_dist s t)"
 proof (cases "Graph.isEmpty f'")
   case True
   then have "(g'.subtract_graph f') = stl"
     unfolding Graph.isEmpty_def g'.subtract_graph_def by simp
-  then have "(cleaning (g'.subtract_graph f') s t) = stl"
+  then have "(cleaning s t (g'.subtract_graph f')) = stl"
     unfolding cleaning_def using g'.V_def g'.zero_cap_simp by fastforce
   moreover from True have "cf_of (augment f') = cf"
     unfolding Graph.isEmpty_def aug_cf_alt cf.subtract_skew_graph_def by simp
@@ -109,11 +109,11 @@ next
   
   show ?thesis unfolding Bounded_ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
   proof
-    have "Subgraph (cleaning (g'.subtract_graph f') s t) (g'.subtract_graph f')"
+    have "Subgraph (cleaning s t (g'.subtract_graph f')) (g'.subtract_graph f')"
       using cleaning_rp_Subgraph right_pass_Subgraph subgraph.order.trans by blast
     also have SUB: "Subgraph ... (cf_of (augment f'))" unfolding aug_cf_alt
       using irreducible_contained_skew_subtract f'.flow_pos_cont.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
-    finally show "CapacityCompatibleGraphs (cleaning (g'.subtract_graph f') s t) (cf_of (augment f'))"
+    finally show "CapacityCompatibleGraphs (cleaning s t (g'.subtract_graph f')) (cf_of (augment f'))"
       unfolding Subgraph_def by blast
   
     show "aug_cf.E' = \<Union> {set p |p. aug_cf.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
@@ -151,9 +151,9 @@ next
       then have "g'.isPath s p t" using ST_IN_V' shortest_s_path_remains_path by blast
       with SP' have "Graph.isPath (g'.subtract_graph f') s p t"
         using aug_cf_path_transfer aug_cf.shortestPath_is_path by blast
-      then have "Graph.isPath (cleaning (g'.subtract_graph f') s t) s p t"
+      then have "Graph.isPath (cleaning s t (g'.subtract_graph f')) s p t"
         using ST_Graph.cleaning_edge_set unfolding Graph.isPath_alt by blast
-      with UV_IN_P show "(u, v) \<in> Graph.E (cleaning (g'.subtract_graph f') s t)"
+      with UV_IN_P show "(u, v) \<in> Graph.E (cleaning s t (g'.subtract_graph f'))"
         using Graph.isPath_edgeset by blast
     qed
   qed
@@ -195,7 +195,7 @@ definition dinitz_phase :: "_ flow nres" where
           (\<lambda>(_, stl). Graph.connected stl s t)
           (\<lambda>(f', stl). do {
             p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
-            let stl = cleaning (Nonnegative_Graph.subtract_path stl p) s t;
+            let stl = cleaning s t (Nonnegative_Graph.subtract_path stl p);
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             RETURN (f', stl)})
           (f, stl);
@@ -214,7 +214,7 @@ lemma dinitz_phase_step:
   assumes PATH: "Graph.isPath stl s p t"
       and INVAR: "dinitz_phase_invar (f', stl)"
   defines "aug_f' \<equiv> NFlow.augment c f' (NPreflow.augmentingFlow c f' p)"
-      and "stl' \<equiv> cleaning (Nonnegative_Graph.subtract_path stl p) s t"
+      and "stl' \<equiv> cleaning s t (Nonnegative_Graph.subtract_path stl p)"
     shows "dinitz_phase_invar (aug_f', stl') \<and> Graph.E stl' \<subset> Graph.E stl \<and> finite (Graph.E stl)"
 proof (intro conjI)
   from INVAR interpret f': NFlow c s t f' unfolding dinitz_phase_invar_def by blast

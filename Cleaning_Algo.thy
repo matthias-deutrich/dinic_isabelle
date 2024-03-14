@@ -1,5 +1,5 @@
 theory Cleaning_Algo
-  imports "Refine_Monadic.Refine_Monadic" LayerMaintenance Graph_Inversion
+  imports "Refine_Monadic.Refine_Monadic" LayerMaintenance Graph_Transpose
 begin
 
 subsection \<open>PathFinding\<close>
@@ -470,15 +470,15 @@ interpretation Dual_Graph_Algorithms "left_pass_refine Q" "right_pass_refine Q"
 proof
   fix c :: "('capacity::linordered_idom) graph"
 
-  show "left_pass_refine Q c \<le> \<Down> invert_graph_rel (right_pass_refine Q (invert_graph c))"
+  show "left_pass_refine Q c \<le> \<Down> transpose_graph_rel (right_pass_refine Q (transpose_graph c))"
     unfolding right_pass_refine_def left_pass_refine_def
-    apply (refine_rcg WHILET_refine[where R="invert_graph_rel \<times>\<^sub>r Id"] RES_refine[where R=Id])
-    by (auto simp: invert_graph_rel_def removeEdges_def)
+    apply (refine_rcg WHILET_refine[where R="transpose_graph_rel \<times>\<^sub>r Id"] RES_refine[where R=Id])
+    by (auto simp: transpose_graph_rel_def removeEdges_def)
 
-  show "right_pass_refine Q c \<le> \<Down> invert_graph_rel (left_pass_refine Q (invert_graph c))"
+  show "right_pass_refine Q c \<le> \<Down> transpose_graph_rel (left_pass_refine Q (transpose_graph c))"
     unfolding right_pass_refine_def left_pass_refine_def
-    apply (refine_rcg WHILET_refine[where R="invert_graph_rel \<times>\<^sub>r Id"] RES_refine[where R=Id])
-    by (auto simp: invert_graph_rel_def removeEdges_def)
+    apply (refine_rcg WHILET_refine[where R="transpose_graph_rel \<times>\<^sub>r Id"] RES_refine[where R=Id])
+    by (auto simp: transpose_graph_rel_def removeEdges_def)
 qed
 
 (* TODO cleanup proof *)
