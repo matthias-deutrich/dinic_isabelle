@@ -12,6 +12,9 @@ lemma pair_set_eqI:
 
 lemma set_emptyI: "(\<And>x. x \<notin> S) \<Longrightarrow> S = {}" by blast (* TODO necessary? *)
 
+thm converse_empty
+lemma converse_empty_simp: "S\<inverse> = {} \<longleftrightarrow> S = {}" by auto
+
 lemma split_list_min_len: "n \<le> length xs \<Longrightarrow> \<exists>ys zs. xs = ys @ zs \<and> n = length ys"
 proof (induction n arbitrary: xs)
   case 0

@@ -2,50 +2,45 @@ theory Graph_Transpose
 imports GraphUtils Refine_Monadic.Refine_Monadic
 begin
 
-definition transpose_graph :: "_ graph \<Rightarrow> _ graph" (*("(_\<inverse>)" [1000] 999)*) where
-  "transpose_graph c \<equiv> c \<circ> prod.swap"
+definition transpose_graph :: "_ graph \<Rightarrow> _ graph" ("(_\<^sup>T)" [1000] 999) where
+  "c\<^sup>T \<equiv> c \<circ> prod.swap"
 
-(*
-abbreviation (input) transpose_syntax (infix "\<up>" 55)
-  where "\<And>f f'. f\<up>f' \<equiv> NFlow.augment c f f'"
-*)
-
-lemma transpose_transpose[simp]: "transpose_graph (transpose_graph c) = c"
+lemma transpose_transpose[simp]: "(c\<^sup>T)\<^sup>T = c"
   unfolding transpose_graph_def by fastforce
 
-lemma transpose_concrete: "(transpose_graph c) (u, v) = c (v, u)"
+lemma transpose_concrete: "(c\<^sup>T) (u, v) = c (v, u)"
   unfolding transpose_graph_def by simp
 
-lemma transpose_E: "Graph.E (transpose_graph c) = (Graph.E c)\<inverse>"
+lemma transpose_E: "Graph.E (c\<^sup>T) = (Graph.E c)\<inverse>"
   unfolding Graph.E_def transpose_graph_def by auto
 
-lemma transpose_V: "Graph.V (transpose_graph c) = Graph.V c"
+lemma transpose_V: "Graph.V (c\<^sup>T) = Graph.V c"
   unfolding Graph.V_def by (auto simp: transpose_E)
 
-lemma transpose_incoming: "Graph.incoming (transpose_graph c) = converse \<circ> Graph.outgoing c"
+lemma transpose_incoming: "Graph.incoming (c\<^sup>T) = converse \<circ> Graph.outgoing c"
   unfolding Graph.incoming_def Graph.outgoing_def by (auto simp: transpose_E)
 
-lemma transpose_outgoing: "Graph.outgoing (transpose_graph c) = converse \<circ> Graph.incoming c"
+lemma transpose_outgoing: "Graph.outgoing (c\<^sup>T) = converse \<circ> Graph.incoming c"
   unfolding Graph.incoming_def Graph.outgoing_def by (auto simp: transpose_E)
 
-lemma transpose_adjacent: "Graph.adjacent (transpose_graph c) = converse \<circ> Graph.adjacent c"
+lemma transpose_adjacent: "Graph.adjacent (c\<^sup>T) = converse \<circ> Graph.adjacent c"
   unfolding Graph.adjacent_def by (auto simp: transpose_incoming transpose_outgoing)
 
-lemma transpose_incoming': "Graph.incoming' (transpose_graph c) = converse \<circ> Graph.outgoing' c"
+lemma transpose_incoming': "Graph.incoming' (c\<^sup>T) = converse \<circ> Graph.outgoing' c"
   unfolding Graph.incoming'_def Graph.outgoing'_def by (auto simp: transpose_E)
 
-lemma transpose_outgoing': "Graph.outgoing' (transpose_graph c) = converse \<circ> Graph.incoming' c"
+lemma transpose_outgoing': "Graph.outgoing' (c\<^sup>T) = converse \<circ> Graph.incoming' c"
   unfolding Graph.incoming'_def Graph.outgoing'_def by (auto simp: transpose_E)
 
-lemma transpose_adjacent': "Graph.adjacent' (transpose_graph c) = converse \<circ> Graph.adjacent' c"
+lemma transpose_adjacent': "Graph.adjacent' (c\<^sup>T) = converse \<circ> Graph.adjacent' c"
   unfolding Graph.adjacent'_def by (auto simp: transpose_incoming' transpose_outgoing')
 
 (* TODO is_adj_map *)
 
-lemma transpose_adjacent_nodes: "Graph.adjacent_nodes (transpose_graph c) = Graph.adjacent_nodes c"
+lemma transpose_adjacent_nodes: "Graph.adjacent_nodes (c\<^sup>T) = Graph.adjacent_nodes c"
   unfolding Graph.adjacent_nodes_def by (auto simp: transpose_E)
 
-lemma transpose_Finite_Graph: "Finite_Graph (transpose_graph c) \<longleftrightarrow> Finite_Graph c"
+lemma transpose_Finite_Graph: "Finite_Graph (c\<^sup>T) \<longleftrightarrow> Finite_Graph c"
   unfolding Finite_Graph_def by (auto simp: transpose_V)
 
 definition transpose_path :: "edge list \<Rightarrow> edge list" where
@@ -58,40 +53,40 @@ lemma transpose_path_length[simp]: "length (transpose_path p) = length p"
   unfolding transpose_path_def by auto
 
 lemma transpose_isPath:
-  "Graph.isPath (transpose_graph c) u p v \<longleftrightarrow> Graph.isPath c v (transpose_path p) u"
+  "Graph.isPath (c\<^sup>T) u p v \<longleftrightarrow> Graph.isPath c v (transpose_path p) u"
   by (induction p arbitrary: u) (auto simp: Graph.isPath.simps(1) Graph.isPath_head Graph.isPath_tail transpose_E transpose_path_def)
 
 thm Graph.pathVertices_alt
 (*lemma transpose_pathVertices: "Graph.pathVertices"*)
 (* TODO pathVertices *)
 
-lemma transpose_connected: "Graph.connected (transpose_graph c) u v \<longleftrightarrow> Graph.connected c v u"
+lemma transpose_connected: "Graph.connected (c\<^sup>T) u v \<longleftrightarrow> Graph.connected c v u"
   unfolding Graph.connected_def by (metis transpose_transpose transpose_isPath)
 
 (* TODO reachableNodes *)
 
 lemma transpose_isShortestPath:
-  "Graph.isShortestPath (transpose_graph c) u p v \<longleftrightarrow> Graph.isShortestPath c v (transpose_path p) u"
+  "Graph.isShortestPath (c\<^sup>T) u p v \<longleftrightarrow> Graph.isShortestPath c v (transpose_path p) u"
   unfolding Graph.isShortestPath_def by (metis transpose_transpose transpose_isPath transpose_path_length)
 
 lemma transpose_isSimplePath: (* TODO needs pathVertices, then add to simps *)
-  "Graph.isSimplePath (transpose_graph c) u p v \<longleftrightarrow> Graph.isSimplePath c v (transpose_path p) u"
+  "Graph.isSimplePath (c\<^sup>T) u p v \<longleftrightarrow> Graph.isSimplePath c v (transpose_path p) u"
   unfolding Graph.isSimplePath_def oops
 
-lemma transpose_dist: "Graph.dist (transpose_graph c) u d v \<longleftrightarrow> Graph.dist c v d u"
+lemma transpose_dist: "Graph.dist (c\<^sup>T) u d v \<longleftrightarrow> Graph.dist c v d u"
   unfolding Graph.dist_def by (metis transpose_transpose transpose_isPath transpose_path_length)
 
 lemma transpose_min_dist:
-  "\<lbrakk>Graph.connected c u v; Graph.connected c v u\<rbrakk> \<Longrightarrow> Graph.min_dist (transpose_graph c) u v = Graph.min_dist c v u"
+  "\<lbrakk>Graph.connected c u v; Graph.connected c v u\<rbrakk> \<Longrightarrow> Graph.min_dist (c\<^sup>T) u v = Graph.min_dist c v u"
   by (meson Graph.min_dist_is_dist Graph.min_dist_minD transpose_connected transpose_dist order_antisym_conv)
 
 (* TODO add stuff from GraphUtils *)
 lemma transpose_Distance_Bounded_Graph:
-  "Distance_Bounded_Graph (transpose_graph c) b \<longleftrightarrow> Distance_Bounded_Graph c b"
+  "Distance_Bounded_Graph (c\<^sup>T) b \<longleftrightarrow> Distance_Bounded_Graph c b"
   unfolding Distance_Bounded_Graph_def by (auto simp: transpose_dist)
 
 corollary transpose_Finite_Bounded_Graph:
-  "Finite_Bounded_Graph (transpose_graph c) b \<longleftrightarrow> Finite_Bounded_Graph c b"
+  "Finite_Bounded_Graph (c\<^sup>T) b \<longleftrightarrow> Finite_Bounded_Graph c b"
   unfolding Finite_Bounded_Graph_def by (simp add: transpose_Finite_Graph transpose_Distance_Bounded_Graph)
 
 text \<open>The following lemmas relate properties of the transposeed graph to the corresponding ones in the
@@ -138,7 +133,7 @@ thm conc_abs_swap
 
 (* TODO how to express this more elegantly *)
 definition transpose_graph_rel :: "(_ graph) rel" where
-  "transpose_graph_rel \<equiv> {(c, transpose_graph c) | c. True}"
+  "transpose_graph_rel \<equiv> {(c, c\<^sup>T) | c. True}"
 
 lemma transpose_graph_rel_alt: "transpose_graph_rel = br transpose_graph (\<lambda>_. True)"
   unfolding transpose_graph_rel_def br_def by blast
@@ -159,44 +154,74 @@ lemma "\<Up> transpose_graph_rel = \<Down> transpose_graph_rel"
 
 locale Dual_Graph_Algorithms =
   fixes alg alg' :: "_ graph \<Rightarrow> _ graph nres"
-  assumes dual_alg: "\<And>c. alg c = \<Down> transpose_graph_rel (alg' (transpose_graph c))"
+  assumes dual_alg: "\<And>c. alg c = \<Down> transpose_graph_rel (alg' (c\<^sup>T))"
 begin
-lemma dual_alg': "\<And>c. alg' c = \<Down> transpose_graph_rel (alg (transpose_graph c))"
+lemma dual_alg': "\<And>c. alg' c = \<Down> transpose_graph_rel (alg (c\<^sup>T))"
   using dual_alg by (simp add: conc_fun_chain)
-
-(* TODO rewrite conclusion? *)
-term SPEC
-term RES
-term RETURN
-
-lemma transfer_spec:
-  fixes spec spec' :: "_ graph \<Rightarrow> _ graph" and c
-  assumes dual_spec: "spec = transpose_graph \<circ> spec' \<circ> transpose_graph"
-    and spec'_correct: "alg' (transpose_graph c) \<le> RETURN (spec' (transpose_graph c))"
-  shows "alg c \<le> RETURN (spec c)"
-proof -
-  from assms dual_alg have "alg c \<le> \<Down> transpose_graph_rel (RETURN (transpose_graph (spec c)))"
-    using ref_two_step by fastforce
-  also have "... \<le> RETURN (spec c)" unfolding transpose_graph_rel_alt
-    by (smt (verit, best) conc_fun_RETURN in_br_conv transpose_transpose lhs_step_SPEC pw_leI) (* TODO *)
-  finally show ?thesis .
-qed
 end
 
 (* TODO can it be sufficient to only show one direction? *)
 lemma Dual_Graph_AlgorithmsI[intro]:
-  assumes LE1: "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (transpose_graph c))"
-    and LE2: "\<And>c. alg' c \<le> \<Down> transpose_graph_rel (alg (transpose_graph c))"
+  assumes LE1: "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (c\<^sup>T))"
+    and LE2: "\<And>c. alg' c \<le> \<Down> transpose_graph_rel (alg (c\<^sup>T))"
   shows "Dual_Graph_Algorithms alg alg'"
 proof (unfold_locales, intro antisym)
-  from LE1 show "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (transpose_graph c))" .
-  from LE2 show "\<And>c. \<Down> transpose_graph_rel (alg' (transpose_graph c)) \<le> alg c"
+  from LE1 show "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (c\<^sup>T))" .
+  from LE2 show "\<And>c. \<Down> transpose_graph_rel (alg' (c\<^sup>T)) \<le> alg c"
     by (metis (no_types, lifting) conc_Id conc_fun_chain conc_trans dual_order.refl id_apply transpose_graph_rel_comp transpose_transpose)
 qed
 
+context Dual_Graph_Algorithms
+begin
+
+text \<open>Note: while the duality should hold for any graph, the correctness of the refinement can often
+      only be shown for a concrete graph, as we may need some properties of the graph.\<close>
+lemma transfer_abstract:
+  assumes DUAL_ABST: "Dual_Graph_Algorithms abst abst'"
+    and REF'_CORRECT: "alg' (c\<^sup>T) \<le> abst' (c\<^sup>T)"
+  shows "alg c \<le> abst c"
+  using assms ref_two_step dual_alg unfolding Dual_Graph_Algorithms_def by fastforce
+
+lemma transfer_return:
+  assumes DUAL_RET: "ret = transpose_graph \<circ> ret' \<circ> transpose_graph"
+    and REF'_CORRECT: "alg' (c\<^sup>T) \<le> RETURN (ret' (c\<^sup>T))"
+  shows "alg c \<le> RETURN (ret c)"
+  apply (intro transfer_abstract[where abst'="RETURN \<circ> ret'"])
+  using assms by (auto simp: in_br_conv transpose_graph_rel_alt)
+
+
+
+thm comp_def
+thm fcomp_def
+term "(\<circ>)"
+term "(\<circ>\<circ>)"
+term "(\<circ>\<circ>\<circ>)"
+(* TODO can we phrase this a nicer way? *)
+lemma transfer_spec:
+  assumes DUAL_SPEC: "\<And>c c'. spec c c' \<longleftrightarrow> spec' (c\<^sup>T) (c'\<^sup>T)"
+    and REF'_CORRECT: "alg' (c\<^sup>T) \<le> SPEC (spec' (c\<^sup>T))"
+  shows "alg (c) \<le> SPEC (spec (c))"
+  apply (intro transfer_abstract[where abst'="SPEC \<circ> spec'"])
+  using assms by (fastforce simp: build_rel_SPEC_conv transpose_graph_rel_alt)+
+
+(* TODO fix typing *)
+(*
+lemma transfer_res:
+  fixes res res' :: "_ graph \<Rightarrow> _ graph set"
+  assumes DUAL_RES: "res = transpose_graph ` (res' \<circ> transpose_graph)"
+    and REF'_CORRECT: "alg' (c\<^sup>T) \<le> RES (res' (c\<^sup>T))"
+  shows "alg c \<le> RES (res c)"
+  apply (intro transfer_abstract[where abst'="RETURN \<circ> ret'"])
+  using assms by (auto simp: in_br_conv transpose_graph_rel_alt)
+term RES
+term image
+*)
+end
+
+
 (* TODO sanity check *)
 lemma
-  assumes "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (transpose_graph c))"
-  shows "\<And>c. alg' c \<le> \<Down> transpose_graph_rel (alg (transpose_graph c))"
+  assumes "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (c\<^sup>T))"
+  shows "\<And>c. alg' c \<le> \<Down> transpose_graph_rel (alg (c\<^sup>T))"
   using assms oops
 end

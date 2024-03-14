@@ -486,12 +486,11 @@ theorem left_pass_refine_correct:
   assumes T_NO_OUT: "outgoing t = {}"
     and Q_START: "t \<notin> Q" "\<forall>u \<in> V - Q - {t}. outgoing u \<noteq> {}" "finite Q"
   shows "left_pass_refine Q c \<le> RETURN (left_pass t c)"
-  apply (intro transfer_spec[where spec'="right_pass t"])
+  apply (intro transfer_return[where ret'="right_pass t"])
    apply (fastforce simp: right_pass_def left_pass_def)
   apply (intro Finite_Bounded_Graph.right_pass_refine_correct)
-  using assms apply simp_all
-  using Finite_Bounded_Graph_axioms apply blast
-  by (metis converse_converse converse_empty)
+  using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
+  (*by (metis converse_converse converse_empty)*)
 end
 
 end
