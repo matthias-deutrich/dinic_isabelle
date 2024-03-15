@@ -263,7 +263,8 @@ definition ebfs :: "node \<Rightarrow> _ graph nres" where
     (c', _, _) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, Q, _). Q \<noteq> {})
       (\<lambda>(c', Q, n). do {
-        (c', Q') \<leftarrow> ebfs_phase (Graph.V c' \<union> {s}) c' Q;
+        let V\<^sub>i = Graph.V c' \<union> {s};
+        (c', Q') \<leftarrow> ebfs_phase V\<^sub>i c' Q;
         RETURN (c', Q', Suc n)
       })
       ((\<lambda>_. 0), {s}, 0);
@@ -356,11 +357,99 @@ theorem ebfs_correct: "ebfs s \<le> (spec c'. S_Shortest_Path_Union c' c s V)"
 
   using ebfs_step ebfs_final by simp_all
 end
+
+
+
+
+
+
+
+
+
+definition back_ebfs :: "node \<Rightarrow> _ graph nres" where
+  "back_ebfs t \<equiv> do {
+    (c', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, Q, _). Q \<noteq> {})
+      (\<lambda>(c', Q, n). do {
+        let V\<^sub>i = (Graph.V c' \<union> {t});
+        (c', Q') \<leftarrow> foreach Q
+          (\<lambda>u (c', Q'). do {
+            let S = E\<inverse> `` {u} - V\<^sub>i;
+            c' \<leftarrow> transfer_edges_algo (S \<times> {u}) c';
+            let Q' = Q' \<union> S;
+            RETURN (c', Q')
+          })
+          (c', {});
+        RETURN (c', Q', Suc n)
+      })
+      ((\<lambda>_. 0), {t}, 0);
+    RETURN c'
+  }"
+
+(* TODO fix this mess *)
+interpretation Dual_Graph_Algorithms "swap_args2 Graph.back_ebfs u" "swap_args2 Graph.ebfs u"
+proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
+  fix c' :: "('capacity'::linordered_idom) graph"
+  show "Graph.back_ebfs c' u \<le> \<Down> transpose_graph_rel (Graph.ebfs (c'\<^sup>T) u)"
+    unfolding Graph.back_ebfs_def Graph.ebfs_def Graph.ebfs_phase_def
+    apply (clarsimp_all simp: transpose_graph_rel_def)
+    apply (intro bind_refine[where R'="transpose_graph_rel \<times>\<^sub>r Id \<times>\<^sub>r Id"])
+    apply (clarsimp_all simp: transpose_graph_rel_def)
+    apply (intro WHILET_refine)
+      apply (clarsimp_all, fastforce)
+    apply (intro bind_refine[where R'="transpose_graph_rel \<times>\<^sub>r Id"])
+    apply (clarsimp_all simp: transpose_graph_rel_def)
+    apply (intro FOREACH_refine_rcg[where \<alpha>=id])
+       apply clarsimp_all
+    apply (intro Let_refine[where R'=Id])
+     apply clarsimp_all
+    apply (intro bind_refine[where R'=transpose_graph_rel])
+     apply (clarsimp_all simp: transpose_graph_rel_def)
+    unfolding Graph.transfer_edges_algo_def
+    apply (intro FOREACH_refine_rcg[where \<alpha>=prod.swap])
+       apply clarsimp_all apply fastforce
+    unfolding Graph.transfer_edge_def by auto
+
+  show "Graph.ebfs c' u \<le> \<Down> transpose_graph_rel (Graph.back_ebfs (c'\<^sup>T) u)"
+    unfolding Graph.back_ebfs_def Graph.ebfs_def Graph.ebfs_phase_def
+    apply (clarsimp_all simp: transpose_graph_rel_def)
+    apply (intro bind_refine[where R'="transpose_graph_rel \<times>\<^sub>r Id \<times>\<^sub>r Id"])
+    apply (clarsimp_all simp: transpose_graph_rel_def)
+    apply (intro WHILET_refine)
+      apply (clarsimp_all, fastforce)
+    apply (intro bind_refine[where R'="transpose_graph_rel \<times>\<^sub>r Id"])
+    apply (clarsimp_all simp: transpose_graph_rel_def)
+    apply (intro FOREACH_refine_rcg[where \<alpha>=id])
+       apply clarsimp_all
+    apply (intro Let_refine[where R'=Id])
+     apply clarsimp_all
+    apply (intro bind_refine[where R'=transpose_graph_rel])
+     apply (clarsimp_all simp: transpose_graph_rel_def)
+    unfolding Graph.transfer_edges_algo_def
+    apply (intro FOREACH_refine_rcg[where \<alpha>=prod.swap])
+       apply clarsimp_all apply fastforce
+    unfolding Graph.transfer_edge_def by auto
+qed
+
+context
+  fixes t
+  assumes FINITE_REACHED_FROM: "finite {u. connected u t}"
+begin
+term "back_ebfs t"
+theorem back_ebfs_correct: "back_ebfs t \<le> (spec c'. T_Shortest_Path_Union c' c V t)"
+  thm transfer_spec
+  apply (intro transfer_spec)
+proof -
+  have "swap_args2 Graph.back_ebfs t \<le> SPEC (\<lambda> c' c''. T_Shortest_Path_Union c' c'' V t)"
+
+
+end
+
 end
 
 
 
-
+(*
 thm Graph.ebfs_def
 find_consts "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> 'b \<Rightarrow> 'a \<Rightarrow> 'c"
 term Meson.COMBC
@@ -443,6 +532,7 @@ proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
     unfolding Graph.back_ebfs_def Graph.ebfs_def Graph.ebfs_phase_def
     apply (refine_rcg WHILET_refine[where R="transpose_graph_rel \<times>\<^sub>r Id"] FOREACH_refine[where \<alpha>=id and R=transpose_graph_rel])
 *)
+*)
 
 
 
@@ -462,34 +552,18 @@ proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
 
 
 
+context Graph
+begin
 
-(* TODO this might not work *)
-definition back_ebfs :: "node \<Rightarrow> _ graph nres" where
-  "back_ebfs t \<equiv> do {
-    (c', _, _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, Q, _). Q \<noteq> {})
-      (\<lambda>(c', Q, n). do {
-        (c', Q') \<leftarrow> foreach Q
-          (\<lambda>u (c', Q'). do {
-            let S = E\<inverse> `` {u} - (Graph.V c' \<union> {t});
-            c' \<leftarrow> transfer_edges_algo (S \<times> {u}) c';
-            let Q' = Q' \<union> S;
-            RETURN (c', Q')
-          })
-          (c', {});
-        RETURN (c', Q', Suc n)
-      })
-      ((\<lambda>_. 0), {t}, 0);
-    RETURN c'
-  }"
 end
 
-(*
-lemma "Dual_Graph_Algorithms (swap_args2 Graph.back_ebfs u) (swap_args2 Graph.ebfs u)"
-proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
-  fix c :: "('capacity::linordered_idom) graph"
-  show "Graph.back_ebfs c u \<le> \<Down> transpose_graph_rel (Graph.ebfs (c\<^sup>T) u)"
-    unfolding Graph.back_ebfs_def Graph.ebfs_def Graph.ebfs_phase_def
-    apply (refine_rcg WHILET_refine[where R="transpose_graph_rel \<times>\<^sub>r Id"] FOREACH_refine[where \<alpha>=id and R=transpose_graph_rel])
-*)
+thm bind_refine[where R="transpose_graph_rel \<times>\<^sub>r Id \<times>\<^sub>r Id"]
+thm bind_refine
+thm FOREACH_refine
+thm FOREACH_refine_rcg
+
+thm WHILET_refine
+
+
+
 end
