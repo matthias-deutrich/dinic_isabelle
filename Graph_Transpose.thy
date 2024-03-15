@@ -200,22 +200,27 @@ term "(\<circ>\<circ>\<circ>)"
 lemma transfer_spec:
   assumes DUAL_SPEC: "\<And>c c'. spec c c' \<longleftrightarrow> spec' (c\<^sup>T) (c'\<^sup>T)"
     and REF'_CORRECT: "alg' (c\<^sup>T) \<le> SPEC (spec' (c\<^sup>T))"
-  shows "alg (c) \<le> SPEC (spec (c))"
+  shows "alg c \<le> SPEC (spec c)"
   apply (intro transfer_abstract[where abst'="SPEC \<circ> spec'"])
-  using assms by (fastforce simp: build_rel_SPEC_conv transpose_graph_rel_alt)+
+  using assms by (auto simp: build_rel_SPEC transpose_graph_rel_alt)
 
-(* TODO fix typing *)
-(*
+(* TODO simplify proof *)
 lemma transfer_res:
-  fixes res res' :: "_ graph \<Rightarrow> _ graph set"
-  assumes DUAL_RES: "res = transpose_graph ` (res' \<circ> transpose_graph)"
+  assumes DUAL_RES: "res = (image transpose_graph) \<circ> res' \<circ> transpose_graph"
     and REF'_CORRECT: "alg' (c\<^sup>T) \<le> RES (res' (c\<^sup>T))"
   shows "alg c \<le> RES (res c)"
-  apply (intro transfer_abstract[where abst'="RETURN \<circ> ret'"])
-  using assms by (auto simp: in_br_conv transpose_graph_rel_alt)
-term RES
-term image
-*)
+  apply (intro transfer_abstract[where abst'="RES \<circ> res'"])
+proof
+  fix c
+  from DUAL_RES show "RES (res c) \<le> \<Down> transpose_graph_rel ((RES \<circ> res') (c\<^sup>T))"
+    apply simp
+    by (smt (verit, ccfv_threshold) Graph_Transpose.transpose_transpose RES_refine imageE in_br_conv transpose_graph_rel_alt)
+  from DUAL_RES show "(RES \<circ> res') c \<le> \<Down> transpose_graph_rel (RES (res (c\<^sup>T)))"
+    by (simp add: RES_refine in_br_conv transpose_graph_rel_alt)
+next
+  from REF'_CORRECT show "alg' (c\<^sup>T) \<le> (RES \<circ> res') (c\<^sup>T)" by simp
+qed
+
 end
 
 

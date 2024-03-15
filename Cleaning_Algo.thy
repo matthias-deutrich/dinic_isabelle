@@ -1,5 +1,5 @@
 theory Cleaning_Algo
-  imports "Refine_Monadic.Refine_Monadic" LayerMaintenance Graph_Transpose
+  imports LayerMaintenance Graph_Transpose
 begin
 
 subsection \<open>PathFinding\<close>
@@ -492,5 +492,9 @@ theorem left_pass_refine_correct:
   using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
   (*by (metis converse_converse converse_empty)*)
 end
+
+(* TODO remove *)
+find_theorems name:refine bind "(\<Down>)" (*"(?a, ?b) \<in> ?R"*)
+find_theorems name:refine Let "(\<Down>)" (*"(?a, ?b) \<in> ?R"*)
 
 end
