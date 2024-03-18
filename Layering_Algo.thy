@@ -388,8 +388,8 @@ definition back_ebfs :: "node \<Rightarrow> _ graph nres" where
 
 end
 
-(* TODO fix this mess, make interpretation local *)
-interpretation Dual_Graph_Algorithms "swap_args2 Graph.back_ebfs u" "swap_args2 Graph.ebfs u"
+(* TODO fix this mess *)
+lemma dual_ebfs: "Dual_Graph_Algorithms (swap_args2 Graph.back_ebfs u) (swap_args2 Graph.ebfs u)"
 proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
   fix c' :: "('capacity'::linordered_idom) graph"
   show "Graph.back_ebfs c' u \<le> \<Down> transpose_graph_rel (Graph.ebfs (c'\<^sup>T) u)"
@@ -489,8 +489,12 @@ theorem (in Graph) back_ebfs_correct:
   assumes FINITE_REACHED_FROM: "finite {u. connected u t}"
   shows "back_ebfs t \<le> (spec c'. T_Shortest_Path_Union c' c V t)"
 proof -
+  interpret Dual_Graph_Algorithms "swap_args2 Graph.back_ebfs t" "swap_args2 Graph.ebfs t"
+    using dual_ebfs .
   have "swap_args2 Graph.back_ebfs t c \<le> (spec c'. T_Shortest_Path_Union c' c V t)"
     (*using dual_spu apply (auto elim!: transfer_spec)*)
+    (*thm dual_spu[THEN transfer_spec]*)
+    (*thm transfer_spec[OF dual_spu]*)
   proof (intro transfer_spec[where spec'="\<lambda>c c'. S_Shortest_Path_Union c' c t (Graph.V c)"])
     show "\<And>c c'. T_Shortest_Path_Union c' c (Graph.V c) t = S_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
       using dual_spu .

@@ -252,6 +252,8 @@ next
   qed
 qed
 
+lemma spu_unique: "Shortest_Path_Union c'' c S T \<Longrightarrow> c'' = c'"
+  by (simp add: CapComp_comm CapComp_transfer CapacityCompatibleGraphs.eq_if_E_eq Shortest_Path_Union.shortest_path_union Shortest_Path_Union_def shortest_path_union)
 end \<comment> \<open>Shortest_Path_Union\<close>
 
 locale Layered_Shortest_Path_Union = Shortest_Path_Union + Generic_Layer_Graph c'
@@ -427,6 +429,10 @@ lemma st_connected_iff: "g'.connected s t \<longleftrightarrow> connected s t"
 lemma empty_iff: "g'.isEmpty \<longleftrightarrow> (connected s t \<longleftrightarrow> s = t)"
   using empty_iff_ST_disconnected by blast
 end \<comment> \<open>ST_Shortest_Path_Union\<close>
+
+lemma ST_SPU_dualI: (* TODO prettify *)
+  "\<lbrakk>S_Shortest_Path_Union c' c s {t}; T_Shortest_Path_Union c' c {s} t\<rbrakk> \<Longrightarrow> ST_Shortest_Path_Union c' c s t"
+  by (smt (verit, best) Collect_cong ST_Shortest_Path_Union_axioms.intro ST_Shortest_Path_Union_def T_Shortest_Path_Union.axioms(1) T_Shortest_Path_Union.shortest_t_path_union singleton_iff)
 
 \<comment> \<open>Unions of shortest paths\<close>
 

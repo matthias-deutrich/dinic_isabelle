@@ -1,5 +1,5 @@
 theory Original_Dinitz_Algo
-  imports Cleaning_Algo NetworkUtils
+  imports Layering_Algo NetworkUtils
 begin
 (* TODO do we need f? *)
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
@@ -378,4 +378,68 @@ theorem dinitz_correct: "dinitz \<le> SPEC (\<lambda>f. isMaxFlow f)"
   by (simp add: Graph.connected_def Graph.isSimplePath_def NFlow.axioms(1) NFlow.ford_fulkerson(1) NPreflow.isAugmentingPath_def)
 end
 
+subsection \<open>Dinitz phase refinement\<close>
+context Graph
+begin
+(* TODO bounded version *)
+definition build_st_layering :: "node \<Rightarrow> node \<Rightarrow> _ graph nres" where
+  "build_st_layering s t \<equiv> do {
+    sl \<leftarrow> ebfs s;
+    stl \<leftarrow> Graph.back_ebfs sl t;
+    RETURN stl
+  }"
+end
+
+find_theorems "SPEC _ \<le> SPEC _"
+find_theorems finite Graph.reachableNodes
+context Finite_Graph
+begin
+lemma build_st_layering_correct:
+  "build_st_layering s t \<le> (spec c'. ST_Shortest_Path_Union c' c s t)"
+  unfolding build_st_layering_def
+  apply refine_vcg apply clarsimp
+proof -
+  have "reachableNodes s \<subseteq> V \<union> {s}"
+    using Graph.distinct_nodes_in_V_if_connected(2) reachableNodes_def by auto
+  then have "finite (reachableNodes s)" using finite_V by (simp add: finite_subset)
+  then have "ebfs s \<le> (spec sl. S_Shortest_Path_Union sl c s V)" by (rule ebfs_correct)
+  also have "... \<le> (spec sl. Graph.back_ebfs sl t \<le> (spec c'. ST_Shortest_Path_Union c' c s t))"
+  proof (rule SPEC_rule)
+end
+context NFlow
+begin
+(*
+definition dinitz_phase_concrete :: "_ flow nres" where
+  "dinitz_phase_concrete \<equiv> do {
+    if cf.connected s t
+      then do {
+        let stl = induced_st_layering cf s t;
+        (f', _) \<leftarrow> WHILE\<^sub>T
+          (\<lambda>(_, stl). Graph.connected stl s t)
+          (\<lambda>(f', stl). do {
+            p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
+            let stl = cleaning s t (Nonnegative_Graph.subtract_path stl p);
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl)})
+          (f, stl);
+        RETURN f'}
+      else RETURN f}"
+*)
+(* TODO *)
+definition dinitz_phase_concrete :: "_ flow nres" where
+  "dinitz_phase_concrete \<equiv> do {
+    if cf.connected s t
+      then do {
+        let stl = induced_st_layering cf s t;
+        (f', _) \<leftarrow> WHILE\<^sub>T
+          (\<lambda>(_, stl). Graph.connected stl s t)
+          (\<lambda>(f', stl). do {
+            p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
+            let stl = cleaning s t (Nonnegative_Graph.subtract_path stl p);
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl)})
+          (f, stl);
+        RETURN f'}
+      else RETURN f}"
+end
 end
