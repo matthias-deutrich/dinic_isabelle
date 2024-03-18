@@ -52,6 +52,9 @@ lemma transpose_transpose_path[simp]: "transpose_path (transpose_path p) = p"
 lemma transpose_path_length[simp]: "length (transpose_path p) = length p"
   unfolding transpose_path_def by auto
 
+lemma transpose_path_set[simp]: "set (transpose_path p) = (set p) \<inverse>"
+  unfolding transpose_path_def by auto
+
 lemma transpose_isPath:
   "Graph.isPath (c\<^sup>T) u p v \<longleftrightarrow> Graph.isPath c v (transpose_path p) u"
   by (induction p arbitrary: u) (auto simp: Graph.isPath.simps(1) Graph.isPath_head Graph.isPath_tail transpose_E transpose_path_def)

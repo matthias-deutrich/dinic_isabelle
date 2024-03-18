@@ -386,7 +386,9 @@ definition back_ebfs :: "node \<Rightarrow> _ graph nres" where
     RETURN c'
   }"
 
-(* TODO fix this mess *)
+end
+
+(* TODO fix this mess, make interpretation local *)
 interpretation Dual_Graph_Algorithms "swap_args2 Graph.back_ebfs u" "swap_args2 Graph.ebfs u"
 proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
   fix c' :: "('capacity'::linordered_idom) graph"
@@ -431,139 +433,74 @@ proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
     unfolding Graph.transfer_edge_def by auto
 qed
 
-context
-  fixes t
+(* TODO simplify and extract *)
+lemma dual_spu: "T_Shortest_Path_Union c' c (Graph.V c) t = S_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+proof
+  assume "T_Shortest_Path_Union c' c (Graph.V c) t"
+  then interpret T_Shortest_Path_Union c' c "Graph.V c" t .
+  show "S_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+  proof
+    show "\<And>u v. (c'\<^sup>T) (u, v) = 0 \<or> (c\<^sup>T) (u, v) = 0 \<or> (c'\<^sup>T) (u, v) = (c\<^sup>T) (u, v)"
+      using cap_compatible by simp
+    show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>ta. ta \<in> Graph.V (c\<^sup>T) \<and> Graph.isShortestPath (c\<^sup>T) t p ta}"
+    proof (simp, intro pair_set_eqI)
+      fix u v
+      assume "(u, v) \<in> E'\<inverse>"
+      then obtain s p where "(v, u) \<in> set p" "s \<in> V" "isShortestPath s p t"
+        using shortest_t_path_union by blast
+      then have "(u, v) \<in> set (transpose_path p)" "isShortestPath s (transpose_path (transpose_path p)) t"
+        by auto
+      with \<open>s \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isShortestPath ta (transpose_path p) t}"
+        by blast
+    next
+      fix u v
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isShortestPath ta (transpose_path p) t}"
+      then show "(u, v) \<in> E'\<inverse>" using shortest_t_path_union by fastforce
+    qed
+  qed
+next
+  assume "S_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+  then interpret S_Shortest_Path_Union "c'\<^sup>T" "c\<^sup>T" t "Graph.V c" by simp
+  show "T_Shortest_Path_Union c' c (Graph.V c) t"
+  proof
+    show "\<And>u v. c' (u, v) = 0 \<or> c (u, v) = 0 \<or> c' (u, v) = c (u, v)"
+      using cap_compatible by simp
+    show "Graph.E c' = \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isShortestPath c s p t}"
+    proof (intro pair_set_eqI)
+      fix u v
+      assume "(u, v) \<in> Graph.E c'"
+      then obtain s p where "(v, u) \<in> set p" "s \<in> V" "isShortestPath t p s"
+        using shortest_s_path_union by fastforce
+      then show "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isShortestPath c s p t}"
+        by fastforce
+    next
+      fix u v
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isShortestPath c s p t}"
+      then obtain s p where "(u, v) \<in> set p" "s \<in> Graph.V c" "Graph.isShortestPath c s p t"
+        by blast
+      then have "(v, u) \<in> set (transpose_path p)" "isShortestPath t (transpose_path p) s" by auto
+      with \<open>s \<in> Graph.V c\<close> have "(v, u) \<in> E'" using shortest_s_path_union by blast
+      then show "(u, v) \<in> Graph.E c'" by simp
+    qed
+  qed
+qed
+
+theorem (in Graph) back_ebfs_correct:
   assumes FINITE_REACHED_FROM: "finite {u. connected u t}"
-begin
-term "back_ebfs t"
-theorem back_ebfs_correct: "back_ebfs t \<le> (spec c'. T_Shortest_Path_Union c' c V t)"
-  thm transfer_spec
-  apply (intro transfer_spec)
+  shows "back_ebfs t \<le> (spec c'. T_Shortest_Path_Union c' c V t)"
 proof -
-  have "swap_args2 Graph.back_ebfs t \<le> SPEC (\<lambda> c' c''. T_Shortest_Path_Union c' c'' V t)"
-
-
-end
-
-end
-
-
-
-(*
-thm Graph.ebfs_def
-find_consts "('a \<Rightarrow> 'b \<Rightarrow> 'c) \<Rightarrow> 'b \<Rightarrow> 'a \<Rightarrow> 'c"
-term Meson.COMBC
-term swap_args2
-context Graph
-begin
-(*
-definition ebfs_phase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
-  "ebfs_phase V\<^sub>i c' Q \<equiv> foreach Q
-    (\<lambda>u (c', Q'). do {
-      let S = E `` {u} - V\<^sub>i;
-      c' \<leftarrow> transfer_edges_algo ({u} \<times> S) c';
-      let Q' = Q' \<union> S;
-      RETURN (c', Q')
-    })
-    (c', {})"
-*)
-
-
-thm Image_def
-term Image
-find_consts "('a \<times> 'b) set \<Rightarrow> 'b set \<Rightarrow> 'a set"
-term image
-term inv_image
-
-definition back_ebfs_phase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
-  "back_ebfs_phase V\<^sub>i c' Q \<equiv> foreach Q
-    (\<lambda>u (c', Q'). do {
-      let S = E\<inverse> `` {u} - V\<^sub>i;
-      c' \<leftarrow> transfer_edges_algo (S \<times> {u}) c';
-      let Q' = Q' \<union> S;
-      RETURN (c', Q')
-    })
-    (c', {})"
-
-
-
-thm FOREACH_refine
-thm FOREACH_refine[where \<alpha>=id and R="transpose_graph_rel \<times>\<^sub>r Id"]
-thm inj_on_def
-term inj_on
-term transfer_edges_algo
-find_theorems name:refine bind
-thm RETURN_refine
-thm RES_refine
-thm bind_refine
-thm Let_unfold_refine
-
-lemma "back_ebfs_phase V\<^sub>i c' Q \<le> \<Down> (transpose_graph_rel \<times>\<^sub>r Id) (ebfs_phase V\<^sub>i (c'\<^sup>T) Q)"
-  unfolding back_ebfs_phase_def ebfs_phase_def
-  thm FOREACH_refine[where \<alpha>=id and R="transpose_graph_rel \<times>\<^sub>r Id"]
-  thm FOREACH_refine_rcg[where \<alpha>=id and R="transpose_graph_rel \<times>\<^sub>r Id"]
-  apply (intro FOREACH_refine_rcg[where \<alpha>=id])
-     apply simp
-    apply simp
-   apply (simp add: transpose_graph_rel_def)
-  apply clarsimp
-  apply (intro Let_unfold_refine)
-  thm bind_refine
-  apply (intro bind_refine[where R'=transpose_graph_rel])
-  defer
-   apply (intro refine)
-  defer oops
-
-lemma "back_ebfs_phase V\<^sub>i c' Q \<le> \<Down> (transpose_graph_rel \<times>\<^sub>r Id) (ebfs_phase V\<^sub>i (c'\<^sup>T) Q)"
-  unfolding back_ebfs_phase_def ebfs_phase_def
-  apply (refine_rcg FOREACH_refine_rcg[where \<alpha>=id] bind_refine[where R'=transpose_graph_rel])
-  apply (clarsimp_all simp: transpose_graph_rel_def)
-proof -
-  show "\<And>x it x1a. \<lbrakk>x \<in> it; it \<subseteq> Q\<rbrakk> \<Longrightarrow> transfer_edges_algo ((E\<inverse> `` {x} - V\<^sub>i) \<times> {x}) x1a \<le> \<Down> {uu. \<exists>c. uu = (c, c\<^sup>T)} (transfer_edges_algo ({x} \<times> (E `` {x} - V\<^sub>i)) (x1a\<^sup>T))"
-    sorry
-  show "\<And>x it x2. \<lbrakk>x \<in> it; it \<subseteq> Q\<rbrakk> \<Longrightarrow> x2 \<union> (E\<inverse> `` {x} - V\<^sub>i) = x2 \<union> (E `` {x} - V\<^sub>i)"
-    oops
-
-(*
-lemma "Dual_Graph_Algorithms (swap_args2 (back_ebfs_phase V\<^sub>i) Q) (swap_args2 (ebfs_phase V\<^sub>i) Q)"
-proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
-  fix c :: "('capacity::linordered_idom) graph"
-  show "Graph.back_ebfs c u \<le> \<Down> transpose_graph_rel (Graph.ebfs (c\<^sup>T) u)"
-    unfolding Graph.back_ebfs_def Graph.ebfs_def Graph.ebfs_phase_def
-    apply (refine_rcg WHILET_refine[where R="transpose_graph_rel \<times>\<^sub>r Id"] FOREACH_refine[where \<alpha>=id and R=transpose_graph_rel])
-*)
-*)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-context Graph
-begin
-
-end
-
-thm bind_refine[where R="transpose_graph_rel \<times>\<^sub>r Id \<times>\<^sub>r Id"]
-thm bind_refine
-thm FOREACH_refine
-thm FOREACH_refine_rcg
-
-thm WHILET_refine
-
-
+  have "swap_args2 Graph.back_ebfs t c \<le> (spec c'. T_Shortest_Path_Union c' c V t)"
+    (*using dual_spu apply (auto elim!: transfer_spec)*)
+  proof (intro transfer_spec[where spec'="\<lambda>c c'. S_Shortest_Path_Union c' c t (Graph.V c)"])
+    show "\<And>c c'. T_Shortest_Path_Union c' c (Graph.V c) t = S_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+      using dual_spu .
+    thm Graph.ebfs_correct
+    from FINITE_REACHED_FROM have "finite (Graph.reachableNodes (c\<^sup>T) t)"
+      unfolding Graph.reachableNodes_def by simp
+    then show "swap_args2 Graph.ebfs t (c\<^sup>T) \<le> (spec c'. S_Shortest_Path_Union c' (c\<^sup>T) t (Graph.V (c\<^sup>T)))"
+      using Graph.ebfs_correct by fastforce
+  qed
+  then show ?thesis by simp
+qed
 
 end
