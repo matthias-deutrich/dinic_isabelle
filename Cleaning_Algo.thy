@@ -86,6 +86,58 @@ qed (auto simp: pathFinding_invar_def)
 
 end \<comment> \<open>Distance_Bounded_Graph\<close>
 
+(* TODO maybe redo this using recursion *)
+thm REC_def
+
+(* TODO is it possible to skip the check whether outgoing u = {} and instead rely on the FAIL we'd get from RES (outgoing u)? *)
+definition (in Graph) greedy_st_path_finding :: "node \<Rightarrow> node \<Rightarrow> (path option) nres" where
+  "greedy_st_path_finding s t \<equiv> do {
+    (p, _, found, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, _, brk). \<not> brk)
+      (\<lambda>(p, u, _, _). do {
+        if (outgoing u = {})
+          then RETURN (p, u, False, True)
+        else do {
+          e \<leftarrow> RES (outgoing u);
+          let p = p @ [e];
+          let u = snd e;
+          let found = (u = t);
+          RETURN (p, u, found, found)}})
+      ([], s, (s = t), (s = t));
+    RETURN (if found then Some(p) else None)}"
+
+context ST_Layer_Graph
+begin
+
+find_theorems "(\<le>)" None
+thm SELECT_rule
+thm option_rule
+thm case_option_refine
+find_theorems SELECT
+thm pathFinding_invar_def
+
+thm greater_bounded_def
+
+
+lemma greedy_st_path_finding_correct: "greedy_st_path_finding s t \<le> SELECT (\<lambda>p. isPath s p t)"
+  unfolding greedy_st_path_finding_def SELECT_as_SPEC
+  apply (refine_vcg WHILET_rule[where R="inv_image (greater_bounded (min_dist s t)) (length \<circ> fst)"
+          and I="\<lambda>(p, u, found, _). isPath s p u \<and> found = (u = t)"])
+        apply simp
+          apply simp
+         apply simp
+        apply simp
+       prefer 4 apply simp
+
+  apply simp
+  apply clarify
+
+
+  apply clarsimp_all oops
+  (*apply clarsimp_all*)
+end
+
+
 (*context ST_Graph
 begin
 lemma back_terminal_s_path_is_st_path:

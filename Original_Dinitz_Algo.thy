@@ -390,56 +390,79 @@ definition build_st_layering :: "node \<Rightarrow> node \<Rightarrow> _ graph n
   }"
 end
 
-find_theorems "SPEC _ \<le> SPEC _"
-find_theorems finite Graph.reachableNodes
+(* TODO is Finite_Graph really what we want? *)
 context Finite_Graph
 begin
 lemma build_st_layering_correct:
   "build_st_layering s t \<le> (spec c'. ST_Shortest_Path_Union c' c s t)"
   unfolding build_st_layering_def
-  apply refine_vcg apply clarsimp
-proof -
+proof (refine_vcg, simp)
   have "reachableNodes s \<subseteq> V \<union> {s}"
     using Graph.distinct_nodes_in_V_if_connected(2) reachableNodes_def by auto
   then have "finite (reachableNodes s)" using finite_V by (simp add: finite_subset)
   then have "ebfs s \<le> (spec sl. S_Shortest_Path_Union sl c s V)" by (rule ebfs_correct)
   also have "... \<le> (spec sl. Graph.back_ebfs sl t \<le> (spec c'. ST_Shortest_Path_Union c' c s t))"
   proof (rule SPEC_rule)
+    fix c'
+    assume "S_Shortest_Path_Union c' c s V"
+    then interpret S_Shortest_Path_Union c' c s V .
+
+    have "{u. g'.connected u t} \<subseteq> V' \<union> {t}"
+      using g'.distinct_nodes_in_V_if_connected by auto
+    then have "finite {u. g'.connected u t}" using finite_V V_ss by (simp add: finite_subset)
+    then have "g'.back_ebfs t \<le> (spec c''. T_Shortest_Path_Union c'' c' V' t)"
+      by (rule g'.back_ebfs_correct)
+    also from \<open>S_Shortest_Path_Union c' c s V\<close> have "... \<le> (spec c''. ST_Shortest_Path_Union c'' c s t)"
+      using SPEC_rule ST_SPU_dualI by metis
+    finally show "g'.back_ebfs t \<le> (spec c''. ST_Shortest_Path_Union c'' c s t)" .
+  qed
+  finally show "ebfs s \<le> (spec sl. Graph.back_ebfs sl t \<le> (spec c'. ST_Shortest_Path_Union c' c s t))" .
+qed
+
 end
+
 context NFlow
 begin
 (*
 definition dinitz_phase_concrete :: "_ flow nres" where
   "dinitz_phase_concrete \<equiv> do {
-    if cf.connected s t
-      then do {
-        let stl = induced_st_layering cf s t;
-        (f', _) \<leftarrow> WHILE\<^sub>T
-          (\<lambda>(_, stl). Graph.connected stl s t)
-          (\<lambda>(f', stl). do {
-            p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
+    stl \<leftarrow> build_st_layering s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> path_finding s t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
             let stl = cleaning s t (Nonnegative_Graph.subtract_path stl p);
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-            RETURN (f', stl)})
-          (f, stl);
-        RETURN f'}
-      else RETURN f}"
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
 *)
+
+(*"(case x of None \<Rightarrow> P | Some y \<Rightarrow> Q y)"*)
+
 (* TODO *)
 definition dinitz_phase_concrete :: "_ flow nres" where
   "dinitz_phase_concrete \<equiv> do {
-    if cf.connected s t
-      then do {
-        let stl = induced_st_layering cf s t;
-        (f', _) \<leftarrow> WHILE\<^sub>T
-          (\<lambda>(_, stl). Graph.connected stl s t)
-          (\<lambda>(f', stl). do {
-            p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
+    stl \<leftarrow> build_st_layering s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> path_finding s t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            let Q = set (Graph.pathVertices s p) - {s, t};
+
+
             let stl = cleaning s t (Nonnegative_Graph.subtract_path stl p);
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-            RETURN (f', stl)})
-          (f, stl);
-        RETURN f'}
-      else RETURN f}"
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
 end
 end

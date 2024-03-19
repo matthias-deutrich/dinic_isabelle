@@ -430,11 +430,46 @@ lemma empty_iff: "g'.isEmpty \<longleftrightarrow> (connected s t \<longleftrigh
   using empty_iff_ST_disconnected by blast
 end \<comment> \<open>ST_Shortest_Path_Union\<close>
 
+(*
 lemma ST_SPU_dualI: (* TODO prettify *)
   "\<lbrakk>S_Shortest_Path_Union c' c s {t}; T_Shortest_Path_Union c' c {s} t\<rbrakk> \<Longrightarrow> ST_Shortest_Path_Union c' c s t"
   by (smt (verit, best) Collect_cong ST_Shortest_Path_Union_axioms.intro ST_Shortest_Path_Union_def T_Shortest_Path_Union.axioms(1) T_Shortest_Path_Union.shortest_t_path_union singleton_iff)
+*)
 
+lemma ST_SPU_dualI:
+  assumes S_SPU: "S_Shortest_Path_Union c' c s (Graph.V c)"
+    and T_SPU: "T_Shortest_Path_Union c'' c' (Graph.V c') t"
+  shows "ST_Shortest_Path_Union c'' c s t"
+proof
+  from S_SPU interpret S_Shortest_Path_Union c' c s "Graph.V c" .
+  from T_SPU interpret t: T_Shortest_Path_Union c'' c' "Graph.V c'" t .
+
+  show "\<And>u v. c'' (u, v) = 0 \<or> c (u, v) = 0 \<or> c'' (u, v) = c (u, v)"
+    by (metis sg_cap_cases t.sg_cap_cases)
+
+  show "t.E' = \<Union> {set p |p. isShortestPath s p t}" (* TODO prettify *)
+  proof (intro pair_set_eqI)
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}"
+    then obtain p where SP: "(u, v) \<in> set p" "isShortestPath s p t" by blast
+    then have "s \<in> V" "t \<in> V" using distinct_nodes_in_V_if_connected isShortestPath_level_edge
+      by (metis min_dist_z empty_set ex_in_conv isShortestPath_min_dist_def length_0_conv)+
+    with SP have "g'.isShortestPath s p t" using shortest_ST_path_remains by blast
+    with \<open>(u, v) \<in> set p\<close> \<open>s \<in> V\<close> show "(u, v) \<in> t.E'" using t.shortest_t_path_union
+      using Graph.isEmpty_def Graph.isPath_edgeset Graph.isShortestPath_min_dist_def s_in_V_if_nonempty by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> t.E'"
+    then obtain p w where "(u, v) \<in> set p" "w \<in> V'" "g'.isShortestPath w p t"
+      using t.shortest_t_path_union by blast
+    then obtain p' where "g'.isShortestPath s p' w" using g'.obtain_shortest_path by blast
+    with \<open>g'.isShortestPath w p t\<close> have "isShortestPath s (p' @ p) t"
+      using g'.shortestPath_is_path g'.isPath_append shortest_path_transfer by blast
+    with \<open>(u, v) \<in> set p\<close> show "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}" by auto
+  qed
+qed
 \<comment> \<open>Unions of shortest paths\<close>
+
 
 (* TODO this is mostly the same, but includes a length bound. Is there a way without so much duplication? *)
 subsection \<open>Unions of bounded length shortest paths\<close>
@@ -463,7 +498,8 @@ lemma obtain_bounded_shortest_ST_paths:
     "isShortestPath s (p\<^sub>s @ p\<^sub>t) t" "length (p\<^sub>s @ p\<^sub>t) \<le> b"
   using assms apply (elim g'.vertex_cases obtain_bounded_shortest_ST_edge_path)
    apply (metis split_shortest_path_around_edge)
-  by (metis split_shortest_path_around_edge append.assoc append.left_neutral append_Cons)
+  by (smt (verit, ccfv_threshold) Graph.split_shortest_path_around_edge append.left_neutral append_Cons append_assoc)
+  (*by (metis split_shortest_path_around_edge append.assoc append.left_neutral append_Cons)*)
   (* TODO improve *)
 
 lemma bounded_shortest_ST_path_remains:
