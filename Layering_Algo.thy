@@ -55,7 +55,14 @@ lemma transfer_edges_E: "Graph.E (transfer_edges S c') = Graph.E c' - S \<union>
 
 lemma transfer_edges_ss_E: "S \<subseteq> E \<Longrightarrow> Graph.E (transfer_edges S c') = Graph.E c' \<union> S"
   using transfer_edges_E by blast
+end
 
+interpretation transfer_edges_dual:
+  Dual_Graph_Algorithms "Graph.transfer_edges_algo c S" "Graph.transfer_edges_algo (c\<^sup>T) (prod.swap ` S)" for c S
+  unfolding Graph.transfer_edges_algo_def
+  apply (intro Dual_Graph_AlgorithmsI)
+  apply (all \<open>refine_rcg FOREACH_refine_rcg[where \<alpha>="prod.swap"]\<close>)
+  by (auto simp: transpose_graph_rel_def Graph.transfer_edge_def)
 \<comment> \<open>Transferring edges to another graph\<close>
 
 subsection \<open>Extended Breadth First Search phase\<close>
@@ -69,6 +76,8 @@ text \<open>NOTE: For the correctness proofs, we need "V_i = Graph.V c' \<union>
       the next iteration (as it is an outgoing neighbor of s and not contained in the graph),
       violating the invariant.\<close>
 
+context Graph
+begin
 definition ebfs_phase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
   "ebfs_phase V\<^sub>i c' Q \<equiv> foreach Q
     (\<lambda>u (c', Q'). do {
@@ -388,49 +397,29 @@ definition back_ebfs :: "node \<Rightarrow> _ graph nres" where
 
 end
 
-(* TODO fix this mess *)
+thm FOREACH_refine_rcg
+thm FOREACH_refine
+find_theorems FOREACH
+
+(* TODO improve *)
 lemma dual_ebfs: "Dual_Graph_Algorithms (swap_args2 Graph.back_ebfs u) (swap_args2 Graph.ebfs u)"
 proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
   fix c' :: "('capacity'::linordered_idom) graph"
+  note[refine_dref_RELATES] = RELATESI[of transpose_graph_rel]
   show "Graph.back_ebfs c' u \<le> \<Down> transpose_graph_rel (Graph.ebfs (c'\<^sup>T) u)"
     unfolding Graph.back_ebfs_def Graph.ebfs_def Graph.ebfs_phase_def
-    apply (clarsimp_all simp: transpose_graph_rel_def)
-    apply (intro bind_refine[where R'="transpose_graph_rel \<times>\<^sub>r Id \<times>\<^sub>r Id"])
-    apply (clarsimp_all simp: transpose_graph_rel_def)
-    apply (intro WHILET_refine)
-      apply (clarsimp_all, fastforce)
-    apply (intro bind_refine[where R'="transpose_graph_rel \<times>\<^sub>r Id"])
-    apply (clarsimp_all simp: transpose_graph_rel_def)
-    apply (intro FOREACH_refine_rcg[where \<alpha>=id])
-       apply clarsimp_all
-    apply (intro Let_refine[where R'=Id])
-     apply clarsimp_all
-    apply (intro bind_refine[where R'=transpose_graph_rel])
-     apply (clarsimp_all simp: transpose_graph_rel_def)
-    unfolding Graph.transfer_edges_algo_def
-    apply (intro FOREACH_refine_rcg[where \<alpha>=prod.swap])
-       apply clarsimp_all apply fastforce
-    unfolding Graph.transfer_edge_def by auto
+    apply (refine_rcg FOREACH_refine_rcg[where \<alpha>=id], refine_dref_type)
+            apply (all \<open>(auto simp: transpose_graph_rel_def; fail)?\<close>)
+    apply (simp add: transfer_edges_dual.conc_simp)
+    by (simp add: transpose_graph_rel_def product_swap)
 
   show "Graph.ebfs c' u \<le> \<Down> transpose_graph_rel (Graph.back_ebfs (c'\<^sup>T) u)"
     unfolding Graph.back_ebfs_def Graph.ebfs_def Graph.ebfs_phase_def
-    apply (clarsimp_all simp: transpose_graph_rel_def)
-    apply (intro bind_refine[where R'="transpose_graph_rel \<times>\<^sub>r Id \<times>\<^sub>r Id"])
-    apply (clarsimp_all simp: transpose_graph_rel_def)
-    apply (intro WHILET_refine)
-      apply (clarsimp_all, fastforce)
-    apply (intro bind_refine[where R'="transpose_graph_rel \<times>\<^sub>r Id"])
-    apply (clarsimp_all simp: transpose_graph_rel_def)
-    apply (intro FOREACH_refine_rcg[where \<alpha>=id])
-       apply clarsimp_all
-    apply (intro Let_refine[where R'=Id])
-     apply clarsimp_all
-    apply (intro bind_refine[where R'=transpose_graph_rel])
-     apply (clarsimp_all simp: transpose_graph_rel_def)
-    unfolding Graph.transfer_edges_algo_def
-    apply (intro FOREACH_refine_rcg[where \<alpha>=prod.swap])
-       apply clarsimp_all apply fastforce
-    unfolding Graph.transfer_edge_def by auto
+    apply (refine_rcg FOREACH_refine_rcg[where \<alpha>=id])
+            apply refine_dref_type
+            apply (all \<open>(auto simp: transpose_graph_rel_def; fail)?\<close>)
+    apply (simp add: transfer_edges_dual.conc_simp)
+    by (simp add: transpose_graph_rel_def product_swap)
 qed
 
 (* TODO simplify and extract *)

@@ -445,13 +445,31 @@ definition dinitz_phase_concrete :: "_ flow nres" where
 (*"(case x of None \<Rightarrow> P | Some y \<Rightarrow> Q y)"*)
 
 (* TODO *)
+thm build_st_layering_correct
+
+thm ST_Layer_Graph.greedy_st_path_finding_correct
+
+thm Nonnegative_Graph.pathCap_fun.simps
+thm Nonnegative_Graph.pathCap_fun_correct
+
+term nfoldli
+term foldli
+term foldl
+find_theorems fold foldl
+find_theorems foldli foldl
+thm foldl_conv_fold foldli_foldl
+thm foldli_foldl[unfolded foldl_conv_fold]
+find_theorems nfoldli foldli
+
+
+
 definition dinitz_phase_concrete :: "_ flow nres" where
   "dinitz_phase_concrete \<equiv> do {
     stl \<leftarrow> build_st_layering s t;
     (f', _, _) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, _, brk). \<not> brk)
       (\<lambda>(f', stl, _). do {
-        p' \<leftarrow> path_finding s t;
+        p' \<leftarrow> greedy_st_path_finding s t;
         case p' of
           None \<Rightarrow> RETURN (f', stl, True)
         | Some p \<Rightarrow> do {

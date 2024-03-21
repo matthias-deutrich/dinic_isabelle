@@ -262,6 +262,22 @@ lemma subtract_path_alt: "subtract_path p = subtract_graph (path_induced_graph p
 
 lemma nonempty_path_cap_positive: "\<lbrakk>p \<noteq> []; set p \<subseteq> E\<rbrakk> \<Longrightarrow> 0 < pathCap p" (* TODO necessary? *)
   unfolding pathCap_alt E_def by (auto intro!: le_neq_trans[OF cap_non_negative])
+
+
+thm fold_map
+term fold
+thm Min.set_eq_fold
+
+(* TODO is it better to replace pathCap entirely? *)
+fun pathCap_fun :: "path \<Rightarrow> 'capacity" where
+  "pathCap_fun [] = 0"
+| "pathCap_fun (e # es) = fold (min \<circ> c) es (c e)"
+
+lemma pathCap_fun_correct: "pathCap_fun p = (if p = [] then 0 else pathCap p)"
+  unfolding pathCap_alt
+  apply (induction p)
+   apply simp_all
+  by (metis Min.set_eq_fold fold_map list.set_map list.simps(15))
 end
 
 (* TODO prettify *)

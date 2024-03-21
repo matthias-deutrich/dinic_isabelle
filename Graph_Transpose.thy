@@ -92,8 +92,8 @@ corollary transpose_Finite_Bounded_Graph:
   "Finite_Bounded_Graph (c\<^sup>T) b \<longleftrightarrow> Finite_Bounded_Graph c b"
   unfolding Finite_Bounded_Graph_def by (simp add: transpose_Finite_Graph transpose_Distance_Bounded_Graph)
 
-text \<open>The following lemmas relate properties of the transposeed graph to the corresponding ones in the
-      non-transposeed graph.\<close>
+text \<open>The following lemmas relate properties of the transposed graph to the corresponding ones in the
+      non-transposed graph.\<close>
 lemmas transpose_graph_simps[simp] =
   transpose_concrete
   transpose_E
@@ -116,6 +116,11 @@ lemmas transpose_graph_simps[simp] =
   transpose_Distance_Bounded_Graph
   transpose_Finite_Bounded_Graph
 
+
+
+
+
+
 subsection \<open>Refinement setup\<close>
 
 thm conc_fun_chain
@@ -133,6 +138,7 @@ thm Quot_True_def
 term Quot_True
 find_theorems single_valued "(\<Down>)"
 thm conc_abs_swap
+find_theorems galois_connection "(\<Down>)"
 
 (* TODO how to express this more elegantly *)
 definition transpose_graph_rel :: "(_ graph) rel" where
@@ -161,6 +167,12 @@ locale Dual_Graph_Algorithms =
 begin
 lemma dual_alg': "\<And>c. alg' c = \<Down> transpose_graph_rel (alg (c\<^sup>T))"
   using dual_alg by (simp add: conc_fun_chain)
+
+lemma conc_simp: "\<Down> transpose_graph_rel (alg c) = alg' (c\<^sup>T)"
+  using dual_alg' by simp
+
+lemma conc_simp': "\<Down> transpose_graph_rel (alg' c) = alg (c\<^sup>T)"
+  using dual_alg by simp
 end
 
 (* TODO can it be sufficient to only show one direction? *)
@@ -223,13 +235,12 @@ proof
 next
   from REF'_CORRECT show "alg' (c\<^sup>T) \<le> (RES \<circ> res') (c\<^sup>T)" by simp
 qed
-
 end
 
-
-(* TODO sanity check *)
+(*
 lemma
   assumes "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (c\<^sup>T))"
   shows "\<And>c. alg' c \<le> \<Down> transpose_graph_rel (alg (c\<^sup>T))"
   using assms oops
+*)
 end

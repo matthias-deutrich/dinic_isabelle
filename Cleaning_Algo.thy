@@ -92,49 +92,37 @@ thm REC_def
 (* TODO is it possible to skip the check whether outgoing u = {} and instead rely on the FAIL we'd get from RES (outgoing u)? *)
 definition (in Graph) greedy_st_path_finding :: "node \<Rightarrow> node \<Rightarrow> (path option) nres" where
   "greedy_st_path_finding s t \<equiv> do {
-    (p, _, found, _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, _, _, brk). \<not> brk)
-      (\<lambda>(p, u, _, _). do {
-        if (outgoing u = {})
-          then RETURN (p, u, False, True)
-        else do {
-          e \<leftarrow> RES (outgoing u);
-          let p = p @ [e];
-          let u = snd e;
-          let found = (u = t);
-          RETURN (p, u, found, found)}})
-      ([], s, (s = t), (s = t));
-    RETURN (if found then Some(p) else None)}"
+    if s = t
+      then RETURN (Some [])
+      else do {
+        (p, _, found, _) \<leftarrow> WHILE\<^sub>T
+          (\<lambda>(_, _, _, brk). \<not> brk)
+          (\<lambda>(p, u, _, _). do {
+            if (outgoing u = {})
+              then RETURN (p, u, False, True)
+            else do {
+              e \<leftarrow> RES (outgoing u);
+              let p = p @ [e];
+              let u = snd e;
+              let found = (u = t);
+              RETURN (p, u, found, found)}})
+          ([], s, False, s \<notin> V);
+        RETURN (if found then Some p else None)}}"
+
 
 context ST_Layer_Graph
 begin
-
-find_theorems "(\<le>)" None
-thm SELECT_rule
-thm option_rule
-thm case_option_refine
-find_theorems SELECT
-thm pathFinding_invar_def
-
-thm greater_bounded_def
-
-
+(* TODO prettify *)
 lemma greedy_st_path_finding_correct: "greedy_st_path_finding s t \<le> SELECT (\<lambda>p. isPath s p t)"
   unfolding greedy_st_path_finding_def SELECT_as_SPEC
   apply (refine_vcg WHILET_rule[where R="inv_image (greater_bounded (min_dist s t)) (length \<circ> fst)"
-          and I="\<lambda>(p, u, found, _). isPath s p u \<and> found = (u = t)"])
-        apply simp
-          apply simp
-         apply simp
-        apply simp
-       prefer 4 apply simp
-
-  apply simp
-  apply clarify
-
-
-  apply clarsimp_all oops
-  (*apply clarsimp_all*)
+          and I="\<lambda>(p, u, found, brk). isPath s p u \<and> found = (u = t) \<and> (brk = (outgoing u = {}))"])
+               apply clarsimp_all
+  using isEmpty_def no_outgoingD outgoing_edges s_in_V_if_nonempty apply blast
+     apply (fastforce intro: isPath_append_edge)
+    apply (metis Graph.connected_append_edge Graph.connected_refl Graph.distinct_nodes_in_V_if_connected(2) Graph.in_outgoingD no_outgoingD obtain_back_terminal_connected)
+  using b_length_paths_are_terminal(2) le_antisym path_length_bounded apply fastforce
+  by (metis Graph.connected_def Graph.distinct_nodes_in_V_if_connected(2) Graph.empty_connected no_outgoingD s_in_V_if_nonempty)
 end
 
 
@@ -521,15 +509,17 @@ begin
 interpretation Dual_Graph_Algorithms "left_pass_refine Q" "right_pass_refine Q"
 proof
   fix c :: "('capacity::linordered_idom) graph"
-
+  note[refine_dref_RELATES] = RELATESI[of transpose_graph_rel]
   show "left_pass_refine Q c \<le> \<Down> transpose_graph_rel (right_pass_refine Q (transpose_graph c))"
     unfolding right_pass_refine_def left_pass_refine_def
-    apply (refine_rcg WHILET_refine[where R="transpose_graph_rel \<times>\<^sub>r Id"] RES_refine[where R=Id])
+    apply refine_rcg
+    apply refine_dref_type
     by (auto simp: transpose_graph_rel_def removeEdges_def)
 
   show "right_pass_refine Q c \<le> \<Down> transpose_graph_rel (left_pass_refine Q (transpose_graph c))"
     unfolding right_pass_refine_def left_pass_refine_def
-    apply (refine_rcg WHILET_refine[where R="transpose_graph_rel \<times>\<^sub>r Id"] RES_refine[where R=Id])
+    apply refine_rcg
+    apply refine_dref_type
     by (auto simp: transpose_graph_rel_def removeEdges_def)
 qed
 
@@ -544,9 +534,5 @@ theorem left_pass_refine_correct:
   using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
   (*by (metis converse_converse converse_empty)*)
 end
-
-(* TODO remove *)
-find_theorems name:refine bind "(\<Down>)" (*"(?a, ?b) \<in> ?R"*)
-find_theorems name:refine Let "(\<Down>)" (*"(?a, ?b) \<in> ?R"*)
 
 end
