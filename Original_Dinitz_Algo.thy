@@ -195,13 +195,13 @@ definition dinitz_phase :: "_ flow nres" where
           (\<lambda>(_, stl). Graph.connected stl s t)
           (\<lambda>(f', stl). do {
             p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
-            let stl = cleaning s t (Nonnegative_Graph.subtract_path stl p);
+            let stl = cleaning s t (Graph.subtract_path stl p);
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             RETURN (f', stl)})
           (f, stl);
         RETURN f'}
       else RETURN f}"
-thm Nonnegative_Graph.subtract_path_alt
+thm Graph.subtract_path_alt
 
 definition dinitz_phase_invar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" where
   "dinitz_phase_invar \<equiv> \<lambda>(f', stl).
@@ -214,7 +214,7 @@ lemma dinitz_phase_step:
   assumes PATH: "Graph.isPath stl s p t"
       and INVAR: "dinitz_phase_invar (f', stl)"
   defines "aug_f' \<equiv> NFlow.augment c f' (NPreflow.augmentingFlow c f' p)"
-      and "stl' \<equiv> cleaning s t (Nonnegative_Graph.subtract_path stl p)"
+      and "stl' \<equiv> cleaning s t (Graph.subtract_path stl p)"
     shows "dinitz_phase_invar (aug_f', stl') \<and> Graph.E stl' \<subset> Graph.E stl \<and> finite (Graph.E stl)"
 proof (intro conjI)
   from INVAR interpret f': NFlow c s t f' unfolding dinitz_phase_invar_def by blast
@@ -449,19 +449,7 @@ thm build_st_layering_correct
 
 thm ST_Layer_Graph.greedy_st_path_finding_correct
 
-thm Nonnegative_Graph.pathCap_fun.simps
-thm Nonnegative_Graph.pathCap_fun_correct
-
-term nfoldli
-term foldli
-term foldl
-find_theorems fold foldl
-find_theorems foldli foldl
-thm foldl_conv_fold foldli_foldl
-thm foldli_foldl[unfolded foldl_conv_fold]
-find_theorems nfoldli foldli
-
-
+thm subtract_path_algo_correct
 
 definition dinitz_phase_concrete :: "_ flow nres" where
   "dinitz_phase_concrete \<equiv> do {
@@ -469,14 +457,15 @@ definition dinitz_phase_concrete :: "_ flow nres" where
     (f', _, _) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, _, brk). \<not> brk)
       (\<lambda>(f', stl, _). do {
-        p' \<leftarrow> greedy_st_path_finding s t;
+        p' \<leftarrow> Graph.greedy_st_path_finding stl s t;
         case p' of
           None \<Rightarrow> RETURN (f', stl, True)
         | Some p \<Rightarrow> do {
             let Q = set (Graph.pathVertices s p) - {s, t};
+            stl \<leftarrow> Graph.subtract_path_algo stl p;
 
 
-            let stl = cleaning s t (Nonnegative_Graph.subtract_path stl p);
+            let stl = cleaning s t stl;
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             RETURN (f', stl, False)
           }})

@@ -183,13 +183,21 @@ interpretation graph_cap_ord: order le_graph less_graph
 
 text \<open>Sometimes merely comparing two graphs based on their edge sets is insufficient, since we need
       to show properties that directly relate to their capacities.\<close>
-
+context Graph
+begin
 (* TODO is there a more natural way to define this, as it is merely subtraction of functions? *)
-definition (in Graph) subtract_graph :: "_ graph \<Rightarrow> _ graph"
+definition subtract_graph :: "_ graph \<Rightarrow> _ graph"
   where "subtract_graph c' \<equiv> \<lambda> (u, v). c (u, v) - c' (u, v)"
 
-definition (in Graph) subtract_skew_graph :: "_ graph \<Rightarrow> _ graph"
+lemma subtract_graph_untouched_cap: "e \<notin> Graph.E c' \<Longrightarrow> subtract_graph c' e = c e"
+  unfolding Graph.E_def subtract_graph_def by simp
+
+lemma subtract_graph_untouched_edges: "Graph.E (subtract_graph c') - Graph.E c' = E - Graph.E c'"
+  unfolding Graph.E_def subtract_graph_def by auto
+
+definition subtract_skew_graph :: "_ graph \<Rightarrow> _ graph"
   where "subtract_skew_graph c' \<equiv> \<lambda> (u, v). c (u, v) - c' (u, v) + c' (v, u)"
+end
 
 locale Contained_Graph = GraphComparison c' c for c' c :: "'capacity:: linordered_idom graph" +
   assumes cap_abs_le:
@@ -226,8 +234,20 @@ lemma subtract_le_contained: "Pos_Contained_Graph (subtract_graph c') c"
   unfolding subtract_graph_def using cap_le g'.cap_non_negative by unfold_locales auto
 end
 
-context Nonnegative_Graph
+context Graph
 begin
+text \<open>While these definitions mostly make sense for Nonnegative_Graphs, they are part of the Graph
+      locale to simplify the proofs\<close>
+
+(*
+definition path_cap :: "path \<Rightarrow> 'capacity" where
+  "path_cap p \<equiv> fold min (map c p) 0"
+term Min
+term "Min \<circ> (`) c \<circ> set"
+lemma path_cap_Min: "p \<noteq> [] \<Longrightarrow> path_cap p = Min (c ` (set p))"
+  unfolding path_cap_def oops
+*)
+
 definition pathCap :: "path \<Rightarrow> 'capacity"
   where "pathCap p \<equiv> Min {c e | e. e \<in> set p}"
 
@@ -242,13 +262,29 @@ definition path_induced_graph :: "path \<Rightarrow> _ graph"
     else
       0"
 
-lemma path_induced_graph_pos_contained_aux:
-  "p \<noteq> [] \<Longrightarrow> 0 \<le> pathCap p" unfolding pathCap_alt using cap_non_negative by auto
+thm le_neq_trans
+find_theorems Min "{}"
+find_theorems Min set
+find_theorems "?S \<noteq> {} \<Longrightarrow> \<forall> x \<in> ?S. ?P x \<Longrightarrow> ?P (Min ?S)"
+find_theorems "?S \<noteq> {} \<Longrightarrow> ?P (Min ?S) \<Longrightarrow> \<exists>x \<in> ?S. ?P x"
+lemma "S \<noteq> {} \<Longrightarrow> \<forall> x \<in> S. P x \<Longrightarrow> P (Min S)" oops
+lemma "S \<noteq> {} \<Longrightarrow> P (Min S) \<Longrightarrow> \<exists>x \<in> S. P x" oops
 
-lemma path_induced_graph_pos_contained: "Pos_Contained_Graph (path_induced_graph p) c"
-  unfolding path_induced_graph_def apply unfold_locales
-  using cap_non_negative apply (simp add: pathCap_alt)
-  by (fastforce intro: path_induced_graph_pos_contained_aux)
+(* TODO why is this so hard to prove? *)
+lemma pathCap_nz:
+  assumes "p \<noteq> []" "set p \<subseteq> E"
+  shows "pathCap p \<noteq> 0"
+proof (rule ccontr)
+  assume "\<not> pathCap p \<noteq> 0"
+  then have "pathCap p = 0" by simp
+  with \<open>p \<noteq> []\<close> obtain e where "e \<in> set p" "c e = 0" unfolding pathCap_alt
+    by (metis (mono_tags, lifting) List.finite_set Min_in finite_imageI image_iff image_is_empty set_empty)
+  with \<open>set p \<subseteq> E\<close> show False unfolding E_def by auto
+qed
+
+lemma path_induced_graph_edges:
+  "\<lbrakk>p \<noteq> []; set p \<subseteq> E\<rbrakk> \<Longrightarrow> Graph.E (path_induced_graph p) = E \<inter> set p"
+  using pathCap_nz unfolding Graph.E_def path_induced_graph_def by auto
 
 definition subtract_path :: "path \<Rightarrow> _ graph"
   where "subtract_path p \<equiv> \<lambda>(u, v).
@@ -260,8 +296,27 @@ definition subtract_path :: "path \<Rightarrow> _ graph"
 lemma subtract_path_alt: "subtract_path p = subtract_graph (path_induced_graph p)"
   unfolding subtract_graph_def subtract_path_def path_induced_graph_def by auto
 
+(*lemma subtract_path_untouched_edge: "e \<notin> p \<Longrightarrow> subtract_*)
+end
+
+context Nonnegative_Graph
+begin
+lemma path_induced_graph_pos_contained_aux:
+  "p \<noteq> [] \<Longrightarrow> 0 \<le> pathCap p" unfolding pathCap_alt using cap_non_negative by auto
+
+lemma path_induced_graph_pos_contained: "Pos_Contained_Graph (path_induced_graph p) c"
+  unfolding path_induced_graph_def apply unfold_locales
+  using cap_non_negative apply (simp add: pathCap_alt)
+  by (fastforce intro: path_induced_graph_pos_contained_aux)
+
+thm le_neq_trans
+thm le_neq_trans[OF cap_non_negative]
 lemma nonempty_path_cap_positive: "\<lbrakk>p \<noteq> []; set p \<subseteq> E\<rbrakk> \<Longrightarrow> 0 < pathCap p" (* TODO necessary? *)
-  unfolding pathCap_alt E_def by (auto intro!: le_neq_trans[OF cap_non_negative])
+  unfolding pathCap_alt E_def  apply auto
+  apply (intro le_neq_trans[OF cap_non_negative])
+  
+  
+  by (auto intro!: le_neq_trans[OF cap_non_negative])
 
 
 thm fold_map

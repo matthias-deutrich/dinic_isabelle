@@ -556,25 +556,6 @@ definition subtract_path_algo :: "path \<Rightarrow> _ graph nres" where
     c' \<leftarrow> nfoldli p (\<lambda>_. True) (\<lambda>e c'. RETURN (Graph.subtract_edge c' e cap)) c;
     RETURN c'
   }"
-end
-
-context Nonnegative_Graph
-begin
-thm pathCap_fun.simps
-(*thm pathCap_fun_correct*)
-term nfoldli
-term foldli
-term foldl
-find_theorems fold foldl
-find_theorems foldli foldl
-thm foldl_conv_fold foldli_foldl
-thm foldli_foldl[unfolded foldl_conv_fold]
-find_theorems nfoldli foldli
-thm foldli_eq_nfoldli
-thm if_splits
-thm list.splits
-find_theorems name:split "case _ of _ \<Rightarrow> _"
-thm split_paired_all
 
 lemmas nfoldli_to_fold =
   foldli_eq_nfoldli[where c="\<lambda>_. True", symmetric, unfolded foldli_foldl foldl_conv_fold]
@@ -584,23 +565,37 @@ lemma path_cap_algo_correct: "path_cap_algo p = RETURN (if p = [] then 0 else pa
   apply (simp split: list.split add: nfoldli_to_fold)
   by (metis (no_types, lifting) Min.set_eq_fold fold_map fun_comp_eq_conv list.set_map list.simps(15))
 
-lemma tmp: "fold (\<lambda>e c'. Graph.subtract_edge c' e (pathCap p)) p c = (\<lambda>(u, v). if (u, v) \<in> set p then c (u, v) - pathCap p else c (u, v))"
-proof (induction p arbitrary: c)
-  case Nil
-  then show ?case sorry
-next
-  case (Cons a p)
-  then show ?case apply clarsimp
-qed
+lemma subtract_path_algo_correct_aux:
+  "distinct p \<Longrightarrow> fold (\<lambda>e c'. Graph.subtract_edge c' e cap) p c = (\<lambda>(u, v). if (u, v) \<in> set p then c (u, v) - cap else c (u, v))"
+  unfolding Graph.subtract_edge_def by (induction p arbitrary: c) auto
 
-(*
 lemma subtract_path_algo_correct:
   assumes "distinct p"
   shows "subtract_path_algo p \<le> RETURN (subtract_path p)"
   unfolding subtract_path_algo_def subtract_path_def
-  (*apply (induction p arbitrary: c)*)
-  apply (auto split: list.splits simp: nfoldli_to_fold path_cap_algo_correct)
-*)
+  apply (simp split: list.splits add: nfoldli_to_fold path_cap_algo_correct)
+  using assms subtract_path_algo_correct_aux by simp
+
 end
 
+definition cleaning_algo :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+  "cleaning_algo Q c \<equiv> do {
+    c \<leftarrow> right_pass_refine Q c;
+    c \<leftarrow> left_pass_refine Q c;
+    RETURN c}"
+
+context Finite_Bounded_Graph
+begin
+thm right_pass_refine_correct
+thm left_pass_refine_correct
+
+lemma cleaning_algo_correct:
+  assumes S_NO_IN: "incoming s = {}" and T_NO_OUT: "outgoing t = {}"
+    and Q_START: "s \<notin> Q" "t \<notin> Q" "\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}" "finite Q"
+  shows "cleaning_algo Q c \<le> RETURN (cleaning s t c)"
+  unfolding cleaning_algo_def
+proof -
+  apply simp
+
+end
 end
