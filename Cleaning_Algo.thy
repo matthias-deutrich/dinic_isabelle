@@ -1,5 +1,5 @@
 theory Cleaning_Algo
-  imports LayerMaintenance Graph_Transpose
+  imports LayerMaintenance Graph_Transpose Refine_Imperative_HOL.Sepref_Foreach
 begin
 
 subsection \<open>PathFinding\<close>
@@ -533,6 +533,74 @@ theorem left_pass_refine_correct:
   apply (intro Finite_Bounded_Graph.right_pass_refine_correct)
   using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
   (*by (metis converse_converse converse_empty)*)
+end
+
+context Graph
+begin
+
+(* TODO impl *)
+text \<open>See EdmondsKarp_Impl.augment_edge\<close>
+definition subtract_edge :: "edge \<Rightarrow> 'capacity \<Rightarrow> _ graph" where
+  "subtract_edge e cap \<equiv> c(e := c e - cap)"
+
+text \<open>This is essentially the same as EdmondsKarp_Impl.resCap_cf_impl, except it works on any graph,
+      not just the residual graph.\<close>
+definition path_cap_algo :: "path \<Rightarrow> 'capacity nres" where
+  "path_cap_algo p \<equiv> case p of
+    [] \<Rightarrow> RETURN 0
+  | (e # p) \<Rightarrow> nfoldli p (\<lambda>_. True) (\<lambda>e cap. RETURN (min (c e) cap)) (c e)"
+
+definition subtract_path_algo :: "path \<Rightarrow> _ graph nres" where
+  "subtract_path_algo p \<equiv> do {
+    cap \<leftarrow> path_cap_algo p;
+    c' \<leftarrow> nfoldli p (\<lambda>_. True) (\<lambda>e c'. RETURN (Graph.subtract_edge c' e cap)) c;
+    RETURN c'
+  }"
+end
+
+context Nonnegative_Graph
+begin
+thm pathCap_fun.simps
+(*thm pathCap_fun_correct*)
+term nfoldli
+term foldli
+term foldl
+find_theorems fold foldl
+find_theorems foldli foldl
+thm foldl_conv_fold foldli_foldl
+thm foldli_foldl[unfolded foldl_conv_fold]
+find_theorems nfoldli foldli
+thm foldli_eq_nfoldli
+thm if_splits
+thm list.splits
+find_theorems name:split "case _ of _ \<Rightarrow> _"
+thm split_paired_all
+
+lemmas nfoldli_to_fold =
+  foldli_eq_nfoldli[where c="\<lambda>_. True", symmetric, unfolded foldli_foldl foldl_conv_fold]
+
+lemma path_cap_algo_correct: "path_cap_algo p = RETURN (if p = [] then 0 else pathCap p)"
+  unfolding path_cap_algo_def pathCap_alt
+  apply (simp split: list.split add: nfoldli_to_fold)
+  by (metis (no_types, lifting) Min.set_eq_fold fold_map fun_comp_eq_conv list.set_map list.simps(15))
+
+lemma tmp: "fold (\<lambda>e c'. Graph.subtract_edge c' e (pathCap p)) p c = (\<lambda>(u, v). if (u, v) \<in> set p then c (u, v) - pathCap p else c (u, v))"
+proof (induction p arbitrary: c)
+  case Nil
+  then show ?case sorry
+next
+  case (Cons a p)
+  then show ?case apply clarsimp
+qed
+
+(*
+lemma subtract_path_algo_correct:
+  assumes "distinct p"
+  shows "subtract_path_algo p \<le> RETURN (subtract_path p)"
+  unfolding subtract_path_algo_def subtract_path_def
+  (*apply (induction p arbitrary: c)*)
+  apply (auto split: list.splits simp: nfoldli_to_fold path_cap_algo_correct)
+*)
 end
 
 end
