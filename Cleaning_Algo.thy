@@ -664,13 +664,19 @@ proof (refine_vcg, simp)
       unfolding Finite_Bounded_Graph_def apply auto[1]
       using edges_ss g'.Finite_Graph_EI rev_finite_subset apply blast
       using Distance_Bounded_Graph_axioms apply (rule sg_Distance_Bounded)
-      sorry
+    proof
+      fix u
+      assume "u \<in> V' - Q - {t}"
+      then have "outgoing u \<noteq> {}" using assms V_ss by auto
+      then obtain v where "(u, v) \<in> E" by fast
 
-
-
-
-
-
+      from \<open>u \<in> V' - Q - {t}\<close> have "u \<in> V'" by blast
+      then have "connected s u" unfolding g'.V_def
+        using S_Graph.rp_edges_s_connected connected_append_edge edge'_if_edge by blast
+      with \<open>(u, v) \<in> E\<close> have "(u, v) \<in> E'"
+        using S_Graph.s_connected_edges_remain by blast
+      then show "g'.outgoing u \<noteq> {}" unfolding g'.outgoing_def by blast
+    qed
     also have "... \<le> RES {cleaning s t c}"
       by (simp add: ST_Graph.left_right_pass_is_cleaning)
     finally show "left_pass_refine Q (right_pass s c) \<le> RES {cleaning s t c}" .

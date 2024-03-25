@@ -280,6 +280,27 @@ lemma cleaning_cap_comp: "CapacityCompatibleGraphs (cleaningAbstract c s t) c"
    unfolding CapacityCompatibleGraphs_def cleaningAbstract_def by auto
 *)
 
+context S_Graph
+begin
+interpretation Subgraph rp c using right_pass_Subgraph .
+lemma right_pass_edge_set: "E' = \<Union>{set p | p. \<exists>t. t \<in> V \<and> isPath s p t}"
+proof (intro pair_set_eqI)
+  fix u v
+  assume "(u, v) \<in> E'"
+  then obtain t where "connected s u" "connected v t" "(u, v) \<in> E" "t \<in> V"
+    by (meson Graph.connected_refl Image_singleton_iff edge'_if_edge rp_edges_s_connected subsetD succ_ss_V)
+  then obtain p\<^sub>s p\<^sub>t where "isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
+    using connected_def isPath_append by auto
+  with \<open>t \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isPath s p t}"
+    by fastforce
+next
+  fix u v
+  assume "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isPath s p t}"
+  then show "(u, v) \<in> E'"
+    using g'.isPath_edgeset rp_keeps_s_paths by fastforce
+qed
+end
+
 context ST_Graph
 begin
 (*

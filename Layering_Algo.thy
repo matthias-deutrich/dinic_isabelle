@@ -1,10 +1,11 @@
 theory Layering_Algo
   imports
     Cleaning_Algo
-    EdmondsKarp_Maxflow.Augmenting_Path_BFS
+    (*EdmondsKarp_Maxflow.Augmenting_Path_BFS*)
 begin
 
-no_notation Heap_Monad.return ("return")
+(*no_notation Heap_Monad.return ("return")*)
+interpretation Refine_Monadic_Syntax .
 
 subsection \<open>Extended BFS\<close>
 text \<open>In this section, we present an extended version of breadth-first search, which builds a graph

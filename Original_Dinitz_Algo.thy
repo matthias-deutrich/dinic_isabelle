@@ -1,5 +1,5 @@
 theory Original_Dinitz_Algo
-  imports Layering_Algo NetworkUtils
+  imports Layering_Algo NetworkUtils (*EdmondsKarp_Maxflow.EdmondsKarp_Impl*) (*Refine_Monadic.Refine_Monadic*)
 begin
 (* TODO do we need f? *)
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
@@ -15,8 +15,12 @@ interpretation aug_cf: GraphComparison "cleaning s t (g'.subtract_graph f')" "cf
 interpretation f'_cont_cf: Pos_Contained_Graph f' cf
   by unfold_locales (metis NPreflow.resE_nonNegative NPreflow_axioms c'_sg_c_old f'.flow_pos_cont.cap_le order_trans)
 
+find_theorems name:augment_alt
+find_theorems "residualGraph ?c (NFlow.augment ?c ?f ?f') = Graph.subtract_skew_graph (residualGraph ?c ?f) ?f'"
+find_theorems "Contained_Graph ?f' cf \<Longrightarrow> cf_of (augment ?f') = cf.subtract_skew_graph ?f'"
+
 lemma aug_cf_alt: "cf_of (augment f') = cf.subtract_skew_graph f'"
-  using augment_alt f'_cont_cf.Contained_Graph_axioms .
+  using augment_alt' f'_cont_cf.Contained_Graph_axioms .
 
 definition new_edge_count :: "path \<Rightarrow> nat"
   where "new_edge_count p \<equiv> length (filter (\<lambda>e. e \<notin> cf.E) p)"
@@ -451,8 +455,153 @@ thm ST_Layer_Graph.greedy_st_path_finding_correct
 
 thm subtract_path_algo_correct
 
-thm inner_path_vertices_algo_correct
+thm Graph.inner_path_vertices_algo_correct
 (*let Q = set (Graph.pathVertices s p) - {s, t};*)
+
+thm Finite_Bounded_Graph.cleaning_algo_correct
+
+(* TODO refine augment *)
+(*thm augment_cf_refine*)
+
+(*definition dinitz_phase_intermediate :: "_ flow nres" where
+  "dinitz_phase_intermediate \<equiv> do {
+    stl \<leftarrow> spec c'. ST_Shortest_Path_Union c' c s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> select p. Graph.isPath stl s p t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            Q_ls \<leftarrow> return (tl (butlast (Graph.pathVertices s p)));
+            stl \<leftarrow> return (Graph.subtract_path stl p);
+            stl \<leftarrow> return (cleaning s t stl);
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"*)
+
+(*definition dinitz_phase_intermediate :: "_ flow nres" where
+  "dinitz_phase_intermediate \<equiv> do {
+    stl1 \<leftarrow> spec c'. ST_Shortest_Path_Union c' c s t;
+    (f'i, _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brki). \<not> brki)
+      (\<lambda>(f'i, stl2, _). do {
+        p'i \<leftarrow> select p. Graph.isPath stl2 s p t;
+        case p'i of
+          None \<Rightarrow> RETURN (f'i, stl2, True)
+        | Some pi \<Rightarrow> do {
+            Q_lsi \<leftarrow> return (tl (butlast (Graph.pathVertices s pi)));
+            stl3 \<leftarrow> return (Graph.subtract_path stl2 pi);
+            stl4 \<leftarrow> return (cleaning s t stl3);
+            let f'i = NFlow.augment c f'i (NPreflow.augmentingFlow c f'i pi);
+            RETURN (f'i, stl4, False)
+          }})
+      (f, stl1, False);
+    RETURN f'i}"*)
+
+definition dinitz_phase_intermediate :: "_ flow nres" where
+  "dinitz_phase_intermediate \<equiv> do {
+    stl \<leftarrow> (spec c'. ST_Shortest_Path_Union c' c s t);
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> select p. Graph.isPath stl s p t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            Q_ls \<leftarrow> return (tl (butlast (Graph.pathVertices s p)));
+            stl \<leftarrow> return (Graph.subtract_path stl p);
+            stl \<leftarrow> return (cleaning s t stl);
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
+
+(*
+definition dinitz_phase_intermediate2 :: "_ flow nres" where
+  "dinitz_phase_intermediate2 \<equiv> do {
+    stl \<leftarrow> build_st_layering s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> select p. Graph.isPath stl s p t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            Q_ls \<leftarrow> return (tl (butlast (Graph.pathVertices s p)));
+            stl \<leftarrow> return (Graph.subtract_path stl p);
+            stl \<leftarrow> return (cleaning s t stl);
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"*)
+
+
+
+
+definition dinitz_phase_i2 :: "_ flow nres" where
+  "dinitz_phase_i2 \<equiv> do {
+    stl \<leftarrow> build_st_layering s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        ASSERT (ST_Layer_Graph stl s t);
+        p' \<leftarrow> select p. Graph.isPath stl s p t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            Q_ls \<leftarrow> inner_path_vertices_algo p;
+            ASSERT (distinct p);
+            stl \<leftarrow> return (Graph.subtract_path stl p);
+            stl \<leftarrow> cleaning_algo (set Q_ls) stl;
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
+
+definition dinitz_phase_i1' :: "_ flow nres" where
+  "dinitz_phase_i1' \<equiv> do {
+    stl \<leftarrow> build_st_layering s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> Graph.greedy_st_path_finding stl s t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            Q_ls \<leftarrow> inner_path_vertices_algo p;
+            stl \<leftarrow> return (Graph.subtract_path stl p);
+            stl \<leftarrow> cleaning_algo (set Q_ls) stl;
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
+
+definition dinitz_phase_i1 :: "_ flow nres" where
+  "dinitz_phase_i1 \<equiv> do {
+    stl \<leftarrow> build_st_layering s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> Graph.greedy_st_path_finding stl s t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            Q_ls \<leftarrow> inner_path_vertices_algo p;
+            ASSERT (distinct p);
+            stl \<leftarrow> return (Graph.subtract_path stl p);
+            stl \<leftarrow> cleaning_algo (set Q_ls) stl;
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
 
 definition dinitz_phase_concrete :: "_ flow nres" where
   "dinitz_phase_concrete \<equiv> do {
@@ -466,13 +615,109 @@ definition dinitz_phase_concrete :: "_ flow nres" where
         | Some p \<Rightarrow> do {
             Q_ls \<leftarrow> inner_path_vertices_algo p;
             stl \<leftarrow> Graph.subtract_path_algo stl p;
-
-
-            let stl = cleaning s t stl;
+            stl \<leftarrow> cleaning_algo (set Q_ls) stl;
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             RETURN (f', stl, False)
           }})
       (f, stl, False);
     RETURN f'}"
+
+
+lemma dinitz_phase_i1: "dinitz_phase_concrete \<le> \<Down> Id dinitz_phase_i1"
+  unfolding dinitz_phase_concrete_def dinitz_phase_i1_def
+  apply refine_rcg
+           apply refine_dref_type
+          apply clarsimp_all
+proof -
+  show "\<And>stla x1 x1a x2a x2c x'a Q_lsa stlb stlc. \<lbrakk>\<not> x2c; \<not> x2a; (stlb, stlc) \<in> Id\<rbrakk> \<Longrightarrow> cleaning_algo (set Q_lsa) stlb \<le> cleaning_algo (set Q_lsa) stlc"
+    by simp
+  show "\<And>stla x1 x1a x2a x2c x'a Q_lsa. \<lbrakk>\<not> x2c; \<not> x2a; distinct x'a\<rbrakk> \<Longrightarrow> Graph.subtract_path_algo x1a x'a \<le> (spec c. (c, Graph.subtract_path x1a x'a) \<in> Id)"
+    apply clarsimp using Graph.subtract_path_algo_correct
+    by (metis RES_sng_eq_RETURN)
+qed
+
+lemma dinitz_phase_i2: "dinitz_phase_i1 \<le> \<Down> Id dinitz_phase_i2"
+  unfolding dinitz_phase_i1_def dinitz_phase_i2_def
+  apply refine_rcg
+            apply refine_dref_type
+           apply clarsimp_all
+proof -
+  show "\<And>stla x1 x1a x2a x2c x'a Q_lsa af bd ag be.
+       \<lbrakk>\<not> x2c; \<not> x2a; ST_Layer_Graph x1a s t; distinct x'a;
+        ((af, bd), ag, be) \<in> Id\<rbrakk>
+       \<Longrightarrow> Graph.subtract_path x1a x'a (af, bd) = Graph.subtract_path x1a x'a (ag, be)" by simp
+  show "\<And>stla x1 x1a x2a x2c x'a Q_lsa stlb stlc. \<lbrakk>\<not> x2c; \<not> x2a; ST_Layer_Graph x1a s t; distinct x'a; (stlb, stlc) \<in> Id \<rightarrow> Id\<rbrakk> \<Longrightarrow> cleaning_algo (set Q_lsa) stlb \<le> cleaning_algo (set Q_lsa) stlc"
+    by simp
+  show "\<And>x1a x2a x2c. \<lbrakk>\<not> x2c; \<not> x2a; ST_Layer_Graph x1a s t\<rbrakk> \<Longrightarrow> Graph.greedy_st_path_finding x1a s t \<le> (select p. Graph.isPath x1a s p t)"
+    using ST_Layer_Graph.greedy_st_path_finding_correct by auto
+qed
+
+lemma dinitz_phase_i1': "dinitz_phase_i1 \<le> \<Down> Id dinitz_phase_i1'"
+  unfolding dinitz_phase_i1_def dinitz_phase_i1'_def
+  apply refine_rcg
+            apply refine_dref_type
+  apply clarsimp_all oops
+
+(*
+lemma dinitz_phase_i1: "dinitz_phase_concrete \<le> \<Down> Id dinitz_phase_i1"
+  unfolding dinitz_phase_concrete_def dinitz_phase_i1_def
+  apply refine_rcg
+           apply refine_dref_type
+          apply clarsimp_all
+proof -
+  show "\<And>stla x1 x1a x2a x2c x'a Q_lsa stlb stlc. \<lbrakk>\<not> x2c; \<not> x2a; (stlb, stlc) \<in> (if distinct x'a then Id else {})\<rbrakk> \<Longrightarrow> cleaning_algo (set Q_lsa) stlb \<le> cleaning_algo (set Q_lsa) stlc"
+    by (metis dual_order.refl empty_iff pair_in_Id_conv)
+
+  show "\<And>stla x1 x1a x2a x2c x'a Q_lsa.
+       \<lbrakk>\<not> x2c; \<not> x2a\<rbrakk>
+       \<Longrightarrow> Graph.subtract_path_algo x1a x'a
+           \<le> (spec c.
+                  (c, Graph.subtract_path x1a x'a)
+                  \<in> (if distinct x'a then Id else {}))" apply auto using Graph.subtract_path_algo_correct
+     apply (metis RES_sng_eq_RETURN)
+qed*)
+
+
+(*
+thm fun_rel_def
+lemma dinitz_phase_intermediate: "dinitz_phase_intermediate2 \<le> \<Down> Id dinitz_phase_intermediate"
+  unfolding dinitz_phase_intermediate_def dinitz_phase_intermediate2_def
+  apply refine_rcg
+              apply refine_dref_type
+            prefer 9
+proof -
+  show "\<And>stl stla x x' x1 x2 x1a x2a x1b x2b x1c x2c p' p'a xa x'a Q_ls Q_lsa stlb stlc a a'.
+       \<lbrakk>(stl, stla) \<in> Id; stla \<in> {c'. ST_Shortest_Path_Union c' c s t}; (x, x') \<in> Id \<times>\<^sub>r Id \<times>\<^sub>r bool_rel; case x of (uu_, uua_, brk) \<Rightarrow> \<not> brk; case x' of (uu_, uua_, brk) \<Rightarrow> \<not> brk; x2 = (x1a, x2a);
+        x' = (x1, x2); x2b = (x1c, x2c); x = (x1b, x2b); (p', p'a) \<in> \<langle>\<langle>nat_rel \<times>\<^sub>r nat_rel\<rangle>list_rel\<rangle>option_rel; p' = Some xa; p'a = Some x'a; (xa, x'a) \<in> \<langle>nat_rel \<times>\<^sub>r nat_rel\<rangle>list_rel;
+        (Q_ls, Q_lsa) \<in> \<langle>nat_rel\<rangle>list_rel; (stlb, stlc) \<in> Id;
+        (a, a') \<in> Id\<rbrakk>
+       \<Longrightarrow> (cleaning s t stlb a, cleaning s t stlc a') \<in> Id"
+  apply simp_all
+            apply auto unfolding fun_rel_def apply auto defer apply clarsimp*)
+
+
+
+
+(*
+thm refine_dref_RELATES
+lemma dinitz_phase_intermediate: "dinitz_phase_concrete \<le> \<Down> Id dinitz_phase_intermediate"
+  unfolding dinitz_phase_concrete_def dinitz_phase_intermediate_def
+  apply refine_rcg
+            apply refine_dref_type
+           apply clarsimp_all
+proof -
+  show "\<And>stl1 x1 x1a x2a x2c x'a Q_ls Q_lsi stla stl3 stlb stl4.
+       \<lbrakk>ST_Shortest_Path_Union stl1 c s t; \<not> x2c; \<not> x2a;
+        (Q_ls, Q_lsi) \<in> Id;
+        (stla, stl3) \<in> Id;
+        (stlb, stl4) \<in> Id\<rbrakk>
+       \<Longrightarrow> stlb = stl4" by simp
+
+  show "\<And>stl1 x1 x1a x2a x2c x'a Q_ls Q_lsi stla stl3.
+       \<lbrakk>ST_Shortest_Path_Union stl1 c s t; \<not> x2c; \<not> x2a; (Q_ls, Q_lsi) \<in> Id;
+        (stla, stl3) \<in> Id\<rbrakk>
+       \<Longrightarrow> cleaning_algo (set Q_ls) stla \<le> (spec c. (c, cleaning s t stl3) \<in> Id)"
+  proof clarsimp
+*)
 end
 end

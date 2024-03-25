@@ -41,7 +41,7 @@ end
 
 context NFlow
 begin
-lemma augment_alt: "Contained_Graph f' cf \<Longrightarrow> cf_of (augment f') = cf.subtract_skew_graph f'"
+lemma augment_alt': "Contained_Graph f' cf \<Longrightarrow> cf_of (augment f') = cf.subtract_skew_graph f'"
 proof (rule ext, unfold split_paired_all)
   fix u v
   assume "Contained_Graph f' cf"
@@ -83,7 +83,7 @@ interpretation Pos_Contained_Graph f' cf
   using f'_flow unfolding Flow_def Preflow_def by unfold_locales auto
 
 lemma f'_augment_alt: "cf_of (augment f') = cf.subtract_skew_graph f'"
-  using augment_alt[OF Contained_Graph_axioms] .
+  using augment_alt'[OF Contained_Graph_axioms] .
 
 lemma augment_edges_sub: "Graph.E (cf_of (augment f')) \<subseteq> cf.E \<union> E'\<inverse>"
   unfolding f'_augment_alt using subtract_skew_edges_sub .
