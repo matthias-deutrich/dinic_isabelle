@@ -537,9 +537,18 @@ lemma "dinitz_phase_concrete_test \<le> \<Down> Id dinitz_phase_concrete_test2"
 
 
 
+thm build_st_layering_correct
 
+thm ST_Layer_Graph.greedy_st_path_finding_correct
 
+thm subtract_path_algo_correct
 
+thm Graph.inner_path_vertices_algo_correct
+(*let Q = set (Graph.pathVertices s p) - {s, t};*)
+
+thm Finite_Bounded_Graph.cleaning_algo_correct
+
+(*
 definition dinitz_phase_intermediate :: "_ flow nres" where
   "dinitz_phase_intermediate \<equiv> do {
     stl \<leftarrow> (spec c'. ST_Shortest_Path_Union c' c s t);
@@ -558,6 +567,123 @@ definition dinitz_phase_intermediate :: "_ flow nres" where
           }})
       (f, stl, False);
     RETURN f'}"
+
+definition dinitz_phase_assume :: "_ flow nres" where
+  "dinitz_phase_assume \<equiv> do {
+    stl \<leftarrow> (spec c'. ST_Shortest_Path_Union c' c s t);
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        ASSUME (ST_Shortest_Path_Union stl c s t);
+        p' \<leftarrow> select p. Graph.isPath stl s p t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            Q_ls \<leftarrow> return (tl (butlast (Graph.pathVertices s p)));
+            stl \<leftarrow> return (Graph.subtract_path stl p);
+            stl \<leftarrow> return (cleaning s t stl);
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
+*)
+
+definition dinitz_phase_assert :: "_ flow nres" where
+  "dinitz_phase_assert \<equiv> do {
+    stl \<leftarrow> (spec c'. ST_Shortest_Path_Union c' c s t);
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        ASSERT (ST_Shortest_Path_Union stl c s t);
+        p' \<leftarrow> select p. Graph.isPath stl s p t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            ASSERT (Graph.isPath stl s p t);
+            Q_ls \<leftarrow> return (tl (butlast (Graph.pathVertices s p)));
+            stl \<leftarrow> return (Graph.subtract_path stl p);
+            stl \<leftarrow> return (cleaning s t stl);
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
+
+definition dinitz_phase_concrete :: "_ flow nres" where
+  "dinitz_phase_concrete \<equiv> do {
+    stl \<leftarrow> build_st_layering s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> Graph.greedy_st_path_finding stl s t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            Q_ls \<leftarrow> inner_path_vertices_algo p;
+            stl \<leftarrow> Graph.subtract_path_algo stl p;
+            stl \<leftarrow> cleaning_algo (set Q_ls) stl;
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl, False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
+
+(*
+end
+context ST_Shortest_Path_Union
+begin
+find_theorems "ST_Layer_Graph"
+end
+lemma "ST_Shortest_Path_Union c' c s t \<Longrightarrow> ST_Layer_Graph c' s t"
+  oops
+context NFlow
+begin
+*)
+
+(*
+lemma "dinitz_phase_assert \<le> \<Down> Id dinitz_phase_assume"
+  unfolding dinitz_phase_assert_def dinitz_phase_assume_def
+  apply refine_rcg
+            apply refine_dref_type
+           apply clarsimp_all
+*)
+
+
+lemma "dinitz_phase_concrete \<le> \<Down> Id dinitz_phase_assert"
+  unfolding dinitz_phase_concrete_def dinitz_phase_assert_def
+  apply refine_rcg
+            apply refine_dref_type
+           apply clarsimp_all
+  using build_st_layering_correct apply simp
+proof -
+  fix stl
+  assume "ST_Shortest_Path_Union stl c s t"
+  then interpret ST_Shortest_Path_Union stl c s t .
+  show "Graph.greedy_st_path_finding stl s t \<le> (select p. Graph.isPath stl s p t)"
+    using greedy_st_path_finding_correct .
+
+  fix p
+  assume "g'.isPath s p t"
+  then have SP: "g'.isShortestPath s p t" by blast
+  
+  show "inner_path_vertices_algo p \<le> RES {tl (butlast (g'.pathVertices s p))}"
+    using inner_path_vertices_algo_correct by (simp add: RES_sng_eq_RETURN)
+
+  from SP show "g'.subtract_path_algo p \<le> RES {g'.subtract_path p}"
+    using g'.isSPath_distinct g'.shortestPath_is_simple g'.subtract_path_algo_correct
+    by (fastforce simp: RES_sng_eq_RETURN)
+  (* TODO how to get the information about Q *)
+  show "cleaning_algo (set Q_lsa) stlc \<le> RES {cleaning s t stlc}" oops
+
+
+
+
+
+
+
+
+
 
 (*
 definition dinitz_phase_intermediate2 :: "_ flow nres" where
@@ -635,25 +761,6 @@ definition dinitz_phase_i1 :: "_ flow nres" where
             Q_ls \<leftarrow> inner_path_vertices_algo p;
             ASSERT (distinct p);
             stl \<leftarrow> return (Graph.subtract_path stl p);
-            stl \<leftarrow> cleaning_algo (set Q_ls) stl;
-            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-            RETURN (f', stl, False)
-          }})
-      (f, stl, False);
-    RETURN f'}"
-
-definition dinitz_phase_concrete :: "_ flow nres" where
-  "dinitz_phase_concrete \<equiv> do {
-    stl \<leftarrow> build_st_layering s t;
-    (f', _, _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, _, brk). \<not> brk)
-      (\<lambda>(f', stl, _). do {
-        p' \<leftarrow> Graph.greedy_st_path_finding stl s t;
-        case p' of
-          None \<Rightarrow> RETURN (f', stl, True)
-        | Some p \<Rightarrow> do {
-            Q_ls \<leftarrow> inner_path_vertices_algo p;
-            stl \<leftarrow> Graph.subtract_path_algo stl p;
             stl \<leftarrow> cleaning_algo (set Q_ls) stl;
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             RETURN (f', stl, False)
