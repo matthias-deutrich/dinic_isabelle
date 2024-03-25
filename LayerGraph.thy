@@ -8,6 +8,7 @@ subsection \<open>Layerings\<close>
    layering to 0 for all unconcerned nodes. Check which approach is better *)
 
 (* This version requires all nodes to be in S, and might be ugly to work with *)
+(*
 locale Local_Prelayer_Graph_Old = Graph +
   fixes layer :: "node \<Rightarrow> nat"
     and S
@@ -18,6 +19,7 @@ lemma path_prelayered: "\<lbrakk>isPath u p v; set (pathVertices u p) \<subseteq
   apply auto
   by (metis add_Suc add_le_imp_le_right empty.pathVertices_fwd_simps(5) layer_edge_weak le_antisym le_trans nat_le_linear pathVertices_fwd subset_code(1))
 end
+*)
 
 (* TODO this has a weaker precondition and is thus stronger. Check if this works and is still weak enough *)
 locale Local_Prelayer_Graph = Graph +

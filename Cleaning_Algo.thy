@@ -535,6 +535,9 @@ theorem left_pass_refine_correct:
   (*by (metis converse_converse converse_empty)*)
 end
 
+lemmas nfoldli_to_fold =
+  foldli_eq_nfoldli[where c="\<lambda>_. True", symmetric, unfolded foldli_foldl foldl_conv_fold]
+
 context Graph
 begin
 
@@ -557,8 +560,6 @@ definition subtract_path_algo :: "path \<Rightarrow> _ graph nres" where
     RETURN c'
   }"
 
-lemmas nfoldli_to_fold =
-  foldli_eq_nfoldli[where c="\<lambda>_. True", symmetric, unfolded foldli_foldl foldl_conv_fold]
 
 lemma path_cap_algo_correct: "path_cap_algo p = RETURN (if p = [] then 0 else pathCap p)"
   unfolding path_cap_algo_def pathCap_alt
@@ -578,6 +579,57 @@ lemma subtract_path_algo_correct:
 
 end
 
+find_theorems Graph.pathVertices
+find_theorems Graph.pathVertices_fwd
+
+(* TODO invert *)
+definition inner_path_vertices_algo :: "path \<Rightarrow> node list nres" where
+  "inner_path_vertices_algo p \<equiv> case p of
+    [] \<Rightarrow> RETURN []
+  | (_ # p) \<Rightarrow> nfoldli p (\<lambda>_. True) (\<lambda>e us. RETURN (us @ [fst e])) []"
+
+term butlast
+term tl
+find_theorems butlast tl
+thm nfoldli_to_fold
+context Graph
+begin
+
+find_theorems pathVertices "(@)"
+find_theorems pathVertices_fwd "(@)"
+thm pathVertices.induct
+find_theorems name:induct "(@)"
+
+thm rev_induct
+thm pathVertices_alt
+thm pathVertices.elims
+thm pathVertices.simps
+
+lemma inner_path_vertices_algo_correct:
+  "inner_path_vertices_algo p = RETURN (tl (butlast (pathVertices u p)))"
+proof (cases p)
+  case Nil
+  then show ?thesis unfolding inner_path_vertices_algo_def by auto
+next
+  case (Cons _ p')
+  then show ?thesis
+  proof (induction p' arbitrary: p rule: rev_induct)
+    case Nil
+    then show ?case unfolding inner_path_vertices_algo_def by auto
+  next
+    case (snoc x xs)
+    then show ?case
+      unfolding inner_path_vertices_algo_def
+      apply (auto simp: nfoldli_to_fold elim: pathVertices.elims)
+      by (smt (z3) Graph.pathVertices.simps(1) list.simps(8) list.simps(9) list_e_eq_lel(2) map_append pathVertices_alt snoc_eq_iff_butlast)
+  qed
+qed
+end
+
+
+
+
+
 definition cleaning_algo :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
   "cleaning_algo Q c \<equiv> do {
     c \<leftarrow> right_pass_refine Q c;
@@ -588,14 +640,42 @@ context Finite_Bounded_Graph
 begin
 thm right_pass_refine_correct
 thm left_pass_refine_correct
+find_theorems "Distance_Bounded_Graph c"
 
 lemma cleaning_algo_correct:
-  assumes S_NO_IN: "incoming s = {}" and T_NO_OUT: "outgoing t = {}"
+  assumes S_PROPS: "incoming s = {}" "outgoing s \<noteq> {}"
+    and T_PROPS: "outgoing t = {}" "incoming t \<noteq> {}"
     and Q_START: "s \<notin> Q" "t \<notin> Q" "\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}" "finite Q"
   shows "cleaning_algo Q c \<le> RETURN (cleaning s t c)"
   unfolding cleaning_algo_def
-proof -
-  apply simp
+proof (refine_vcg, simp)
+  have "right_pass_refine Q c \<le> RETURN (right_pass s c)"
+    using assms by (blast intro: right_pass_refine_correct)
+  also have "... \<le> SPEC (\<lambda>ca. left_pass_refine Q ca \<le> RES {cleaning s t c})"
+  proof simp
+    interpret Subgraph "right_pass s c" c using right_pass_Subgraph .
+    have "left_pass_refine Q (right_pass s c) \<le> RETURN (left_pass t (right_pass s c))" (* TODO prettify *)
+      apply (intro Finite_Bounded_Graph.left_pass_refine_correct)
+          prefer 3 using assms apply simp
+         prefer 4 using assms apply simp
+        prefer 2 subgoal
+        using \<open>outgoing t = {}\<close>
+        unfolding Graph.outgoing_def Graph.E_def right_pass_def by simp
+      unfolding Finite_Bounded_Graph_def apply auto[1]
+      using edges_ss g'.Finite_Graph_EI rev_finite_subset apply blast
+      using Distance_Bounded_Graph_axioms apply (rule sg_Distance_Bounded)
+      sorry
 
+
+
+
+
+
+    also have "... \<le> RES {cleaning s t c}"
+      by (simp add: ST_Graph.left_right_pass_is_cleaning)
+    finally show "left_pass_refine Q (right_pass s c) \<le> RES {cleaning s t c}" .
+  qed
+  finally show "right_pass_refine Q c \<le> SPEC (\<lambda>ca. left_pass_refine Q ca \<le> RES {cleaning s t c})" .
+qed
 end
 end

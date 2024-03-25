@@ -451,6 +451,9 @@ thm ST_Layer_Graph.greedy_st_path_finding_correct
 
 thm subtract_path_algo_correct
 
+thm inner_path_vertices_algo_correct
+(*let Q = set (Graph.pathVertices s p) - {s, t};*)
+
 definition dinitz_phase_concrete :: "_ flow nres" where
   "dinitz_phase_concrete \<equiv> do {
     stl \<leftarrow> build_st_layering s t;
@@ -461,7 +464,7 @@ definition dinitz_phase_concrete :: "_ flow nres" where
         case p' of
           None \<Rightarrow> RETURN (f', stl, True)
         | Some p \<Rightarrow> do {
-            let Q = set (Graph.pathVertices s p) - {s, t};
+            Q_ls \<leftarrow> inner_path_vertices_algo p;
             stl \<leftarrow> Graph.subtract_path_algo stl p;
 
 
