@@ -443,11 +443,11 @@ thm build_st_layering_correct
 
 (* TODO cleanup assertions *)
 
+(*
 definition dinitz_phase_assert :: "_ flow nres" where
   "dinitz_phase_assert \<equiv> do {
     stl \<leftarrow> (spec c'. ST_Shortest_Path_Union c' c s t);
-    assert (ST_Shortest_Path_Union stl c s t);
-    (f', _, _) \<leftarrow> WHILE\<^sub>T
+    (f', _, _) \<leftarrow> WHILE\<^sub>T\<^bsup>(ST_Shortest_Path_Union stl c s t)\<^esup>
       (\<lambda>(_, _, brk). \<not> brk)
       (\<lambda>(f', stl, _). do {
         assert (ST_Shortest_Path_Union stl c s t);
@@ -466,12 +466,109 @@ definition dinitz_phase_assert :: "_ flow nres" where
           }})
       (f, stl, False);
     RETURN f'}"
+*)
+definition dinitz_phase_assert_invar :: "(_ flow \<times> _ graph \<times> bool) \<Rightarrow> bool" where
+  "dinitz_phase_assert_invar \<equiv> \<lambda>(f', stl, brk).
+    NFlow c s t f'
+    \<and> Bounded_ST_Shortest_Path_Union stl (cf_of f') s t (cf.min_dist s t)
+    \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t \<le> Graph.min_dist (cf_of f') s t)
+    \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t)"
+
+(* TODO redo with WHILEIT? *)
+definition dinitz_phase_assert :: "_ flow nres" where
+  "dinitz_phase_assert \<equiv> do {
+    stl \<leftarrow> (spec c'. ST_Shortest_Path_Union c' cf s t);
+    (f', _, _) \<leftarrow> WHILE\<^sub>T\<^bsup>dinitz_phase_assert_invar\<^esup>
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+        p' \<leftarrow> select p. Graph.isPath stl s p t;
+        case p' of
+          None \<Rightarrow> RETURN (f', stl, True)
+        | Some p \<Rightarrow> do {
+            assert (Graph.isPath stl s p t);
+            Q_ls \<leftarrow> return (tl (butlast (Graph.pathVertices s p)));
+            assert (set Q_ls = set (Graph.pathVertices s p) - {s, t});
+            stl' \<leftarrow> return (Graph.subtract_path stl p);
+            assert (Subgraph stl' stl \<and> Graph.E stl \<subseteq> Graph.E stl' \<union> set p);
+            stl' \<leftarrow> return (cleaning s t stl');
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl', False)
+          }})
+      (f, stl, False);
+    RETURN f'}"
+
+(*
+definition dinitz_phase_assert_invar :: "(_ flow \<times> _ graph \<times> bool) \<Rightarrow> bool" where
+  "dinitz_phase_assert_invar \<equiv> \<lambda>(f', stl, brk).
+    NFlow c s t f'
+    \<and> (if Graph.connected stl s t
+        then ST_Shortest_Path_Union stl (cf_of f') s t \<and> cf.min_dist s t = Graph.min_dist (cf_of f') s t
+        else Graph.isEmpty stl \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t < Graph.min_dist (cf_of f') s t))
+    \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t)"
+*)
+
+lemma dinitz_phase_assert_invar_alt:
+  "dinitz_phase_assert_invar = (\<lambda>(f', stl, brk).
+    dinitz_phase_invar (f', stl)
+    \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t))"
+  unfolding dinitz_phase_invar_def dinitz_phase_assert_invar_def by simp
+
+
+
+
+(*
+lemma dinitz_phase_assert_final:
+  fixes f' stl
+    assumes INVAR: "dinitz_phase_assert_invar (f', stl, True)"
+    shows "res_dist_increasing_flow f'"
+  unfolding res_dist_increasing_flow_def
+proof
+  from INVAR interpret f': NFlow c s t f' unfolding dinitz_phase_invar_def by blast
+  show "NFlow c s t f'" using f'.NFlow_axioms .
+
+  from INVAR interpret Bounded_ST_Shortest_Path_Union stl f'.cf s t "cf.min_dist s t"
+    unfolding dinitz_phase_invar_def by blast
+  from DISCON show "f'.cf.connected s t \<longrightarrow> cf.min_dist s t < f'.cf.min_dist s t"
+    by (metis Bounded_ST_Shortest_Path_Union_axioms ST_Shortest_Path_Union.st_connected_iff le_eq_less_or_eq linorder_neqE_nat min_st_dist_bound)
+qed*)
+
+term less_than_bool
+find_consts "bool rel"
+thm dinitz_phase_step
+definition "dinitz_phase_assert_wf_rel \<equiv> inv_image
+  (less_than_bool <*lex*> finite_psubset)
+  (\<lambda>(_, stl, brk). (\<not>brk, Graph.E stl))"
+lemma dinitz_phase_assert_correct:
+  "dinitz_phase_assert \<le> SPEC (\<lambda>f'. res_dist_increasing_flow f')"
+  unfolding dinitz_phase_assert_def
+  apply (refine_vcg WHILET_rule[where I=dinitz_phase_assert_invar and R=dinitz_phase_assert_wf_rel])
+  apply clarsimp_all
+  unfolding dinitz_phase_assert_wf_rel_def
+                     apply (all \<open>(clarsimp; fail)?\<close>)
+           apply (simp add: wf_lex_prod)
+          prefer 9
+          apply (simp add: dinitz_phase_assert_invar_def res_dist_increasing_flow_def)
+         apply (simp add: dinitz_phase_assert_invar_def) subgoal for c'
+    apply auto
+(*           prefer 7
+  apply clarify*)
+proof (clarsimp_all)
+  fix f' stl
+  assume "dinitz_phase_assert_invar (f', stl, True)"
+  then show "res_dist_increasing_flow f'"
+    unfolding dinitz_phase_assert_invar_def res_dist_increasing_flow_def by simp
+next
+
+
+
+
+       apply (simp_all add: dinitz_phase_step dinitz_phase_final)
+  by (simp_all add: dinitz_phase_invar_def res_dist_increasing_flow_def NFlow_axioms induced_st_shortest_path_union min_st_dist_bound)
 
 definition dinitz_phase_concrete :: "_ flow nres" where
   "dinitz_phase_concrete \<equiv> do {
-    stl \<leftarrow> build_st_layering s t;
-    assert (ST_Shortest_Path_Union stl c s t);
-    (f', _, _) \<leftarrow> WHILE\<^sub>T
+    stl \<leftarrow> cf.build_st_layering s t;
+    (f', _, _) \<leftarrow> WHILE\<^sub>T\<^bsup>dinitz_phase_assert_invar\<^esup>
       (\<lambda>(_, _, brk). \<not> brk)
       (\<lambda>(f', stl, _). do {
         assert (ST_Shortest_Path_Union stl c s t);
@@ -479,14 +576,13 @@ definition dinitz_phase_concrete :: "_ flow nres" where
         case p' of
           None \<Rightarrow> RETURN (f', stl, True)
         | Some p \<Rightarrow> do {
-            assert (Graph.isPath stl s p t);
             Q_ls \<leftarrow> inner_path_vertices_algo p;
             assert (set Q_ls = set (Graph.pathVertices s p) - {s, t});
             stl' \<leftarrow> Graph.subtract_path_algo stl p;
             assert (Subgraph stl' stl \<and> Graph.E stl \<subseteq> Graph.E stl' \<union> set p);
             stl' \<leftarrow> cleaning_algo (set Q_ls) stl';
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-            RETURN (f', stl, False)
+            RETURN (f', stl', False)
           }})
       (f, stl, False);
     RETURN f'}"
@@ -512,12 +608,13 @@ lemma (in Graph) aux2: "u \<notin> set (pathVertices s p) \<Longrightarrow> (v, 
   apply (simp add: Graph.pathVertices_append) apply auto
   by (induction p arbitrary: s) auto(*TODO*)*)
 
+(* TODO redo using BOUND! *)
 lemma "dinitz_phase_concrete \<le> \<Down> Id dinitz_phase_assert"
   unfolding dinitz_phase_concrete_def dinitz_phase_assert_def
   apply refine_rcg
             apply refine_dref_type
            apply clarsimp_all
-  using build_st_layering_correct apply simp
+  using cf.build_st_layering_correct apply simp
 proof -
   fix stl
   assume "ST_Shortest_Path_Union stl c s t"

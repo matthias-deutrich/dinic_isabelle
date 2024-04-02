@@ -23,6 +23,9 @@ text \<open>isabelle jedit -l Collections <filename>.thy\<close>
 text \<open>To find out whether the locale hierarchy can be instantiated, use the following on top level:\<close>
 text \<open>interpretation ST_Layer_Graph undefined undefined undefined sorry\<close>
 
+text \<open>For checking which subgoals can be solved by auto without changing the unsolved ones, use:\<close>
+text \<open>apply (all \<open>(auto simp: transpose_graph_rel_def; fail)?\<close>)\<close>
+
 (* TODO remove *)
 lemma "disjnt A B \<Longrightarrow> disjnt X Y \<Longrightarrow> A \<times> X \<union> B \<times> Y = (A \<union> B) \<times> (X \<union> Y) - A \<times> Y - B \<times> X" oops
 lemma "disjnt A B \<Longrightarrow> disjnt X Y \<Longrightarrow> A \<times> X \<union> B \<times> Y = (A \<union> B) \<times> X \<union> (A \<union> B) \<times> Y - A \<times> Y - B \<times> X" oops
