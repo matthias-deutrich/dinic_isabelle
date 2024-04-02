@@ -535,6 +535,8 @@ theorem left_pass_refine_correct:
   (*by (metis converse_converse converse_empty)*)
 end
 
+
+
 lemmas nfoldli_to_fold =
   foldli_eq_nfoldli[where c="\<lambda>_. True", symmetric, unfolded foldli_foldl foldl_conv_fold]
 
@@ -643,14 +645,16 @@ thm left_pass_refine_correct
 find_theorems "Distance_Bounded_Graph c"
 
 lemma cleaning_algo_correct:
-  assumes S_PROPS: "incoming s = {}" "outgoing s \<noteq> {}"
-    and T_PROPS: "outgoing t = {}" "incoming t \<noteq> {}"
+  assumes S_NO_IN: "incoming s = {}"
+    and T_NO_OUT: "outgoing t = {}"
     and Q_START: "s \<notin> Q" "t \<notin> Q" "\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}" "finite Q"
   shows "cleaning_algo Q c \<le> RETURN (cleaning s t c)"
   unfolding cleaning_algo_def
 proof (refine_vcg, simp)
-  have "right_pass_refine Q c \<le> RETURN (right_pass s c)"
-    using assms by (blast intro: right_pass_refine_correct)
+  from T_NO_OUT \<open>\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}\<close> have "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
+    by (cases "incoming t = {}") (auto simp: incoming_def outgoing_def V_def)
+  with assms have "right_pass_refine Q c \<le> RETURN (right_pass s c)"
+    by (blast intro: right_pass_refine_correct)
   also have "... \<le> SPEC (\<lambda>ca. left_pass_refine Q ca \<le> RES {cleaning s t c})"
   proof simp
     interpret Subgraph "right_pass s c" c using right_pass_Subgraph .
@@ -667,7 +671,17 @@ proof (refine_vcg, simp)
     proof
       fix u
       assume "u \<in> V' - Q - {t}"
-      then have "outgoing u \<noteq> {}" using assms V_ss by auto
+      then have "outgoing u \<noteq> {}" (* TODO prettify *)
+      proof (cases "outgoing s = {}")
+        case True
+        with S_NO_IN have "s \<notin> V" unfolding incoming_def outgoing_def V_def by blast
+        then have "s \<notin> V'" using V_ss by blast
+        with \<open>u \<in> V' - Q - {t}\<close> have "u \<noteq> s" by blast
+        with assms \<open>u \<in> V' - Q - {t}\<close> show ?thesis using V_ss by blast
+      next
+        case False
+        with \<open>u \<in> V' - Q - {t}\<close> show ?thesis using assms V_ss by auto
+      qed
       then obtain v where "(u, v) \<in> E" by fast
 
       from \<open>u \<in> V' - Q - {t}\<close> have "u \<in> V'" by blast
