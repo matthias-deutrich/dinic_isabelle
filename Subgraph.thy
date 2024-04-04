@@ -203,8 +203,23 @@ locale Contained_Graph = GraphComparison c' c for c' c :: "'capacity:: linordere
   assumes cap_abs_le:
     "(0 \<le> c' (u, v) \<and> c' (u, v) \<le> c (u, v)) \<or> (c (u, v) \<le> c' (u, v) \<and> c' (u, v) \<le> 0)"
 begin
-lemma edges_ss: "E' \<subseteq> E" unfolding Graph.E_def
-  by clarify (metis nle_le cap_abs_le)
+(* TODO combine these with Subgraph *)
+lemma edges_ss: "E' \<subseteq> E" unfolding Graph.E_def by clarify (metis nle_le cap_abs_le)
+
+lemma vertices_ss: "V' \<subseteq> V" unfolding Graph.V_def using edges_ss by blast
+
+lemma cont_incoming_ss: "g'.incoming u \<subseteq> incoming u"
+  unfolding Graph.incoming_def using edges_ss by fastforce
+
+lemma cont_outgoing_ss: "g'.outgoing u \<subseteq> outgoing u"
+  unfolding Graph.outgoing_def using edges_ss by fastforce
+
+lemma cont_paths_are_base_paths: "g'.isPath u p v \<Longrightarrow> isPath u p v"
+  apply (induction rule: g'.isPath_front_induct)
+  using edges_ss by auto
+
+lemma cont_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distance_Bounded_Graph c' b"
+  using cont_paths_are_base_paths by (metis Distance_Bounded_Graph_def Graph.dist_def)
 
 lemma contained_irreducible: "Irreducible_Graph c \<Longrightarrow> Irreducible_Graph c'"
   unfolding Irreducible_Graph_def

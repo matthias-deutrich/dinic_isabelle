@@ -679,8 +679,13 @@ sublocale Bounded_S_Shortest_Path_Union c' c s "{t}" b
 sublocale Bounded_T_Shortest_Path_Union c' c "{s}" t b
   by unfold_locales (simp add: bounded_shortest_st_path_union)
 
-sublocale Distance_Bounded_Graph c' "min_dist s t"
-  apply (intro g'.Distance_Bounded_Graph_PathI) oops (* TODO solve and move *)
+thm S_Layer_Graph_axioms
+thm s_connected s_layered
+(* TODO prettify and generalize *)
+sublocale ST_Layer_Graph c' s t
+  apply unfold_locales
+  using obtain_close_ST apply blast
+  by (metis Graph.min_dist_is_dist UnCI add_Suc dist_layer g'.V_alt image_eqI obtain_close_ST s_layered singletonD snd_conv)
 
 find_theorems "(?P \<longrightarrow> ?Q) \<Longrightarrow> \<not> ?Q \<longrightarrow> \<not> ?P" (* TODO *)
 thm not_mono

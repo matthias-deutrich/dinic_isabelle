@@ -413,7 +413,7 @@ definition rightPass_total_invar :: "_ graph \<Rightarrow> node \<Rightarrow> (_
                                 \<and> finite Q"
 
 (* TODO does this make sense?
-interpretation subgraph: wellorder isSubgraph isProperSubgraph sorry
+interpretation subgraph: wellorder isSubgraph isProperSubgraph oops
 thm subgraph.wf
 *)
 
@@ -554,7 +554,7 @@ definition path_cap_algo :: "path \<Rightarrow> 'capacity nres" where
   "path_cap_algo p \<equiv> case p of
     [] \<Rightarrow> RETURN 0
   | (e # p) \<Rightarrow> nfoldli p (\<lambda>_. True) (\<lambda>e cap. RETURN (min (c e) cap)) (c e)"
-
+thm Graph.subtract_path_def
 definition subtract_path_algo :: "path \<Rightarrow> _ graph nres" where
   "subtract_path_algo p \<equiv> do {
     cap \<leftarrow> path_cap_algo p;
