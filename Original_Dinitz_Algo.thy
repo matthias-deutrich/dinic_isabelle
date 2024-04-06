@@ -767,4 +767,17 @@ qed
 lemma dinitz_phase_concrete_correct: "dinitz_phase_concrete \<le> SPEC (\<lambda>f'. res_dist_increasing_flow f')"
   using dinitz_phase_concrete_refine dinitz_phase_assert_correct by simp
 end
+
+context Network
+begin
+definition dinitz_concrete :: "_ flow nres" where
+  "dinitz_concrete \<equiv> do {
+    f \<leftarrow> WHILE\<^sub>T
+      (\<lambda>f. Graph.connected (residualGraph c f) s t)
+      (\<lambda>f. NFlow.dinitz_phase c s t f)
+      (\<lambda>_. 0);
+    RETURN f}"
+
+thm NFlow.res_dist_increasing_flow_def
+end
 end
