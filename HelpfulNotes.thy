@@ -1,6 +1,12 @@
 theory HelpfulNotes
 imports "Flow_Networks.Ford_Fulkerson"
 begin
+subsection \<open>Naming Conventions\<close>
+text \<open>Naming conventions of the base project are not always clear. Thus we try to follow these:
+  - theories and locales: Camel_Underscore_Case
+  - lemmas: snake_case
+  - definitions and functions: lowerCamelCase\<close>
+
 subsection \<open>For proofs on edges:\<close>
 text \<open>Use "unfold split_paired_all" or clarify to directly fix edge endpoints.\<close>
 thm split_paired_all

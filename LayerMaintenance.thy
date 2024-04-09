@@ -332,7 +332,7 @@ qed
 
 
 lemma layered_cleaning_shortest_path_union:
-  "\<exists>l. Generic_Layer_Graph c l \<Longrightarrow> ST_Shortest_Path_Union cl c s t"
+  "\<exists>l. Generic_Layer_Graph c l \<Longrightarrow> Dual_Shortest_Path_Union cl c s t"
 proof
   assume "\<exists>l. Generic_Layer_Graph c l"
   then obtain l where "Generic_Layer_Graph c l" by blast

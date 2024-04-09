@@ -638,7 +638,7 @@ lemma path_is_shortest[intro]: "isPath u p v \<Longrightarrow> isShortestPath u 
   unfolding isShortestPath_def using paths_unique_len by (metis order_refl)
 end \<comment> \<open>Generic_Layer_Graph\<close>
 
-locale S_Layer_Graph = Graph +
+locale Source_Layer_Graph = Graph +
   fixes s
   assumes s_connected[intro]: "u \<in> V \<Longrightarrow> connected s u"
       and s_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist s u) = min_dist s v" (* TODO which direction is better for simp? *)
@@ -657,9 +657,9 @@ corollary no_incomingD: "incoming u = {} \<Longrightarrow> u \<notin> V \<or> u 
 lemma front_terminal_path_is_s_path:
   "isPath u p v \<Longrightarrow> v \<in> V \<Longrightarrow> incoming u = {} \<Longrightarrow> isPath s p v"
   using connected_def connected_inV_iff no_incomingD by blast
-end \<comment> \<open>S_Layer_Graph\<close>
+end \<comment> \<open>Source_Layer_Graph\<close>
 
-locale T_Layer_Graph = Graph +
+locale Target_Layer_Graph = Graph +
   fixes t
   assumes t_connected[intro]: "u \<in> V \<Longrightarrow> connected u t"
       and t_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist v t) = min_dist u t"
@@ -675,9 +675,9 @@ corollary no_outgoingD: "outgoing u = {} \<Longrightarrow> u \<notin> V \<or> u 
 lemma back_terminal_path_is_t_path:
   "isPath u p v \<Longrightarrow> u \<in> V \<Longrightarrow> outgoing v = {} \<Longrightarrow> isPath u p t"
   using connected_def connected_inV_iff no_outgoingD by blast
-end \<comment> \<open>T_Layer_Graph\<close>
+end \<comment> \<open>Target_Layer_Graph\<close>
 
-locale ST_Layer_Graph = Graph +
+locale Dual_Layer_Graph = Graph +
   fixes s t
   assumes st_connected: "u \<in> V \<Longrightarrow> connected s u \<and> connected u t"
       and st_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist s u + min_dist v t) = min_dist s t"
@@ -695,12 +695,12 @@ proof -
   then show ?thesis using that by blast (* TODO prettify *)
 qed (* TODO this idea is reused, can this be prevented? Maybe set this up as Intro for ST_Layer_Graph *)
 
-sublocale S_Layer_Graph unfolding S_Layer_Graph_def
+sublocale Source_Layer_Graph unfolding Source_Layer_Graph_def
   by (fastforce elim: obtain_shortest_st_path_via_edge
                 dest: split_shortest_path_around_edge st_connected
                 simp: isShortestPath_min_dist_def)
 
-sublocale T_Layer_Graph unfolding T_Layer_Graph_def
+sublocale Target_Layer_Graph unfolding Target_Layer_Graph_def
   by (fastforce elim: obtain_shortest_st_path_via_edge
                 dest: split_shortest_path_around_edge st_connected
                 simp: isShortestPath_min_dist_def)
@@ -722,7 +722,7 @@ proof
     with DIST show ?thesis using dist_layer layer_bounded_by_t by fastforce
   qed
 qed
-end \<comment> \<open>ST_Layer_Graph\<close>
+end \<comment> \<open>Dual_Layer_Graph\<close>
 
 \<comment> \<open>Layerings\<close>
 

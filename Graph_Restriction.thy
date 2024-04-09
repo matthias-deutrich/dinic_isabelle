@@ -156,7 +156,7 @@ corollary min_dist_transfer: "g'.connected u v \<Longrightarrow> g'.min_dist u v
   by meson
 end
 
-locale S_Shortest_Path_Union = CapacityCompatibleGraphs + 
+locale Source_Shortest_Path_Union = CapacityCompatibleGraphs + 
   fixes s T
   assumes shortest_s_path_union: "E' = \<Union>{set p | p. \<exists>t. t \<in> T \<and> isShortestPath s p t}"
 begin
@@ -166,7 +166,7 @@ sublocale Subgraph
 sublocale Shortest_Path_Union c' c "{s}" T
   by unfold_locales (simp add: shortest_s_path_union)
 
-sublocale S_Layer_Graph c' s
+sublocale Source_Layer_Graph c' s
 proof
   fix u
   assume "u \<in> V'"
@@ -208,7 +208,7 @@ proof
   assume "(u, v) \<in> E"
 *)
 
-lemma restrict_T_to_reachable: "S_Shortest_Path_Union c' c s (reachableNodes s \<inter> T)"
+lemma restrict_T_to_reachable: "Source_Shortest_Path_Union c' c s (reachableNodes s \<inter> T)"
   using shortest_s_path_union reachableNodes_def connected_def isShortestPath_min_dist_def
   by unfold_locales auto
 
@@ -236,28 +236,28 @@ next
   with SP show ?thesis
     by (meson Graph.isPath_alt Graph.shortestPath_is_path g'.split_shortest_path)
 qed
-end \<comment> \<open>S_Shortest_Path_Union\<close>
+end \<comment> \<open>Source_Shortest_Path_Union\<close>
 
 (* TODO generalize and use universally *)
 (* this will only work in one direction TODO fix or remove *)
 (*
-lemma (in CapacityCompatibleGraphs) S_Shortest_Path_Union_pathI:
-  "(\<And>t p. \<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t) \<Longrightarrow> S_Shortest_Path_Union c' c s T"
+lemma (in CapacityCompatibleGraphs) Source_Shortest_Path_Union_pathI:
+  "(\<And>t p. \<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t) \<Longrightarrow> Source_Shortest_Path_Union c' c s T"
 proof
 *)
 
-locale T_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Target_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes S t
   assumes shortest_t_path_union: "E' = \<Union>{set p | p. \<exists>s. s \<in> S \<and> isShortestPath s p t}"
 begin
-text \<open>Note that this is symmetric to S_Shortest_Path_Union, thus the path/dist transfer properties
+text \<open>Note that this is symmetric to Source_Shortest_Path_Union, thus the path/dist transfer properties
       hold here as well. However, since we never use this locale without the other, and we would
       need to setup Generic_Layer_Graph using int instead of nat, we do not show them here again.\<close>
 
 sublocale Shortest_Path_Union c' c S "{t}"
   by unfold_locales (simp add: shortest_t_path_union)
 
-sublocale T_Layer_Graph c' t
+sublocale Target_Layer_Graph c' t
 proof
   fix u
   assume "u \<in> V'"
@@ -272,21 +272,21 @@ next
   then show "Suc (g'.min_dist v t) = g'.min_dist u t"
     using edge_on_shortest_path g'.isShortestPath_level_edge(5) shortest_ST_path_remains by fastforce
 qed
-end \<comment> \<open>T_Shortest_Path_Union\<close>
+end \<comment> \<open>Target_Shortest_Path_Union\<close>
 
-locale ST_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Dual_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes s t
   assumes shortest_st_path_union: "E' = \<Union>{set p | p. isShortestPath s p t}"
 begin
-sublocale S_Shortest_Path_Union c' c s "{t}"
+sublocale Source_Shortest_Path_Union c' c s "{t}"
   by unfold_locales (simp add: shortest_st_path_union)
 
-sublocale T_Shortest_Path_Union c' c "{s}" t
+sublocale Target_Shortest_Path_Union c' c "{s}" t
   by unfold_locales (simp add: shortest_st_path_union)
 
 text \<open>Note that due connectivity being declared as intro for S/T_Layer_Graph, this proof is
       completely automatic (as opposed to the ones in S/T_Shortest_Path_Union).\<close>
-sublocale ST_Layer_Graph c' s t unfolding ST_Layer_Graph_def
+sublocale Dual_Layer_Graph c' s t unfolding Dual_Layer_Graph_def
   using edge_on_shortest_path g'.isShortestPath_level_edge(6) shortest_ST_path_remains by fastforce
 
 lemma st_connected_iff: "g'.connected s t \<longleftrightarrow> connected s t"
@@ -294,21 +294,21 @@ lemma st_connected_iff: "g'.connected s t \<longleftrightarrow> connected s t"
 
 lemma empty_iff: "g'.isEmpty \<longleftrightarrow> (connected s t \<longleftrightarrow> s = t)"
   using empty_iff_ST_disconnected by blast
-end \<comment> \<open>ST_Shortest_Path_Union\<close>
+end \<comment> \<open>Dual_Shortest_Path_Union\<close>
 
 (*
 lemma ST_SPU_dualI: (* TODO prettify *)
-  "\<lbrakk>S_Shortest_Path_Union c' c s {t}; T_Shortest_Path_Union c' c {s} t\<rbrakk> \<Longrightarrow> ST_Shortest_Path_Union c' c s t"
-  by (smt (verit, best) Collect_cong ST_Shortest_Path_Union_axioms.intro ST_Shortest_Path_Union_def T_Shortest_Path_Union.axioms(1) T_Shortest_Path_Union.shortest_t_path_union singleton_iff)
+  "\<lbrakk>Source_Shortest_Path_Union c' c s {t}; T_Shortest_Path_Union c' c {s} t\<rbrakk> \<Longrightarrow> Dual_Shortest_Path_Union c' c s t"
+  by (smt (verit, best) Collect_cong Dual_Shortest_Path_Union_axioms.intro Dual_Shortest_Path_Union_def T_Shortest_Path_Union.axioms(1) T_Shortest_Path_Union.shortest_t_path_union singleton_iff)
 *)
 
 lemma ST_SPU_dualI:
-  assumes S_SPU: "S_Shortest_Path_Union c' c s (Graph.V c)"
-    and T_SPU: "T_Shortest_Path_Union c'' c' (Graph.V c') t"
-  shows "ST_Shortest_Path_Union c'' c s t"
+  assumes S_SPU: "Source_Shortest_Path_Union c' c s (Graph.V c)"
+    and T_SPU: "Target_Shortest_Path_Union c'' c' (Graph.V c') t"
+  shows "Dual_Shortest_Path_Union c'' c s t"
 proof
-  from S_SPU interpret S_Shortest_Path_Union c' c s "Graph.V c" .
-  from T_SPU interpret t: T_Shortest_Path_Union c'' c' "Graph.V c'" t .
+  from S_SPU interpret Source_Shortest_Path_Union c' c s "Graph.V c" .
+  from T_SPU interpret t: Target_Shortest_Path_Union c'' c' "Graph.V c'" t .
 
   show "\<And>u v. c'' (u, v) = 0 \<or> c (u, v) = 0 \<or> c'' (u, v) = c (u, v)"
     by (metis sg_cap_cases t.sg_cap_cases)
@@ -410,7 +410,7 @@ end
 
 locale Bounded_Layered_Shortest_Path_Union = Bounded_Shortest_Path_Union + Generic_Layer_Graph c'
 
-locale Bounded_S_Shortest_Path_Union = CapacityCompatibleGraphs + 
+locale Bounded_Source_Shortest_Path_Union = CapacityCompatibleGraphs + 
   fixes s T b
   assumes bounded_shortest_s_path_union:
     "E' = \<Union>{set p | p. \<exists>t. t \<in> T \<and> isShortestPath s p t \<and> length p \<le> b}"
@@ -421,12 +421,12 @@ sublocale Subgraph
 sublocale Bounded_Shortest_Path_Union c' c "{s}" T b
   by unfold_locales (simp add: bounded_shortest_s_path_union)
 
-sublocale S_Shortest_Path_Union c' c s "{t. t \<in> T \<and> min_dist s t \<le> b}"
+sublocale Source_Shortest_Path_Union c' c s "{t. t \<in> T \<and> min_dist s t \<le> b}"
   apply unfold_locales
   by (smt (verit) Collect_cong Graph.isShortestPath_min_dist_def bounded_shortest_s_path_union mem_Collect_eq) (* TODO prettify *)
 
 text \<open>Notably, this immediately yields the fact that g' is s_layered\<close>
-thm S_Layer_Graph_axioms
+thm Source_Layer_Graph_axioms
 
 sublocale Distance_Bounded_Graph c' b
 proof (intro g'.Distance_Bounded_Graph_PathI)
@@ -439,14 +439,14 @@ proof (intro g'.Distance_Bounded_Graph_PathI)
     with PATH show ?thesis using path_ascends_layer by (auto elim: obtain_close_ST)
   qed simp
 qed
-end \<comment> \<open>Bounded_S_Shortest_Path_Union\<close>
+end \<comment> \<open>Bounded_Source_Shortest_Path_Union\<close>
 
 text \<open>Lemma for the special case of paths to ALL nodes.\<close>
 context
   fixes c' c s b
-  assumes BSPU: "Bounded_S_Shortest_Path_Union c' c s (Graph.V c) b"
+  assumes BSPU: "Bounded_Source_Shortest_Path_Union c' c s (Graph.V c) b"
 begin
-interpretation Bounded_S_Shortest_Path_Union c' c s "Graph.V c" b using BSPU .
+interpretation Bounded_Source_Shortest_Path_Union c' c s "Graph.V c" b using BSPU .
 
 lemma BSPU_V'_boundedReachable: "V' \<union> {s} = boundedReachableNodes b s"
 proof (intro equalityI; intro subsetI)
@@ -487,7 +487,7 @@ lemma Un_le_nat_extract: "\<Union> {S n |n. n \<le> (b :: nat)} = \<Union> {S n 
 (*
 (* TODO fix, needs \<inter> E *)
 lemma (in CapacityCompatibleGraphs) bounded_s_union_edges_iff:
-  "Bounded_S_Shortest_Path_Union c' c s V b \<longleftrightarrow> E' = \<Union>{exactDistNodes n s \<times> exactDistNodes (Suc n) s | n. n < b}"
+  "Bounded_Source_Shortest_Path_Union c' c s V b \<longleftrightarrow> E' = \<Union>{exactDistNodes n s \<times> exactDistNodes (Suc n) s | n. n < b}"
 proof -
   have "\<Union>{set p | p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> b} = \<Union>{exactDistNodes n s \<times> exactDistNodes (Suc n) s | n. n < b}"
   proof (induction b)
@@ -520,7 +520,7 @@ proof -
     finally show ?case by simp (* TODO *)
   qed
   then show ?thesis
-    by (simp add: Bounded_S_Shortest_Path_Union_axioms_def Bounded_S_Shortest_Path_Union_def CapacityCompatibleGraphs_axioms)
+    by (simp add: Bounded_Source_Shortest_Path_Union_axioms_def Bounded_Source_Shortest_Path_Union_def CapacityCompatibleGraphs_axioms)
 qed
 *)
 
@@ -533,20 +533,20 @@ sublocale Bounded_Shortest_Path_Union c' c S "{t}" b
   by unfold_locales (simp add: bounded_shortest_t_path_union)
 end \<comment> \<open>Bounded_T_Shortest_Path_Union\<close>
 
-locale Bounded_ST_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Bounded_Dual_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes s t b
   assumes bounded_shortest_st_path_union: "E' = \<Union>{set p | p. isShortestPath s p t \<and> length p \<le> b}"
 begin
-sublocale Bounded_S_Shortest_Path_Union c' c s "{t}" b
+sublocale Bounded_Source_Shortest_Path_Union c' c s "{t}" b
   by unfold_locales (simp add: bounded_shortest_st_path_union)
 
 sublocale Bounded_T_Shortest_Path_Union c' c "{s}" t b
   by unfold_locales (simp add: bounded_shortest_st_path_union)
 
-thm S_Layer_Graph_axioms
+thm Source_Layer_Graph_axioms
 thm s_connected s_layered
 (* TODO prettify and generalize *)
-sublocale ST_Layer_Graph c' s t
+sublocale Dual_Layer_Graph c' s t
   apply unfold_locales
   using obtain_close_ST apply blast
   by (metis Graph.min_dist_is_dist UnCI add_Suc dist_layer g'.V_alt image_eqI obtain_close_ST s_layered singletonD snd_conv)
@@ -566,12 +566,12 @@ qed
 lemma empty_iff_no_short_paths: "g'.isEmpty \<longleftrightarrow> (\<forall>p. isPath s p t \<longrightarrow> p = [] \<or> b < length p)"
   oops (* TODO *)
 
-end \<comment> \<open>Bounded_ST_Shortest_Path_Union\<close>
+end \<comment> \<open>Bounded_Dual_Shortest_Path_Union\<close>
 
 lemma min_st_dist_bound:
-  "Graph.min_dist c s t \<le> b \<Longrightarrow> Bounded_ST_Shortest_Path_Union c' c s t b \<longleftrightarrow> ST_Shortest_Path_Union c' c s t"
-  unfolding Bounded_ST_Shortest_Path_Union_def ST_Shortest_Path_Union_def Bounded_ST_Shortest_Path_Union_axioms_def
-    ST_Shortest_Path_Union_axioms_def Graph.isShortestPath_min_dist_def
+  "Graph.min_dist c s t \<le> b \<Longrightarrow> Bounded_Dual_Shortest_Path_Union c' c s t b \<longleftrightarrow> Dual_Shortest_Path_Union c' c s t"
+  unfolding Bounded_Dual_Shortest_Path_Union_def Dual_Shortest_Path_Union_def Bounded_Dual_Shortest_Path_Union_axioms_def
+    Dual_Shortest_Path_Union_axioms_def Graph.isShortestPath_min_dist_def
   by fastforce
 
 \<comment> \<open>Unions of bounded length shortest paths\<close>
@@ -587,8 +587,8 @@ definition induced_s_layering :: "'capacity::linordered_idom graph \<Rightarrow>
     else
       0"
 
-(*interpretation sl: S_Shortest_Path_Union "induced_s_layering c s" c s "Graph.V c"*)
-theorem induced_s_shortest_path_union: "S_Shortest_Path_Union (induced_s_layering c s) c s (Graph.V c)"
+(*interpretation sl: Source_Shortest_Path_Union "induced_s_layering c s" c s "Graph.V c"*)
+theorem induced_Source_Shortest_path_union: "Source_Shortest_Path_Union (induced_s_layering c s) c s (Graph.V c)"
 proof
   interpret Graph c .
   interpret g': Graph "induced_s_layering c s" .
@@ -622,8 +622,8 @@ definition induced_st_layering :: "'capacity::linordered_idom graph \<Rightarrow
       0"
 
 (* TODO why can this not coexist with sl? *)
-(*interpretation stl: ST_Shortest_Path_Union "induced_st_layering c s t" c s t*)
-theorem induced_st_shortest_path_union: "ST_Shortest_Path_Union (induced_st_layering c s t) c s t"
+(*interpretation stl: Dual_Shortest_Path_Union "induced_st_layering c s t" c s t*)
+theorem induced_Dual_Shortest_path_union: "Dual_Shortest_Path_Union (induced_st_layering c s t) c s t"
 proof
   interpret Graph c .
   interpret g': Graph "induced_st_layering c s t" .
