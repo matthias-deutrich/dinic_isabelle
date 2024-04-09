@@ -623,7 +623,7 @@ definition induced_st_layering :: "'capacity::linordered_idom graph \<Rightarrow
 
 (* TODO why can this not coexist with sl? *)
 (*interpretation stl: Dual_Shortest_Path_Union "induced_st_layering c s t" c s t*)
-theorem induced_Dual_Shortest_path_union: "Dual_Shortest_Path_Union (induced_st_layering c s t) c s t"
+theorem induced_st_shortest_path_union: "Dual_Shortest_Path_Union (induced_st_layering c s t) c s t"
 proof
   interpret Graph c .
   interpret g': Graph "induced_st_layering c s t" .

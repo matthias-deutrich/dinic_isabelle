@@ -5,53 +5,7 @@ begin
 
 
 
-subsection \<open>LeftPass\<close>
-(* TODO swap tuple *)
-definition left_pass_refine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
-  "left_pass_refine Q c \<equiv> do {
-    (c, _) \<leftarrow> WHILE\<^sub>T (\<lambda>(_, Q). Q \<noteq> {}) (\<lambda>(c, Q). do {
-      u \<leftarrow> RES Q;
-      let Q = Q - {u};
-      if Graph.outgoing c u = {} then do {
-        let L = Graph.incoming c u;
-        let Q = Q \<union> (fst ` L);
-        let c = removeEdges c L;
-        RETURN (c, Q)}
-      else RETURN (c, Q)
-    }) (c, Q);
-    RETURN c
-  }"
 
-context Finite_Bounded_Graph
-begin
-interpretation Dual_Graph_Algorithms "left_pass_refine Q" "right_pass_refine Q"
-proof
-  fix c :: "('capacity::linordered_idom) graph"
-  note[refine_dref_RELATES] = RELATESI[of transpose_graph_rel]
-  show "left_pass_refine Q c \<le> \<Down> transpose_graph_rel (right_pass_refine Q (transpose_graph c))"
-    unfolding right_pass_refine_def left_pass_refine_def
-    apply refine_rcg
-    apply refine_dref_type
-    by (auto simp: transpose_graph_rel_def removeEdges_def)
-
-  show "right_pass_refine Q c \<le> \<Down> transpose_graph_rel (left_pass_refine Q (transpose_graph c))"
-    unfolding right_pass_refine_def left_pass_refine_def
-    apply refine_rcg
-    apply refine_dref_type
-    by (auto simp: transpose_graph_rel_def removeEdges_def)
-qed
-
-(* TODO cleanup proof *)
-theorem left_pass_refine_correct:
-  assumes T_NO_OUT: "outgoing t = {}"
-    and Q_START: "t \<notin> Q" "\<forall>u \<in> V - Q - {t}. outgoing u \<noteq> {}" "finite Q"
-  shows "left_pass_refine Q c \<le> RETURN (left_pass t c)"
-  apply (intro transfer_return[where ret'="right_pass t"])
-   apply (fastforce simp: right_pass_def left_pass_def)
-  apply (intro Finite_Bounded_Graph.right_pass_refine_correct)
-  using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
-  (*by (metis converse_converse converse_empty)*)
-end
 
 
 
@@ -150,70 +104,4 @@ end
 
 
 
-definition cleaning_algo :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
-  "cleaning_algo Q c \<equiv> do {
-    c \<leftarrow> right_pass_refine Q c;
-    c \<leftarrow> left_pass_refine Q c;
-    RETURN c}"
-
-context Finite_Bounded_Graph
-begin
-thm right_pass_refine_correct
-thm left_pass_refine_correct
-find_theorems "Distance_Bounded_Graph c"
-
-lemma cleaning_algo_correct:
-  assumes S_NO_IN: "incoming s = {}"
-    and T_NO_OUT: "outgoing t = {}"
-    and Q_START: "s \<notin> Q" "t \<notin> Q" "\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}" "finite Q"
-  shows "cleaning_algo Q c \<le> RETURN (cleaning s t c)"
-  unfolding cleaning_algo_def
-proof (refine_vcg, simp)
-  from T_NO_OUT \<open>\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}\<close> have "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
-    by (cases "incoming t = {}") (auto simp: incoming_def outgoing_def V_def)
-  with assms have "right_pass_refine Q c \<le> RETURN (right_pass s c)"
-    by (blast intro: right_pass_refine_correct)
-  also have "... \<le> SPEC (\<lambda>ca. left_pass_refine Q ca \<le> RES {cleaning s t c})"
-  proof simp
-    interpret Subgraph "right_pass s c" c using right_pass_Subgraph .
-    have "left_pass_refine Q (right_pass s c) \<le> RETURN (left_pass t (right_pass s c))" (* TODO prettify *)
-      apply (intro Finite_Bounded_Graph.left_pass_refine_correct)
-          prefer 3 using assms apply simp
-         prefer 4 using assms apply simp
-        prefer 2 subgoal
-        using \<open>outgoing t = {}\<close>
-        unfolding Graph.outgoing_def Graph.E_def right_pass_def by simp
-      unfolding Finite_Bounded_Graph_def apply auto[1]
-      using edges_ss g'.Finite_Graph_EI rev_finite_subset apply blast
-      using Distance_Bounded_Graph_axioms apply (rule sg_Distance_Bounded)
-    proof
-      fix u
-      assume "u \<in> V' - Q - {t}"
-      then have "outgoing u \<noteq> {}" (* TODO prettify *)
-      proof (cases "outgoing s = {}")
-        case True
-        with S_NO_IN have "s \<notin> V" unfolding incoming_def outgoing_def V_def by blast
-        then have "s \<notin> V'" using V_ss by blast
-        with \<open>u \<in> V' - Q - {t}\<close> have "u \<noteq> s" by blast
-        with assms \<open>u \<in> V' - Q - {t}\<close> show ?thesis using V_ss by blast
-      next
-        case False
-        with \<open>u \<in> V' - Q - {t}\<close> show ?thesis using assms V_ss by auto
-      qed
-      then obtain v where "(u, v) \<in> E" by fast
-
-      from \<open>u \<in> V' - Q - {t}\<close> have "u \<in> V'" by blast
-      then have "connected s u" unfolding g'.V_def
-        using S_Graph.rp_edges_s_connected connected_append_edge edge'_if_edge by blast
-      with \<open>(u, v) \<in> E\<close> have "(u, v) \<in> E'"
-        using S_Graph.s_connected_edges_remain by blast
-      then show "g'.outgoing u \<noteq> {}" unfolding g'.outgoing_def by blast
-    qed
-    also have "... \<le> RES {cleaning s t c}"
-      by (simp add: ST_Graph.left_right_pass_is_cleaning)
-    finally show "left_pass_refine Q (right_pass s c) \<le> RES {cleaning s t c}" .
-  qed
-  finally show "right_pass_refine Q c \<le> SPEC (\<lambda>ca. left_pass_refine Q ca \<le> RES {cleaning s t c})" .
-qed
-end
 end

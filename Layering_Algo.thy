@@ -3,6 +3,7 @@ theory Layering_Algo
     Cleaning_Algo
     (*EdmondsKarp_Maxflow.Augmenting_Path_BFS*)
 begin
+end
 
 (*no_notation Heap_Monad.return ("return")*)
 interpretation Refine_Monadic_Syntax .
