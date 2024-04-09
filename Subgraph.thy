@@ -146,6 +146,12 @@ end
 lemma (in Subgraph) Proper_SubgraphI[intro]: "\<exists>e \<in> E. e \<notin> E' \<Longrightarrow> Proper_Subgraph c' c"
   using E'_ss by unfold_locales blast
 
+
+(* TODO currently this has to be repeated for every flavour of prelayering *)
+lemma (in Subgraph) prelayer_transfer:
+  "Local_Prelayer_Graph c layer S \<Longrightarrow> Local_Prelayer_Graph c' layer S"
+  unfolding Local_Prelayer_Graph_def using sg_paths_are_base_paths by blast
+
 (*
 lemma Proper_Subgraph_isProperSubgraphI[intro]: "isProperSubgraph c' c \<Longrightarrow> Proper_Subgraph c' c"
 proof -

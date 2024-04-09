@@ -10,25 +10,21 @@ lemma pair_set_eqI:
 "\<lbrakk>\<And>a b. (a, b) \<in> A \<Longrightarrow> (a, b) \<in> B; \<And>a b. (a, b) \<in> B \<Longrightarrow> (a, b) \<in> A\<rbrakk> \<Longrightarrow> A = B"
   by (rule set_eqI, unfold split_paired_all, rule iffI)
 
-lemma set_emptyI: "(\<And>x. x \<notin> S) \<Longrightarrow> S = {}" by blast (* TODO necessary? *)
+lemma set_emptyI: "(\<And>x. x \<notin> S) \<Longrightarrow> S = {}" by blast
 
 thm converse_empty
 lemma converse_empty_simp: "S\<inverse> = {} \<longleftrightarrow> S = {}" by auto
 
 lemma split_list_min_len: "n \<le> length xs \<Longrightarrow> \<exists>ys zs. xs = ys @ zs \<and> n = length ys"
 proof (induction n arbitrary: xs)
-  case 0
-  then show ?case by simp
-next
   case (Suc n)
   then obtain x ys where XS: "xs = x # ys" by (meson Suc_le_length_iff)
   with Suc.prems have "n \<le> length ys" by simp
   with Suc.IH obtain zs1 zs2 where YS: "ys = zs1 @ zs2" "n = length zs1" by blast
   with XS show ?case by (metis append_Cons length_Cons)
-qed
+qed simp
 
 section \<open>Empty graph\<close>
-(* TODO decide which variant is better *)
 context Graph
 begin
 definition isEmpty where "isEmpty \<equiv> E = {}"
@@ -39,8 +35,8 @@ lemma empty_connected: "\<lbrakk>isEmpty; connected u v\<rbrakk> \<Longrightarro
   using isPath_fwd_cases by fastforce
 end
 
-
-definition empty_graph :: "_ graph" where "empty_graph \<equiv> \<lambda>_. 0" (* TODO is there a better way to define constant functions? *)
+(* TODO is there a better way to define constant functions? *)
+(*definition empty_graph :: "_ graph" where "empty_graph \<equiv> \<lambda>_. 0"*)
 (*interpretation empty: Graph empty_graph .*)
 
 section \<open>Custom induction rules\<close>
@@ -561,6 +557,174 @@ end
 lemma min_dist_eqI: (* TODO use this wherever applicable *)
   "\<lbrakk>Graph.isShortestPath c u p v; Graph.isShortestPath c' u p v\<rbrakk> \<Longrightarrow> Graph.min_dist c u v = Graph.min_dist c' u v"
   unfolding Graph.isShortestPath_min_dist_def by simp
+
+
+
+
+
+
+
+
+
+
+subsection \<open>Layerings\<close>
+(* TODO we need some notion of locality (as the layer function only gives useful information on
+   some of the nodes). This may be done by restricting the nodes to be in some set or by setting the
+   layering to 0 for all unconcerned nodes. Check which approach is better *)
+
+(* This version requires all nodes to be in S, and might be ugly to work with *)
+(*
+locale Local_Prelayer_Graph_Old = Graph +
+  fixes layer :: "node \<Rightarrow> nat"
+    and S
+  assumes layer_edge_weak: "\<And> u v. \<lbrakk>u \<in> S; v \<in> S; (u, v) \<in> E\<rbrakk> \<Longrightarrow> layer v \<le> Suc (layer u)"
+begin
+lemma path_prelayered: "\<lbrakk>isPath u p v; set (pathVertices u p) \<subseteq> S\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p"
+  apply (induction rule: isPath_front_induct)
+  apply auto
+  by (metis add_Suc add_le_imp_le_right empty.pathVertices_fwd_simps(5) layer_edge_weak le_antisym le_trans nat_le_linear pathVertices_fwd subset_code(1))
+end
+*)
+
+(* TODO this has a weaker precondition and is thus stronger. Check if this works and is still weak enough *)
+locale Local_Prelayer_Graph = Graph +
+  fixes layer :: "node \<Rightarrow> nat"
+    and S
+  assumes path_prelayered: "\<And> u p v. \<lbrakk>u \<in> S; v \<in> S; isPath u p v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p"
+begin
+corollary edge_prelayered: "\<lbrakk>u \<in> S; v \<in> S; (u, v) \<in> E\<rbrakk> \<Longrightarrow> layer v \<le> Suc (layer u)"
+  using path_prelayered[where p="[(u, v)]"] by simp
+
+corollary dist_prelayered: "\<lbrakk>u \<in> S; v \<in> S; dist u d v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + d"
+  unfolding dist_def using path_prelayered by blast
+
+(* TODO remove *)
+(*
+sublocale Local_Prelayer_Graph_Old
+proof
+  fix u v
+  assume "(u, v) \<in> E"
+  then have "isPath u [(u, v)] v" by simp
+  moreover assume "u \<in> S" "v \<in> S"
+  ultimately show "layer v \<le> Suc (layer u)"
+    using path_prelayered
+    by (metis One_nat_def add.commute length_Cons list.size(3) plus_1_eq_Suc)
+qed
+*)
+end
+
+locale Generic_Layer_Graph = Graph +
+  fixes layer :: "node \<Rightarrow> nat"
+  assumes layer_edge[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (layer u) = layer v"
+begin
+lemma path_ascends_layer: "isPath u p v \<Longrightarrow> layer v = layer u + length p"
+  by (induction rule: isPath_front_induct) auto
+
+sublocale Local_Prelayer_Graph c layer UNIV by unfold_locales (simp add: path_ascends_layer)
+
+corollary dist_layer: "dist u d v \<Longrightarrow> layer v = layer u + d"
+  unfolding dist_def using path_ascends_layer by blast
+
+sublocale Acyclic_Graph unfolding Acyclic_Graph_def isCycle_def
+  using path_ascends_layer by fastforce
+
+lemma paths_unique_len: "\<lbrakk>isPath u p\<^sub>1 v; isPath u p\<^sub>2 v\<rbrakk> \<Longrightarrow> length p\<^sub>1 = length p\<^sub>2"
+  by (fastforce dest: path_ascends_layer)
+
+corollary dist_unique: "\<lbrakk>dist u d\<^sub>1 v; dist u d\<^sub>2 v\<rbrakk> \<Longrightarrow> d\<^sub>1 = d\<^sub>2"
+  unfolding dist_def using paths_unique_len by blast
+
+lemma path_is_shortest[intro]: "isPath u p v \<Longrightarrow> isShortestPath u p v"
+  unfolding isShortestPath_def using paths_unique_len by (metis order_refl)
+end \<comment> \<open>Generic_Layer_Graph\<close>
+
+locale S_Layer_Graph = Graph +
+  fixes s
+  assumes s_connected[intro]: "u \<in> V \<Longrightarrow> connected s u"
+      and s_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist s u) = min_dist s v" (* TODO which direction is better for simp? *)
+begin
+abbreviation "layer \<equiv> min_dist s"
+sublocale Generic_Layer_Graph c layer by unfold_locales simp
+
+lemma s_in_V_if_nonempty: "\<not> isEmpty \<Longrightarrow> s \<in> V"
+  using connected_inV_iff isEmptyV by blast
+
+lemma only_s_without_incoming[simp]: "\<lbrakk>u \<in> V; incoming u = {}\<rbrakk> \<Longrightarrow> u = s"
+  using distinct_nodes_have_in_out_if_connected by blast
+
+corollary no_incomingD: "incoming u = {} \<Longrightarrow> u \<notin> V \<or> u = s" by simp
+
+lemma front_terminal_path_is_s_path:
+  "isPath u p v \<Longrightarrow> v \<in> V \<Longrightarrow> incoming u = {} \<Longrightarrow> isPath s p v"
+  using connected_def connected_inV_iff no_incomingD by blast
+end \<comment> \<open>S_Layer_Graph\<close>
+
+locale T_Layer_Graph = Graph +
+  fixes t
+  assumes t_connected[intro]: "u \<in> V \<Longrightarrow> connected u t"
+      and t_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist v t) = min_dist u t"
+begin
+lemma t_in_V_if_nonempty: "\<not> isEmpty \<Longrightarrow> t \<in> V"
+  using connected_inV_iff isEmptyV by blast
+
+lemma only_t_without_outgoing[simp]: "\<lbrakk>u \<in> V; outgoing u = {}\<rbrakk> \<Longrightarrow> u = t"
+  using distinct_nodes_have_in_out_if_connected by blast
+
+corollary no_outgoingD: "outgoing u = {} \<Longrightarrow> u \<notin> V \<or> u = t" by simp
+
+lemma back_terminal_path_is_t_path:
+  "isPath u p v \<Longrightarrow> u \<in> V \<Longrightarrow> outgoing v = {} \<Longrightarrow> isPath u p t"
+  using connected_def connected_inV_iff no_outgoingD by blast
+end \<comment> \<open>T_Layer_Graph\<close>
+
+locale ST_Layer_Graph = Graph +
+  fixes s t
+  assumes st_connected: "u \<in> V \<Longrightarrow> connected s u \<and> connected u t"
+      and st_layered[simp]: "(u, v) \<in> E \<Longrightarrow> Suc (min_dist s u + min_dist v t) = min_dist s t"
+begin
+
+lemma obtain_shortest_st_path_via_edge:
+  assumes "(u, v) \<in> E"
+  obtains p p' where "isShortestPath s (p @ (u, v) # p') t"
+proof -
+  from assms have "u \<in> V" "v \<in> V" unfolding V_def by auto
+  then obtain p p' where "isShortestPath s p u" "isShortestPath v p' t"
+    by (meson obtain_shortest_path st_connected)
+  with assms have "isShortestPath s (p @ (u, v) # p') t"
+    using isShortestPath_min_dist_def isPath_append by simp
+  then show ?thesis using that by blast (* TODO prettify *)
+qed (* TODO this idea is reused, can this be prevented? Maybe set this up as Intro for ST_Layer_Graph *)
+
+sublocale S_Layer_Graph unfolding S_Layer_Graph_def
+  by (fastforce elim: obtain_shortest_st_path_via_edge
+                dest: split_shortest_path_around_edge st_connected
+                simp: isShortestPath_min_dist_def)
+
+sublocale T_Layer_Graph unfolding T_Layer_Graph_def
+  by (fastforce elim: obtain_shortest_st_path_via_edge
+                dest: split_shortest_path_around_edge st_connected
+                simp: isShortestPath_min_dist_def)
+
+lemma layer_bounded_by_t: "u \<in> V \<Longrightarrow> layer u \<le> layer t"
+  using connected_by_dist dist_layer t_connected by fastforce
+
+sublocale Distance_Bounded_Graph c "min_dist s t"
+proof
+  fix u v n
+  assume DIST: "dist u n v"
+  then show "n \<le> layer t"
+  proof (cases "u = v")
+    case True
+    with DIST show ?thesis using dist_layer by fastforce
+  next
+    case False
+    with DIST have "v \<in> V" using connected_distI distinct_nodes_in_V_if_connected(2) by blast
+    with DIST show ?thesis using dist_layer layer_bounded_by_t by fastforce
+  qed
+qed
+end \<comment> \<open>ST_Layer_Graph\<close>
+
+\<comment> \<open>Layerings\<close>
 
 
 end
