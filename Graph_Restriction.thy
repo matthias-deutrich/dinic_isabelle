@@ -1,6 +1,34 @@
-theory LayerGraph
+theory Graph_Restriction
   imports Subgraph
 begin
+
+(* TODO is it useful to unify all the scattered locales into using a generic restriction function? *)
+find_consts "('a \<Rightarrow> 'b) \<Rightarrow> ('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> 'b"
+find_consts name:restrict
+
+definition restrict_edges :: "_ graph \<Rightarrow> (edge \<Rightarrow> bool) \<Rightarrow> _ graph"
+  where "restrict_edges c P \<equiv> \<lambda>(u, v). if P (u, v) then c (u, v) else 0"
+
+lemma restrict_edges_Subgraph: "Subgraph (restrict_edges c P) c" unfolding restrict_edges_def
+  by unfold_locales (auto simp: Graph.E_def split: if_splits)
+
+type_synonym path_kind = "node \<Rightarrow> edge list \<Rightarrow> node \<Rightarrow> bool"
+
+definition is_in_some_path :: "path_kind \<Rightarrow> node set \<Rightarrow> node set \<Rightarrow> edge \<Rightarrow> bool"
+  where "is_in_some_path \<pi> S T \<equiv> \<lambda>(u, v). \<exists> s t p. s \<in> S \<and> t \<in> T \<and> \<pi> s p t \<and> (u, v) \<in> set p"
+
+definition restrict_paths :: "_ graph \<Rightarrow> path_kind => node set \<Rightarrow> node set \<Rightarrow> _ graph"
+  where "restrict_paths c \<pi> S T \<equiv> restrict_edges c (is_in_some_path \<pi> S T)"
+
+definition bounded_path :: "nat \<Rightarrow> path_kind \<Rightarrow> path_kind"
+  where "bounded_path b \<pi> \<equiv> \<lambda> s p t. \<pi> s p t \<and> length p \<le> b"
+
+
+(* TODO check whether something like this can be useful*)
+(*
+typedef (overloaded) 'capacity::linordered_idom irreducible_graph = "{c::('capacity graph). Irreducible_Graph c}"
+  by (metis irreducibleI mem_Collect_eq reduce_reduced_cong reduced_cong_iff_reduce_eq)
+*)
 
 subsection \<open>Unions of shortest paths\<close>
 

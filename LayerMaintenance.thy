@@ -1,5 +1,5 @@
 theory LayerMaintenance
-  imports LayerGraph
+  imports Graph_Restriction
 begin
 
 (* TODO change to path restriction locales *)
