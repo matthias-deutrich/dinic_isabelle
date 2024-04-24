@@ -153,6 +153,12 @@ lemma transpose_graph_rel_sv: "single_valued transpose_graph_rel"
 lemma transpose_graph_rel_comp[simp]: "transpose_graph_rel O transpose_graph_rel = Id"
   unfolding transpose_graph_rel_def by fastforce
 
+lemma transpose_graph_relI[intro]: "c' = c\<^sup>T \<Longrightarrow> (c, c') \<in> transpose_graph_rel"
+  unfolding transpose_graph_rel_def by blast
+
+lemma transpose_graph_relD[dest]: "(c, c') \<in> transpose_graph_rel \<Longrightarrow> c' = c\<^sup>T"
+  unfolding transpose_graph_rel_def by blast
+
 (* TODO improve or remove *)
 thm Id_refine conc_abs_swap conc_fun_chain dual_order.eq_iff dual_order.refl dual_order.trans transpose_graph_rel_comp transpose_graph_rel_sv refine_IdD
 lemma "\<Up> transpose_graph_rel = \<Down> transpose_graph_rel"

@@ -1,5 +1,5 @@
 theory Original_Dinitz_Refine
-  imports Original_Dinitz_Algo Graph_Transpose
+  imports Original_Dinitz_Algo Graph_Transpose Refine_Imperative_HOL.Sepref_Foreach
 begin
 text \<open>This theory takes the abstract definition of the Original Dinitz algorithm and refines
       it towards a concrete version. The goal here is not yet to arrive at an executable version,
@@ -7,29 +7,53 @@ text \<open>This theory takes the abstract definition of the Original Dinitz alg
       or execution framework. The functions will thus still include simple, but not necessarily
       executable, primitives such as set operations.\<close>
 
-subsection \<open>Primitives\<close>
-subsubsection \<open>Edge Deletion\<close>
-definition deleteEdge :: "_ graph \<Rightarrow> edge \<Rightarrow> _ graph" where
-  "deleteEdge c e \<equiv> c(e := 0)"
+(* TODO *)
+interpretation Refine_Monadic_Syntax .
 
-(* TODO executable version *)
-definition deleteEdges :: "_ graph \<Rightarrow> edge set \<Rightarrow> _ graph" where
-  "deleteEdges c R \<equiv> \<lambda>e. if e \<in> R then 0 else c e"
+text \<open>For several refinement proofs in this theory, we need an additional pattern for refine_dref_type\<close>
+lemma RELATESI_in_spec(*[refine_dref_pattern]*):
+  "RELATES R \<Longrightarrow> S \<le> (spec x. (x, y) \<in> R) \<Longrightarrow> S \<le> (spec x. (x, y) \<in> R)" .
+
+lemmas nfoldli_to_fold =
+  foldli_eq_nfoldli[where c="\<lambda>_. True", symmetric, unfolded foldli_foldl foldl_conv_fold]
+
+(* TODO remove notation *)
+term Ref.update
+
+subsection \<open>Primitives\<close>
+definition deleteEdge :: "edge \<Rightarrow> _ graph \<Rightarrow> _ graph" where
+  "deleteEdge e c \<equiv> c(e := 0)"
+
+text \<open>See EdmondsKarp_Impl.augment_edge\<close>
+definition subtractEdge :: "edge \<Rightarrow> ('capacity::linordered_idom) \<Rightarrow> _ graph \<Rightarrow> _ graph" where
+  "subtractEdge e cap c \<equiv> c(e := c e - cap)"
+\<comment> \<open>Primitives\<close>
+
+subsection \<open>Deleting a set of edges\<close>
+definition deleteEdges :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph" where
+  "deleteEdges R c \<equiv> \<lambda>e. if e \<in> R then 0 else c e"
+
+definition deleteEdgesRefine :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
+  "deleteEdgesRefine R c \<equiv> FOREACH R (RETURN \<circ>\<circ> deleteEdge) c"
+
+lemma deleteEdgesRefine_correct: "finite R \<Longrightarrow> deleteEdgesRefine R c \<le> RETURN (deleteEdges R c)"
+  unfolding deleteEdgesRefine_def
+  apply (refine_vcg FOREACH_rule[where I="\<lambda>R' c'. \<forall>e. e \<notin> R' \<longrightarrow> c' e = deleteEdges R c e"])
+  by (auto simp: deleteEdges_def deleteEdge_def)
 
 context Graph
 begin
-lemma deleteEdges_E: "Graph.E (deleteEdges c S) = E - S"
+lemma deleteEdges_E: "Graph.E (deleteEdges S c) = E - S"
   unfolding deleteEdges_def Graph.E_def by auto
 
-lemma deleteEdges_sg: "Subgraph (deleteEdges c S) c"
+lemma deleteEdges_sg: "Subgraph (deleteEdges S c) c"
   unfolding deleteEdges_def by fastforce
 
-lemma removeEdges_psg: "\<exists>e. e \<in> S \<inter> E \<Longrightarrow> Proper_Subgraph (deleteEdges c S) c"
+lemma removeEdges_psg: "\<exists>e. e \<in> S \<inter> E \<Longrightarrow> Proper_Subgraph (deleteEdges S c) c"
   using deleteEdges_sg
   by (metis Diff_iff IntD1 IntD2 deleteEdges_E subgraph.dual_order.not_eq_order_implies_strict)
 end
-\<comment> \<open>Edge Removal\<close>
-\<comment> \<open>Primitives\<close>
+\<comment> \<open>Deleting a set of edges\<close>
 
 subsection \<open>Pathfinding\<close>
 
@@ -74,17 +98,79 @@ lemma (in Dual_Layer_Graph) greedyPathFinding_correct:
 
 \<comment> \<open>Pathfinding\<close>
 
+subsection \<open>Subtracting a path\<close>
+text \<open>Here, we refine subtraction of a path from a graph. Note that, with the current primitives
+      (especially subtractEdge) being mere definitions, we technically do not yet need to use the
+      monadic framework at all. Instead of nfoldli, we could simply use fold or similar predefined
+      functions (e.g. arg_min_list), which are already executable. However, if in a later step we
+      use a refinement of subtractEdge that requires the monadic framework, we would then have to
+      redefine the entire subtractPathRefine definition, instead of just proofing refinement of the
+      primitive and transferring correctness. Thus, we use nfoldli here, even though it is not yet
+      strictly required.\<close>
+context Graph
+begin
+text \<open>This is essentially the same as EdmondsKarp_Impl.resCap_cf_impl, except it works on any graph,
+      not just the residual graph.\<close>
+definition pathCapRefine :: "path \<Rightarrow> 'capacity nres" where
+  "pathCapRefine p \<equiv> case p of
+    [] \<Rightarrow> RETURN 0
+  | (e # p) \<Rightarrow> nfoldli p (\<lambda>_. True) (\<lambda>e cap. RETURN (min (c e) cap)) (c e)"
+
+definition subtractPathRefine :: "path \<Rightarrow> _ graph nres" where
+  "subtractPathRefine p \<equiv> do {
+    cap \<leftarrow> pathCapRefine p;
+    c' \<leftarrow> nfoldli p (\<lambda>_. True) (\<lambda>e c'. RETURN (subtractEdge e cap c')) c;
+    RETURN c'
+  }"
+
+lemma pathCapRefine_correct: "pathCapRefine p = RETURN (if p = [] then 0 else pathCap p)"
+  unfolding pathCapRefine_def pathCap_alt
+  apply (simp split: list.split add: nfoldli_to_fold)
+  by (metis (no_types, lifting) Min.set_eq_fold fold_map fun_comp_eq_conv list.set_map list.simps(15))
+
+lemma subtractPathRefine_correct_aux:
+  "distinct p \<Longrightarrow> fold (\<lambda>e c'. subtractEdge e cap c') p c = (\<lambda>(u, v). if (u, v) \<in> set p then c (u, v) - cap else c (u, v))"
+  unfolding subtractEdge_def by (induction p arbitrary: c) auto
+
+lemma subtractPathRefine_correct:
+  assumes "distinct p"
+  shows "subtractPathRefine p \<le> RETURN (subtract_path p)"
+  unfolding subtractPathRefine_def subtract_path_def
+  apply (simp split: list.splits add: nfoldli_to_fold pathCapRefine_correct)
+  using assms subtractPathRefine_correct_aux by simp
+end
+\<comment> \<open>Subtracting a path\<close>
+
+subsection \<open>Inner vertices of a path\<close>
+text \<open>This definition is very similar to the existing setup of pathVertices, but easier to work with,
+      as we do not need to declare the first vertex.
+      Note that in contrast to the section concerning path subtraction, we stay purely functional
+      here and do not use the monadic framework. The reason is that we do not use any primitives
+      that may later need to be refined into monadic results, all work we do on lists can be done
+      purely functionally.\<close>
+
+fun innerPathVertices :: "path \<Rightarrow> node list" where
+  "innerPathVertices p = (case p of
+    [] \<Rightarrow> []
+  | (_ # p') \<Rightarrow> map fst p')"
+
+lemma innerPathVertices_correct: "innerPathVertices p = tl (butlast (Graph.pathVertices u p))"
+  by (auto split: list.split simp: Graph.pathVertices.simps(1) Graph.pathVertices_alt)
+\<comment> \<open>Inner vertices of a path\<close>
+
 subsection \<open>Cleaning\<close>
 subsubsection \<open>Right Pass\<close>
 
-text \<open>This definition is slightly adapted in that it works on the set of edge tails,
-      instead of on the edges themselves.\<close>
+text \<open>This definition slightly deviates from the one presented in Dinitz's original paper, in that
+      it works on the set of edge tails, instead of on the edges themselves. Also note that we refer
+      to this intermediate version with an uptick, as we will later use a more concrete version.\<close>
+
 text \<open>Used primitives:
   - working set operation: adding elements, removing element, checking for emptiness
   - graph operations: checking incoming for emptiness, getting set of outgoing edges
   - delete_edges\<close>
-definition rightPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine Q c \<equiv> do {
+definition rightPassRefine' :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine' Q c \<equiv> do {
     (_, c) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(Q, _). Q \<noteq> {})
       (\<lambda>(Q, c). do {
@@ -93,8 +179,9 @@ definition rightPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ g
         if Graph.incoming c u = {}
           then do {
             let R = Graph.outgoing c u;
+            ASSERT (finite R);
             let Q = Q \<union> (snd ` R);
-            let c = deleteEdges c R;
+            let c = deleteEdges R c;
             RETURN (Q, c)}
           else RETURN (Q, c)})
       (Q, c);
@@ -131,9 +218,9 @@ lemma (in Finite_Graph) rightPassRefine_step:
     and "u \<in> Q"
     and U_NO_IN: "Graph.incoming c' u = {}"
     and INVAR: "rightPassInvar c s (Q, c')"
-  defines "c'' \<equiv> deleteEdges c' (Graph.outgoing c' u)"
+  defines "c'' \<equiv> deleteEdges (Graph.outgoing c' u) c'"
     and "Q' \<equiv> Q - {u} \<union> snd ` Graph.outgoing c' u"
-  shows "rightPassInvar c s (Q', c'') \<and> ((Q', c''), (Q, c')) \<in> graphWorkingSetRel"
+  shows "rightPassInvar c s (Q', c'') \<and> ((Q', c''), (Q, c')) \<in> graphWorkingSetRel \<and> finite (Graph.outgoing c' u)"
   unfolding rightPassInvar_def
 proof (clarify, intro conjI)
   from INVAR have "Subgraph c' c"
@@ -217,6 +304,8 @@ proof (clarify, intro conjI)
     then show ?thesis unfolding graphWorkingSetRel_def finiteProperSubgraph_def
       using g'.Finite_Graph_axioms by simp
   qed
+
+  show "finite (g'.outgoing u)" by blast
 qed
 
 lemma (in Distance_Bounded_Graph) rightPassRefine_final:
@@ -245,11 +334,11 @@ next
 qed (* TODO cleanup *)
 
 (* TODO remove right_pass, instead use locale *)
-theorem (in Finite_Bounded_Graph) rightPassRefine_correct:
+theorem (in Finite_Bounded_Graph) rightPassRefine'_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine Q c \<le> RETURN (right_pass s c)"
-  unfolding rightPassRefine_def
+  shows "rightPassRefine' Q c \<le> RETURN (right_pass s c)"
+  unfolding rightPassRefine'_def
 proof (refine_vcg WHILET_rule[where I="rightPassInvar c s" and R=graphWorkingSetRel], clarsimp_all)
   show "wf graphWorkingSetRel" by (rule wf_graphWorkingSetRel)
 next
@@ -263,10 +352,10 @@ next
       by (auto simp: rightPassInvar_def graphWorkingSetRel_def)
   }
 
-  let ?c'' = "deleteEdges c' (Graph.outgoing c' u)"
+  let ?c'' = "deleteEdges (Graph.outgoing c' u) c'"
   let ?Q' = "Q - {u} \<union> snd ` Graph.outgoing c' u"
   assume "Graph.incoming c' u = {}"
-  with S_NO_IN step_assms show "rightPassInvar c s (?Q', ?c'')" "((?Q', ?c''), (Q, c')) \<in> graphWorkingSetRel"
+  with S_NO_IN step_assms show "rightPassInvar c s (?Q', ?c'')" "((?Q', ?c''), (Q, c')) \<in> graphWorkingSetRel" "finite (Graph.outgoing c' u)"
     using rightPassRefine_step by auto
 next
   fix c'
@@ -275,13 +364,50 @@ next
     using rightPassRefine_final by simp
 qed
 
+text \<open>We introduce a further refinement that replaces the abstract deletion of edges with the
+      algorithmic version that only requires the primitive operation of deleting a single edge.\<close>
+
+text \<open>Used primitives:
+  - working set operation: adding elements, removing element, checking for emptiness
+  - graph operations: checking incoming for emptiness, getting set of outgoing edges, deleting an edge\<close>
+definition rightPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+  "rightPassRefine Q c \<equiv> do {
+    (_, c) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(Q, _). Q \<noteq> {})
+      (\<lambda>(Q, c). do {
+        u \<leftarrow> RES Q;
+        let Q = Q - {u};
+        if Graph.incoming c u = {}
+          then do {
+            let R = Graph.outgoing c u;
+            let Q = Q \<union> (snd ` R);
+            c \<leftarrow> deleteEdgesRefine R c;
+            RETURN (Q, c)}
+          else RETURN (Q, c)})
+      (Q, c);
+    RETURN c
+  }"
+
+lemma (in Finite_Graph) rightPassRefine'_refine:
+  notes [refine_dref_pattern] = RELATESI_in_spec
+  shows "rightPassRefine Q c \<le> \<Down> Id (rightPassRefine' Q c)"
+  unfolding rightPassRefine_def rightPassRefine'_def
+  apply refine_rcg
+         apply refine_dref_type
+  by (auto simp: RES_sng_eq_RETURN intro: deleteEdgesRefine_correct)
+
+theorem (in Finite_Bounded_Graph) rightPassRefine_correct:
+  assumes S_NO_IN: "incoming s = {}"
+    and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
+  shows "rightPassRefine Q c \<le> RETURN (right_pass s c)"
+  using rightPassRefine'_correct rightPassRefine'_refine assms
+  by (meson conc_trans_additional(5))
 \<comment> \<open>Right Pass\<close>
 
 subsubsection \<open>Left Pass\<close>
 text \<open>Used primitives:
   - working set operation: adding elements, removing element, checking for emptiness
-  - graph operations: checking outgoing for emptiness, getting set of incoming edges
-  - delete_edges\<close>
+  - graph operations: checking outgoing for emptiness, getting set of incoming edges, deleting an edge\<close>
 definition leftPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
   "leftPassRefine Q c \<equiv> do {
     (_, c) \<leftarrow> WHILE\<^sub>T
@@ -293,7 +419,7 @@ definition leftPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ gr
           then do {
             let L = Graph.incoming c u;
             let Q = Q \<union> (fst ` L);
-            let c = deleteEdges c L;
+            c \<leftarrow> deleteEdgesRefine L c;
             RETURN (Q, c)}
           else RETURN (Q, c)})
       (Q, c);
@@ -304,19 +430,32 @@ context Finite_Bounded_Graph
 begin
 interpretation Dual_Graph_Algorithms "leftPassRefine Q" "rightPassRefine Q"
 proof
+  interpret Dual_Graph_Algorithms "deleteEdgesRefine S" "deleteEdgesRefine (S\<inverse>)" for S
+  proof
+    show "\<And>c. deleteEdgesRefine S c \<le> \<Down> transpose_graph_rel (deleteEdgesRefine (S\<inverse>) (c\<^sup>T))"
+      unfolding deleteEdgesRefine_def
+      apply (refine_rcg FOREACH_refine_rcg[where \<alpha>="prod.swap"])
+      by (fastforce simp: deleteEdge_def)+
+
+    show "\<And>c. deleteEdgesRefine (S\<inverse>) c \<le> \<Down> transpose_graph_rel (deleteEdgesRefine S (c\<^sup>T))"
+      unfolding deleteEdgesRefine_def
+      apply (refine_rcg FOREACH_refine_rcg[where \<alpha>="prod.swap"])
+      by (fastforce simp: deleteEdge_def)+
+  qed
+
   fix c :: "('capacity::linordered_idom) graph"
   note[refine_dref_RELATES] = RELATESI[of transpose_graph_rel]
   show "leftPassRefine Q c \<le> \<Down> transpose_graph_rel (rightPassRefine Q (transpose_graph c))"
     unfolding rightPassRefine_def leftPassRefine_def
     apply refine_rcg
-    apply refine_dref_type
-    by (auto simp: transpose_graph_rel_def deleteEdges_def)
+           apply refine_dref_type
+    by (fastforce simp: conc_simp)+
 
   show "rightPassRefine Q c \<le> \<Down> transpose_graph_rel (leftPassRefine Q (transpose_graph c))"
     unfolding rightPassRefine_def leftPassRefine_def
     apply refine_rcg
-    apply refine_dref_type
-    by (auto simp: transpose_graph_rel_def deleteEdges_def)
+           apply refine_dref_type
+    by (fastforce simp: conc_simp)+
 qed
 
 (* TODO cleanup proof *)
@@ -328,7 +467,6 @@ theorem leftPassRefine_correct:
    apply (fastforce simp: right_pass_def left_pass_def)
   apply (intro Finite_Bounded_Graph.rightPassRefine_correct)
   using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
-  (*by (metis converse_converse converse_empty)*)
 end
 
 \<comment> \<open>Left Pass\<close>
