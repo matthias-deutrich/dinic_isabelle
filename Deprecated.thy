@@ -2,6 +2,44 @@ theory Deprecated
   imports Original_Dinitz_Impl
 begin
 
+(*
+context NFlow
+begin
+
+section \<open>Experiment\<close>
+definition test1 :: "_ flow nres" where
+  "test1 \<equiv> do {
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+            stl \<leftarrow> Graph.subtract_path_algo stl [(0, 0)];
+            RETURN (f', stl, False)
+          })
+      (f, c, False);
+    RETURN f'}"
+definition test2 :: "_ flow nres" where
+  "test2 \<equiv> do {
+    (f', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, _, brk). \<not> brk)
+      (\<lambda>(f', stl, _). do {
+            stl \<leftarrow> return (Graph.subtract_path stl [(0, 0)]);
+            RETURN (f', stl, False)
+          })
+      (f, c, False);
+    RETURN f'}"
+
+thm refine_dref_pattern
+(* TODO find out which rule leads to the spec term, which in turn means dref_type cannot infer relation type *)
+lemma "test1 \<le> \<Down> Id test2"
+  unfolding test1_def test2_def
+  apply refine_rcg
+         apply refine_dref_type
+      apply clarsimp_all
+  oops
+\<comment> \<open>Experiment\<close>
+end
+*)
+
 
 subsection \<open>PathFinding\<close>
 

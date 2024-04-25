@@ -207,8 +207,8 @@ definition dinitz_phase :: "_ flow nres" where
       else RETURN f}"
 thm Graph.subtract_path_alt
 
-definition dinitz_phase_invar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" where
-  "dinitz_phase_invar \<equiv> \<lambda>(f', stl).
+definition dinitzPhaseInvar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" where
+  "dinitzPhaseInvar \<equiv> \<lambda>(f', stl).
     NFlow c s t f'
     \<and> Bounded_Dual_Shortest_Path_Union stl (cf_of f') s t (cf.min_dist s t)
     \<and> (Graph.connected (cf_of f') s t \<longrightarrow> (cf.min_dist s t) \<le> (Graph.min_dist (cf_of f') s t))"
@@ -216,21 +216,21 @@ definition dinitz_phase_invar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" 
 lemma dinitz_phase_step:
   fixes f' stl
   assumes PATH: "Graph.isPath stl s p t"
-      and INVAR: "dinitz_phase_invar (f', stl)"
+      and INVAR: "dinitzPhaseInvar (f', stl)"
   defines "aug_f' \<equiv> NFlow.augment c f' (NPreflow.augmentingFlow c f' p)"
       and "stl' \<equiv> cleaning s t (Graph.subtract_path stl p)"
-    shows "dinitz_phase_invar (aug_f', stl') \<and> Graph.E stl' \<subset> Graph.E stl \<and> finite (Graph.E stl)"
+    shows "dinitzPhaseInvar (aug_f', stl') \<and> Graph.E stl' \<subset> Graph.E stl \<and> finite (Graph.E stl)"
 proof (intro conjI)
-  from INVAR interpret f': NFlow c s t f' unfolding dinitz_phase_invar_def by blast
+  from INVAR interpret f': NFlow c s t f' unfolding dinitzPhaseInvar_def by blast
 
   have BOUND_EQ: "cf.min_dist s t = f'.cf.min_dist s t"
   proof -
     from INVAR interpret Bounded_Dual_Shortest_Path_Union stl f'.cf s t "cf.min_dist s t"
-      unfolding dinitz_phase_invar_def by simp
+      unfolding dinitzPhaseInvar_def by simp
     show ?thesis
     proof (intro antisym)
       from PATH INVAR show "cf.min_dist s t \<le> f'.cf.min_dist s t"
-        unfolding dinitz_phase_invar_def Graph.connected_def
+        unfolding dinitzPhaseInvar_def Graph.connected_def
         using sg_paths_are_base_paths by blast
       from PATH show "f'.cf.min_dist s t \<le> cf.min_dist s t" (* TODO fix proof *)
       using f'.cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer (* by simp *)
@@ -238,7 +238,7 @@ proof (intro conjI)
     qed
   qed
   with INVAR interpret Dual_Shortest_Path_Union stl f'.cf s t
-    unfolding dinitz_phase_invar_def using min_st_dist_bound by fastforce
+    unfolding dinitzPhaseInvar_def using min_st_dist_bound by fastforce
 
   interpret g': Nonnegative_Graph stl
     using f'.cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
@@ -295,8 +295,8 @@ proof (intro conjI)
     unfolding g'.subtract_path_alt f'.augmentingFlow_alt aug_f'_def stl'_def by simp
   moreover have "(Graph.connected (cf_of aug_f') s t \<longrightarrow> cf.min_dist s t \<le> Graph.min_dist (cf_of aug_f') s t)"
     using st_layered_flow.st_min_dist_non_decreasing BOUND_EQ unfolding aug_f'_def by simp
-  ultimately show "dinitz_phase_invar (aug_f', stl')"
-    unfolding dinitz_phase_invar_def by simp
+  ultimately show "dinitzPhaseInvar (aug_f', stl')"
+    unfolding dinitzPhaseInvar_def by simp
 
   (* TODO cleanup this horrible mess *)
   have "stl (arg_min_list stl p) = f'.augmentingFlow p (arg_min_list stl p)" unfolding f'.augmentingFlow_def f'.resCap_alt
@@ -318,15 +318,15 @@ definition res_dist_increasing_flow
 lemma dinitz_phase_final:
   fixes f' stl
     assumes DISCON: "\<not> Graph.connected stl s t"
-      and INVAR: "dinitz_phase_invar (f', stl)"
+      and INVAR: "dinitzPhaseInvar (f', stl)"
     shows "res_dist_increasing_flow f'"
   unfolding res_dist_increasing_flow_def
 proof
-  from INVAR interpret f': NFlow c s t f' unfolding dinitz_phase_invar_def by blast
+  from INVAR interpret f': NFlow c s t f' unfolding dinitzPhaseInvar_def by blast
   show "NFlow c s t f'" using f'.NFlow_axioms .
 
   from INVAR interpret Bounded_Dual_Shortest_Path_Union stl f'.cf s t "cf.min_dist s t"
-    unfolding dinitz_phase_invar_def by blast
+    unfolding dinitzPhaseInvar_def by blast
   from DISCON show "f'.cf.connected s t \<longrightarrow> cf.min_dist s t < f'.cf.min_dist s t"
     by (metis Bounded_Dual_Shortest_Path_Union_axioms Dual_Shortest_Path_Union.st_connected_iff le_eq_less_or_eq linorder_neqE_nat min_st_dist_bound)
 qed
@@ -334,11 +334,11 @@ qed
 lemma dinitz_phase_correct:
   "dinitz_phase \<le> SPEC (\<lambda>f'. res_dist_increasing_flow f')"
   unfolding dinitz_phase_def
-  apply (refine_vcg WHILET_rule[where I=dinitz_phase_invar and R="inv_image finite_psubset (Graph.E \<circ> snd)"])
+  apply (refine_vcg WHILET_rule[where I=dinitzPhaseInvar and R="inv_image finite_psubset (Graph.E \<circ> snd)"])
        apply (simp_all add: dinitz_phase_step dinitz_phase_final)
   thm induced_st_shortest_path_union (* TODO *)
-  apply (simp add: dinitz_phase_invar_def NFlow_axioms) (* TODO *)
-  by (simp_all add: dinitz_phase_invar_def res_dist_increasing_flow_def NFlow_axioms induced_st_shortest_path_union min_st_dist_bound)
+  apply (simp add: dinitzPhaseInvar_def NFlow_axioms) (* TODO *)
+  by (simp_all add: dinitzPhaseInvar_def res_dist_increasing_flow_def NFlow_axioms induced_st_shortest_path_union min_st_dist_bound)
 end
 
 \<comment> \<open>Dinitz inner loop\<close>
