@@ -524,14 +524,14 @@ proof -
 qed
 *)
 
-locale Bounded_T_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Bounded_Target_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes S t b
   assumes bounded_shortest_t_path_union:
     "E' = \<Union>{set p | p. \<exists>s. s \<in> S \<and> isShortestPath s p t \<and> length p \<le> b}"
 begin
 sublocale Bounded_Shortest_Path_Union c' c S "{t}" b
   by unfold_locales (simp add: bounded_shortest_t_path_union)
-end \<comment> \<open>Bounded_T_Shortest_Path_Union\<close>
+end \<comment> \<open>Bounded_Target_Shortest_Path_Union\<close>
 
 locale Bounded_Dual_Shortest_Path_Union = CapacityCompatibleGraphs +
   fixes s t b
@@ -540,7 +540,7 @@ begin
 sublocale Bounded_Source_Shortest_Path_Union c' c s "{t}" b
   by unfold_locales (simp add: bounded_shortest_st_path_union)
 
-sublocale Bounded_T_Shortest_Path_Union c' c "{s}" t b
+sublocale Bounded_Target_Shortest_Path_Union c' c "{s}" t b
   by unfold_locales (simp add: bounded_shortest_st_path_union)
 
 thm Source_Layer_Graph_axioms

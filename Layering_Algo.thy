@@ -5,6 +5,15 @@ theory Layering_Algo
 begin
 end
 
+(* DEPRECATED *)
+
+
+
+
+
+
+
+
 (*no_notation Heap_Monad.return ("return")*)
 interpretation Refine_Monadic_Syntax .
 
