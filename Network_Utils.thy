@@ -121,7 +121,7 @@ proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative
       by (simp add: sum.Int_Diff)
     also have "... = sum f (incoming v \<inter> E')" by (auto intro: sum.neutral)
     also have "... = sum f (g'.incoming v)"
-      using edges_ss unfolding Graph.incoming_def by (intro arg_cong[where f="sum f"]) auto (* TODO can this be improved? *)
+      using E_ss unfolding Graph.incoming_def by (intro arg_cong[where f="sum f"]) auto (* TODO can this be improved? *)
     also have "... = sum f (g'.outgoing v)"
     proof (cases "v \<in> V'")
       case True
@@ -134,7 +134,7 @@ proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative
       then show ?thesis by simp
     qed
     also have "... = sum f (outgoing v \<inter> E')"
-      using edges_ss unfolding Graph.outgoing_def by (intro arg_cong[where f="sum f"]) auto
+      using E_ss unfolding Graph.outgoing_def by (intro arg_cong[where f="sum f"]) auto
     also have "... = sum f (outgoing v \<inter> E') + sum f (outgoing v - E')" by (auto intro: sum.neutral)
     also have "... = sum f (outgoing v)" by (simp add: sum.Int_Diff[symmetric])
     finally show "sum f (incoming v) = sum f (outgoing v)" .

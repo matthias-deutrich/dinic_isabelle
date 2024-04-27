@@ -5,6 +5,9 @@ begin
 (* TODO is it useful to unify all the scattered locales into using a generic restriction function? *)
 find_consts "('a \<Rightarrow> 'b) \<Rightarrow> ('a \<Rightarrow> bool) \<Rightarrow> 'a \<Rightarrow> 'b"
 find_consts name:restrict
+find_consts name:filter
+term Set.filter
+term filter
 
 definition restrict_edges :: "_ graph \<Rightarrow> (edge \<Rightarrow> bool) \<Rightarrow> _ graph"
   where "restrict_edges c P \<equiv> \<lambda>(u, v). if P (u, v) then c (u, v) else 0"
@@ -23,16 +26,30 @@ definition restrict_paths :: "_ graph \<Rightarrow> path_kind => node set \<Righ
 definition bounded_path :: "nat \<Rightarrow> path_kind \<Rightarrow> path_kind"
   where "bounded_path b \<pi> \<equiv> \<lambda> s p t. \<pi> s p t \<and> length p \<le> b"
 
-
 (* TODO check whether something like this can be useful*)
 (*
 typedef (overloaded) 'capacity::linordered_idom irreducible_graph = "{c::('capacity graph). Irreducible_Graph c}"
   by (metis irreducibleI mem_Collect_eq reduce_reduced_cong reduced_cong_iff_reduce_eq)
 *)
 
+locale Restricted_Graph = Capacity_Compatible +
+  fixes P
+  assumes filtered_edges: "E' = Set.filter P E"
+begin
+sublocale Subgraph
+  using filtered_edges by unfold_locales fastforce
+end
+
+locale Generic_Path_Union
+
+
+
+
+
+
 subsection \<open>Unions of shortest paths\<close>
 
-locale Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Shortest_Path_Union = Capacity_Compatible +
   fixes S T
   assumes shortest_path_union: "E' = \<Union>{set p | p. \<exists>s t. s \<in> S \<and> t \<in> T \<and> isShortestPath s p t}"
 begin
@@ -61,7 +78,7 @@ lemma shortest_ST_path_remains:
 proof -
   from assms have "g'.isPath s p t"
     by (auto simp: Graph.isPath_alt shortest_path_union dest: shortestPath_is_path)
-  with SP show ?thesis by (auto intro: shortest_path_remains_if_contained)
+  with SP show ?thesis by (auto intro: sub_shortest_path_if_contained)
 qed
 
 lemma obtain_connected_ST:
@@ -92,7 +109,7 @@ lemma shortest_ST_path_transfer:
 proof
   assume "g'.isShortestPath s p t"
   then show "isShortestPath s p t"
-    by (metis connected_def Graph.isShortestPath_min_dist_def assms obtain_shortest_path sg_paths_are_base_paths shortest_ST_path_remains)
+    by (metis connected_def Graph.isShortestPath_min_dist_def assms obtain_shortest_path sub_path shortest_ST_path_remains)
 qed (rule shortest_ST_path_remains[OF assms])
 
 corollary min_ST_dist_transfer: "\<lbrakk>s \<in> S; t \<in> T; connected s t\<rbrakk> \<Longrightarrow> g'.min_dist s t = min_dist s t"
@@ -119,7 +136,7 @@ next
 qed
 
 lemma spu_unique: "Shortest_Path_Union c'' c S T \<Longrightarrow> c'' = c'"
-  by (simp add: CapComp_comm CapComp_transfer CapacityCompatibleGraphs.eq_if_E_eq Shortest_Path_Union.shortest_path_union Shortest_Path_Union_def shortest_path_union)
+  by (simp add: CapComp_comm CapComp_transfer Capacity_Compatible.eq_if_E_eq Shortest_Path_Union.shortest_path_union Shortest_Path_Union_def shortest_path_union)
 end \<comment> \<open>Shortest_Path_Union\<close>
 
 locale Layered_Shortest_Path_Union = Shortest_Path_Union + Generic_Layer_Graph c'
@@ -149,14 +166,14 @@ text \<open>Note: the previous proof almost gave us a Prelayer_Graph. However, t
       correct layering function, which is somewhat involved and unnecessary for our purposes.\<close>
 
 lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow>  isShortestPath u p v" unfolding isShortestPath_def
-  using path_ascends_layer path_respects_layer sg_paths_are_base_paths g'.connected_def by fastforce
+  using path_ascends_layer path_respects_layer sub_path g'.connected_def by fastforce
 
 corollary min_dist_transfer: "g'.connected u v \<Longrightarrow> g'.min_dist u v = min_dist u v"
   using shortest_path_transfer g'.obtain_shortest_path g'.shortestPath_is_path min_dist_eqI
   by meson
 end
 
-locale Source_Shortest_Path_Union = CapacityCompatibleGraphs + 
+locale Source_Shortest_Path_Union = Capacity_Compatible + 
   fixes s T
   assumes shortest_s_path_union: "E' = \<Union>{set p | p. \<exists>t. t \<in> T \<and> isShortestPath s p t}"
 begin
@@ -196,7 +213,7 @@ sublocale old_prelayer: Local_Prelayer_Graph_Old c layer V'
 (* TODO prettify, necessary? *)
 sublocale Local_Prelayer_Graph c layer V'
   apply unfold_locales
-  by (metis Graph.isPath_distD dist_trans min_dist_is_dist min_dist_minD min_dist_transfer s_connected sg_connected_remains_base_connected)
+  by (metis Graph.isPath_distD dist_trans min_dist_is_dist min_dist_minD min_dist_transfer s_connected sub_connected)
 
 thm dist_prelayered
 (* TODO does this really work? there might be nodes not connected to s which may be assigned an arbitrary layer *)
@@ -246,7 +263,7 @@ lemma (in CapacityCompatibleGraphs) Source_Shortest_Path_Union_pathI:
 proof
 *)
 
-locale Target_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Target_Shortest_Path_Union = Capacity_Compatible +
   fixes S t
   assumes shortest_t_path_union: "E' = \<Union>{set p | p. \<exists>s. s \<in> S \<and> isShortestPath s p t}"
 begin
@@ -274,7 +291,7 @@ next
 qed
 end \<comment> \<open>Target_Shortest_Path_Union\<close>
 
-locale Dual_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Dual_Shortest_Path_Union = Capacity_Compatible +
   fixes s t
   assumes shortest_st_path_union: "E' = \<Union>{set p | p. isShortestPath s p t}"
 begin
@@ -341,7 +358,7 @@ qed
 subsection \<open>Unions of bounded length shortest paths\<close>
 
 (* TODO cleanup and check which lemma are actually necessary *)
-locale Bounded_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Bounded_Shortest_Path_Union = Capacity_Compatible +
   fixes S T b
   assumes bounded_shortest_path_union:
     "E' = \<Union>{set p | p. \<exists>s t. s \<in> S \<and> t \<in> T \<and> isShortestPath s p t \<and> length p \<le> b}"
@@ -374,7 +391,7 @@ lemma bounded_shortest_ST_path_remains:
 proof -
   from assms have "g'.isPath s p t"
     by (auto simp: Graph.isPath_alt bounded_shortest_path_union dest: shortestPath_is_path)
-  with SP show ?thesis by (auto intro: shortest_path_remains_if_contained)
+  with SP show ?thesis by (auto intro: sub_shortest_path_if_contained)
 qed
 
 lemma obtain_close_ST:
@@ -387,7 +404,7 @@ proof -
   then have "g'.isPath s (p\<^sub>1 @ p\<^sub>2) t"
     using g'.shortestPath_is_path bounded_shortest_ST_path_remains by blast
   with SPs have "g'.isShortestPath s p\<^sub>1 u" "g'.isShortestPath u p\<^sub>2 t"
-     apply (auto simp: Graph.isPath_alt intro!: shortest_path_remains_if_contained)
+     apply (auto simp: Graph.isPath_alt intro!: sub_shortest_path_if_contained)
     by (auto intro: isLinked_if_isPath shortestPath_is_path)
   with that[OF \<open>s \<in> S\<close> \<open>t \<in> T\<close>] \<open>length (p\<^sub>1 @ p\<^sub>2) \<le> b\<close> show thesis
     unfolding g'.connected_def g'.isShortestPath_min_dist_def by auto
@@ -399,7 +416,7 @@ lemma bounded_shortest_ST_path_transfer:
 proof
   assume "g'.isShortestPath s p t"
   with assms show "isShortestPath s p t"
-    by (smt (verit) Graph.connected_def Graph.isPath_distD Graph.isShortestPath_min_dist_def Graph.min_dist_minD bounded_shortest_ST_path_remains dual_order.trans obtain_shortest_path sg_paths_are_base_paths)
+    by (smt (verit) Graph.connected_def Graph.isPath_distD Graph.isShortestPath_min_dist_def Graph.min_dist_minD bounded_shortest_ST_path_remains dual_order.trans obtain_shortest_path sub_path)
 qed (rule bounded_shortest_ST_path_remains[OF assms])
 
 (* TODO fix or remove
@@ -410,7 +427,7 @@ end
 
 locale Bounded_Layered_Shortest_Path_Union = Bounded_Shortest_Path_Union + Generic_Layer_Graph c'
 
-locale Bounded_Source_Shortest_Path_Union = CapacityCompatibleGraphs + 
+locale Bounded_Source_Shortest_Path_Union = Capacity_Compatible + 
   fixes s T b
   assumes bounded_shortest_s_path_union:
     "E' = \<Union>{set p | p. \<exists>t. t \<in> T \<and> isShortestPath s p t \<and> length p \<le> b}"
@@ -524,7 +541,7 @@ proof -
 qed
 *)
 
-locale Bounded_Target_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Bounded_Target_Shortest_Path_Union = Capacity_Compatible +
   fixes S t b
   assumes bounded_shortest_t_path_union:
     "E' = \<Union>{set p | p. \<exists>s. s \<in> S \<and> isShortestPath s p t \<and> length p \<le> b}"
@@ -533,7 +550,7 @@ sublocale Bounded_Shortest_Path_Union c' c S "{t}" b
   by unfold_locales (simp add: bounded_shortest_t_path_union)
 end \<comment> \<open>Bounded_Target_Shortest_Path_Union\<close>
 
-locale Bounded_Dual_Shortest_Path_Union = CapacityCompatibleGraphs +
+locale Bounded_Dual_Shortest_Path_Union = Capacity_Compatible +
   fixes s t b
   assumes bounded_shortest_st_path_union: "E' = \<Union>{set p | p. isShortestPath s p t \<and> length p \<le> b}"
 begin

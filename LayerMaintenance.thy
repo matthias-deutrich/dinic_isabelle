@@ -33,7 +33,7 @@ lemma rp_edges_s_connected: "(u, v) \<in> E' \<Longrightarrow> connected s u"
   unfolding g'.E_def right_pass_nz_iff by blast
 
 lemma rp_vertices_s_connected: "u \<in> V' \<Longrightarrow> connected s u"
-  using E'_ss by (auto intro: rp_edges_s_connected connected_append_edge elim!: g'.vertex_cases)
+  using E_ss by (auto intro: rp_edges_s_connected connected_append_edge elim!: g'.vertex_cases)
 
 lemma s_connected_edges_remain: "(u, v) \<in> E \<Longrightarrow> connected s u \<Longrightarrow> (u, v) \<in> E'"
   unfolding Graph.E_def right_pass_nz_iff by blast
@@ -55,7 +55,7 @@ lemma rp_distinct_connected_iff:
   shows "g'.connected u v \<longleftrightarrow> connected s u \<and> connected u v"
 proof (rule iffI, intro conjI)
   assume pass_con: "g'.connected u v"
-  then show "connected u v" by (rule sg_connected_remains_base_connected)
+  then show "connected u v" by (rule sub_connected)
   from pass_con have "u \<in> V'"
     using assms by (rule g'.distinct_nodes_in_V_if_connected)
   then show "connected s u" by (rule rp_vertices_s_connected)
@@ -99,7 +99,7 @@ lemma lp_edges_t_connected: "(u, v) \<in> E' \<Longrightarrow> connected v t"
   unfolding g'.E_def left_pass_nz_iff by blast
 
 lemma lp_vertices_t_connected: "u \<in> V' \<Longrightarrow> connected u t"
-  using E'_ss by (auto intro: lp_edges_t_connected connected_prepend_edge elim!: g'.vertex_cases)
+  using E_ss by (auto intro: lp_edges_t_connected connected_prepend_edge elim!: g'.vertex_cases)
 
 lemma t_connected_edges_remain: "(u, v) \<in> E \<Longrightarrow> connected v t \<Longrightarrow> (u, v) \<in> E'"
   unfolding Graph.E_def left_pass_nz_iff by blast
@@ -121,7 +121,7 @@ lemma lp_distinct_connected_iff:
   shows "g'.connected u v \<longleftrightarrow> connected u v \<and> connected v t"
 proof (rule iffI, intro conjI)
   assume pass_con: "g'.connected u v"
-  then show "connected u v" by (rule sg_connected_remains_base_connected)
+  then show "connected u v" by (rule sub_connected)
   from pass_con have "v \<in> V'"
     using assms by (rule g'.distinct_nodes_in_V_if_connected)
   then show "connected v t" by (rule lp_vertices_t_connected)
@@ -213,7 +213,7 @@ sublocale rp_sg: Subgraph rp c using right_pass_Subgraph .
 (*interpretation lp: Graph lp .*)
 sublocale lp_sg: Subgraph lp c using left_pass_Subgraph .
 
-thm rp_sg.sg_connected_remains_base_connected
+thm rp_sg.sub_connected
 
 lemma cl_is_c_if_st_connected[simp]: "connected s u \<Longrightarrow> connected v t \<Longrightarrow> cl (u, v) = c (u, v)"
   unfolding cleaning_def by simp
@@ -249,11 +249,11 @@ proof (rule ext, unfold split_paired_all)
     case True
     then have "c (u, v) = 0 \<or> \<not> connected s u \<or> \<not> connected v t" unfolding cleaning_def by auto
     then show "left_pass t rp (u, v) = 0"
-      by (auto simp: left_pass_def right_pass_def rp_sg.sg_connected_remains_base_connected)
+      by (auto simp: left_pass_def right_pass_def rp_sg.sub_connected)
   next
     case False
     then have "(u, v) \<in> E" and st_connected: "connected s u" "connected v t"
-      using cl.E_def cl_sg.E'_ss cleaning_nz_iff by blast+
+      using cl.E_def cl_sg.E_ss cleaning_nz_iff by blast+
     then have "connected s v" using connected_append_edge by blast
     with st_connected have "cl_right_sg.connected v t"
       by (cases "v = t") (simp_all add: S_Graph.rp_distinct_connected_iff)

@@ -211,7 +211,7 @@ proof (rule wf_subset)
   show "wf (inv_image finite_psubset Graph.E)" by simp
   show "finiteProperSubgraph \<subseteq> inv_image finite_psubset Graph.E"
     unfolding finiteProperSubgraph_def inv_image_def finite_psubset_def
-    using Proper_Subgraph.E'_pss Finite_Graph.finite_E by blast
+    using Proper_Subgraph.E_pss Finite_Graph.finite_E by blast
 qed
 
 definition graphWorkingSetRel :: "(_ set \<times> _ graph) rel"
@@ -245,7 +245,7 @@ proof (clarify, intro conjI)
   show "s \<notin> Q'"
   proof -
     from S_NO_IN have "g'.incoming s = {}" unfolding Graph.incoming_def
-      using E'_ss by fast
+      using E_ss by fast
     then have "s \<notin> snd ` g'.outgoing u" unfolding g'.incoming_def g'.outgoing_def by fastforce
     with \<open>s \<notin> Q\<close> show "?thesis" unfolding Q'_def by blast
   qed
@@ -275,7 +275,7 @@ proof (clarify, intro conjI)
     fix v
     assume "v \<in> g''.V" "v \<noteq> s" "v \<notin> snd ` g'.outgoing u" "v \<in> Q \<longrightarrow> v = u" "g''.incoming v = {}"
     from \<open>v \<in> g''.V\<close> have "v \<in> g'.V" unfolding c''_def
-      using g'.deleteEdges_sg Subgraph.V_ss by fast
+      using g'.deleteEdges_sg Subgraph_def Subset_Graph.V_ss by fast
     have "v \<notin> Q"
     proof
       assume "v \<in> Q"
@@ -326,8 +326,9 @@ proof (intro subgraph.order_antisym Subgraph_edgeI)
   with S_CON show "c' (u, v) = right_pass s c (u, v)"
     using right_pass_nz_iff S_Graph.rp_is_c_if_s_connected by metis
 next
+  interpret Subgraph c' c using SUB .
   interpret g': Distance_Bounded_Graph c' b
-    using SUB Subgraph.sg_Distance_Bounded Distance_Bounded_Graph_axioms by blast
+    using sub_Distance_Bounded Distance_Bounded_Graph_axioms by blast
   fix u v
   assume "c' (u, v) \<noteq> 0"
   then have "u \<in> g'.V" unfolding Graph.V_def Graph.E_def by blast
@@ -335,7 +336,7 @@ next
   from W_CON \<open>u \<in> g'.V\<close> have "w \<in> g'.V" by (meson g'.connected_inV_iff)
   with W_NO_IN NODE_HAS_IN have "w = s" by blast
   with W_CON have "right_pass s c (u, v) = c (u, v)"
-    using SUB Subgraph.sg_connected_remains_base_connected S_Graph.rp_is_c_if_s_connected by fastforce
+    using sub_connected S_Graph.rp_is_c_if_s_connected by fastforce
   also from SUB \<open>c' (u, v) \<noteq> 0\<close> have "... = c' (u, v)" by (metis Subgraph.c'_sg_c_old)
   finally show "right_pass s c (u, v) = c' (u, v)" by simp
 qed (* TODO cleanup *)
@@ -508,8 +509,8 @@ proof (refine_vcg, simp)
         using \<open>outgoing t = {}\<close>
         unfolding Graph.outgoing_def Graph.E_def right_pass_def by simp
       unfolding Finite_Bounded_Graph_def apply auto[1]
-      using edges_ss g'.Finite_Graph_EI rev_finite_subset apply blast
-      using Distance_Bounded_Graph_axioms apply (rule sg_Distance_Bounded)
+      using E_ss g'.Finite_Graph_EI rev_finite_subset apply blast
+      using Distance_Bounded_Graph_axioms apply (rule sub_Distance_Bounded)
     proof
       fix u
       assume "u \<in> V' - Q - {t}"
@@ -580,9 +581,9 @@ lemma transferEdgesRefine_correct:
   unfolding transferEdgesRefineInvar_def transferEdge_alt by fastforce+
 
 lemma transferEdges_capcomp:
-  "CapacityCompatibleGraphs c' c \<Longrightarrow> CapacityCompatibleGraphs (transferEdges S c') c"
+  "Capacity_Compatible c' c \<Longrightarrow> Capacity_Compatible (transferEdges S c') c"
   unfolding transferEdges_def
-  by unfold_locales (simp add: CapacityCompatibleGraphs.cap_compatible)
+  by unfold_locales (simp add: Capacity_Compatible.cap_compatible)
 
 lemma transferEdges_E: "Graph.E (transferEdges S c') = Graph.E c' - S \<union> (S \<inter> E)"
   unfolding Graph.E_def transferEdges_def by auto
@@ -626,7 +627,7 @@ definition ebfsPhase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set \
 
 definition ebfsPhaseInvar :: "node \<Rightarrow> nat \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) \<Rightarrow> bool" where
   "ebfsPhaseInvar s n c\<^sub>i Q \<equiv> \<lambda>(c', Q').
-    CapacityCompatibleGraphs c' c
+    Capacity_Compatible c' c
     \<and> Graph.E c' = Graph.E c\<^sub>i \<union> E \<inter> (exactDistNodes n s - Q) \<times> Q'
     \<and> Q' = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - Q)"
 
@@ -636,7 +637,7 @@ lemma ebfsPhase_initial:
   unfolding ebfsPhaseInvar_def
 proof (intro case_prodI conjI)
   from assms interpret Bounded_Source_Shortest_Path_Union c' c s V n .
-  show "CapacityCompatibleGraphs c' c" by intro_locales
+  show "Capacity_Compatible c' c" by intro_locales
 qed (simp_all)
 
 lemma ebfs_phase_final:
@@ -644,11 +645,11 @@ lemma ebfs_phase_final:
     and INVAR: "ebfsPhaseInvar s n c\<^sub>i {} (c', Q')"
   shows "Bounded_Source_Shortest_Path_Union c' c s V (Suc n) \<and> Q' = exactDistNodes (Suc n) s"
 proof
-  from INVAR have "CapacityCompatibleGraphs c' c"
+  from INVAR have "Capacity_Compatible c' c"
     and E'_EQ: "Graph.E c' = Graph.E c\<^sub>i \<union> E \<inter> exactDistNodes n s \<times> Q'"
     and Q'_EQ: "Q' = exactDistNodes (Suc n) s \<inter> E `` exactDistNodes n s"
     unfolding ebfsPhaseInvar_def by auto
-  then interpret CapacityCompatibleGraphs c' c by simp
+  then interpret Capacity_Compatible c' c by simp
   from BSPU interpret g\<^sub>i: Bounded_Source_Shortest_Path_Union c\<^sub>i c s V n .
 
   have "exactDistNodes (Suc n) s \<subseteq> E `` exactDistNodes n s"
@@ -748,14 +749,14 @@ proof -
   also have "... \<le> (spec c''. ebfsPhaseInvar s n c\<^sub>i (Q - {u}) (c'', Q' \<union> S))"
     unfolding ebfsPhaseInvar_def
   proof (clarify, refine_vcg)
-    from INVAR have "CapacityCompatibleGraphs c' c"
+    from INVAR have "Capacity_Compatible c' c"
       and E'_EQ: "Graph.E c' = Graph.E c\<^sub>i \<union> E \<inter> (exactDistNodes n s - Q) \<times> Q'"
       and Q'_EQ: "Q' = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - Q)"
       unfolding ebfsPhaseInvar_def by auto
-    then interpret CapacityCompatibleGraphs c' c by simp
+    then interpret Capacity_Compatible c' c by simp
 
-    show "CapacityCompatibleGraphs (transferEdges ({u} \<times> S) c') c"
-      using \<open>CapacityCompatibleGraphs c' c\<close> transferEdges_capcomp by blast
+    show "Capacity_Compatible (transferEdges ({u} \<times> S) c') c"
+      using \<open>Capacity_Compatible c' c\<close> transferEdges_capcomp by blast
 
     interpret g\<^sub>i: Graph c\<^sub>i .
     from Q have "E `` {u} \<subseteq> boundedReachableNodes (Suc n) s"
@@ -1130,7 +1131,7 @@ proof -
     proof (intro antisym)
       from PATH INVAR show "cf.min_dist s t \<le> f'.cf.min_dist s t"
         unfolding dinitzPhaseInvar_def Graph.connected_def
-        using sg_paths_are_base_paths by blast
+        using sub_path by blast
       from PATH show "f'.cf.min_dist s t \<le> cf.min_dist s t" (* TODO fix proof *)
       using f'.cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer (* by simp *)
       by (metis Bounded_Shortest_Path_Union.obtain_close_ST Bounded_Shortest_Path_Union_axioms emptyE g'.isEmpty_def g'.isPath_bwd_cases min_dist_transfer s_in_V_if_nonempty singleton_iff t_not_s)
@@ -1277,23 +1278,24 @@ next
   assume "Contained_Graph stl' stl" "Graph.E stl \<subseteq> Graph.E stl' \<union> set p"
   show "cleaningRefine (set (Graph.pathVertices s p) - {s, t}) stl' \<le> RES {cleaning s t stl'}"
   proof (unfold RES_sng_eq_RETURN, intro Finite_Bounded_Graph.cleaning_algo_correct)
+    interpret Contained_Graph stl' stl using \<open>Contained_Graph stl' stl\<close> .
     show "s \<notin> set (Graph.pathVertices s p) - {s, t}"
       "t \<notin> set (Graph.pathVertices s p) - {s, t}"
       "finite (set (Graph.pathVertices s p) - {s, t})"
       by auto
-    from \<open>Contained_Graph stl' stl\<close> show "Finite_Bounded_Graph stl' (stu.layer t)" unfolding Finite_Bounded_Graph_def
-      by (meson Finite_Graph.intro Graph.Efin_imp_Vfin Contained_Graph.edges_ss Contained_Graph.cont_Distance_Bounded cfE_of_finite infinite_super stu.Distance_Bounded_Graph_axioms stu.E'_ss)
-    from \<open>Contained_Graph stl' stl\<close> show "Graph.incoming stl' s = {}"
-      by (metis Graph.isShortestPath_min_dist_def SP Contained_Graph.cont_incoming_ss bot.extremum_uniqueI stu.b_length_paths_are_terminal(1) stu.path_is_shortest)
+    show "Finite_Bounded_Graph stl' (stu.layer t)" unfolding Finite_Bounded_Graph_def
+      by (meson Finite_Graph.intro Graph.Efin_imp_Vfin E_ss sub_Distance_Bounded cfE_of_finite infinite_super stu.Distance_Bounded_Graph_axioms stu.E_ss)
+    show "Graph.incoming stl' s = {}"
+      by (metis Graph.isShortestPath_min_dist_def SP incoming_ss bot.extremum_uniqueI stu.b_length_paths_are_terminal(1) stu.path_is_shortest)
       (*by (metis Subgraph.incoming_ss Subgraph_axioms incoming_s_empty subset_empty)*)
-    from \<open>Contained_Graph stl' stl\<close> show "Graph.outgoing stl' t = {}"
-      by (metis Diff_empty Diff_eq_empty_iff Graph.distinct_nodes_in_V_if_connected(2) Contained_Graph.cont_outgoing_ss stu.no_outgoingD stu.obtain_back_terminal_connected)
+    show "Graph.outgoing stl' t = {}"
+      by (metis Diff_empty Diff_eq_empty_iff Graph.distinct_nodes_in_V_if_connected(2) outgoing_ss stu.no_outgoingD stu.obtain_back_terminal_connected)
       (*by (metis Subgraph.outgoing_ss Subgraph_axioms outgoing_t_empty subset_empty)*)
     from \<open>Graph.E stl \<subseteq> Graph.E stl' \<union> set p\<close> show "\<forall>u\<in>Graph.V stl' - (set (Graph.pathVertices s p) - {s, t}) - {s, t}. Graph.incoming stl' u \<noteq> {} \<and> Graph.outgoing stl' u \<noteq> {}"
     proof auto (* TODO *)
       fix v
       assume "v \<in> Graph.V stl'"
-      then have "v \<in> Graph.V stl" using Contained_Graph.vertices_ss[OF \<open>Contained_Graph stl' stl\<close>] by blast
+      then have "v \<in> Graph.V stl" using V_ss by blast
       moreover assume "v \<noteq> s" "v \<noteq> t"
       ultimately obtain u w where IN_OUT: "(u, v) \<in> Graph.E stl" "(v, w) \<in> Graph.E stl"
         by (metis Graph.isPath_bwd_cases Graph.isPath_fwd_cases stu.g'.connected_def stu.st_connected)
