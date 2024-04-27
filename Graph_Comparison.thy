@@ -1,5 +1,5 @@
-theory Subgraph
-imports GraphUtils
+theory Graph_Comparison
+imports Graph_Utils
 begin
 
 (* TODO check whether this definition is actually still useful, or whether it should be dropped in favor of the locale *)

@@ -1,5 +1,5 @@
 theory Graph_Restriction
-  imports Subgraph
+  imports Graph_Comparison
 begin
 
 (* TODO is it useful to unify all the scattered locales into using a generic restriction function? *)

@@ -1,5 +1,8 @@
 theory Original_Dinitz_Refine
-  imports Original_Dinitz_Algo Graph_Transpose Refine_Imperative_HOL.Sepref_Foreach
+  imports
+    Original_Dinitz_Algo
+    Graph_Transpose
+    Refine_Imperative_HOL.Sepref_Foreach
 begin
 text \<open>This theory takes the abstract definition of the Original Dinitz algorithm and refines
       it towards a concrete version. The goal here is not yet to arrive at an executable version,

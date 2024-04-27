@@ -1,5 +1,8 @@
 theory Original_Dinitz_Algo
-  imports Graph_Restriction NetworkUtils Refine_Monadic.Refine_Monadic
+  imports
+    Graph_Restriction
+    Network_Utils
+    Refine_Monadic.Refine_Monadic
 begin
 (* TODO do we need f? *)
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>

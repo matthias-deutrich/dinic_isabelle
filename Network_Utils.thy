@@ -1,4 +1,4 @@
-theory NetworkUtils
+theory Network_Utils
   imports LayerMaintenance Flow_Networks.Ford_Fulkerson
 begin
 text \<open>This file contains several additions to the AFP concerning networks and flows.\<close>

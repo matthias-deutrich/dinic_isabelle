@@ -1,5 +1,5 @@
 theory Graph_Transpose
-imports GraphUtils Refine_Monadic.Refine_Monadic
+imports Graph_Utils Refine_Monadic.Refine_Monadic
 begin
 
 definition transpose_graph :: "_ graph \<Rightarrow> _ graph" ("(_\<^sup>T)" [1000] 999) where

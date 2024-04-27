@@ -1,4 +1,4 @@
-theory GraphUtils
+theory Graph_Utils
 imports "Flow_Networks.Graph"
 begin
 
