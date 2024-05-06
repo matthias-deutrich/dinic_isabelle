@@ -170,8 +170,8 @@ section \<open>Acyclic and distance-bounded graphs\<close>
 
 context Graph
 begin
-definition isCycle :: "node \<Rightarrow> path \<Rightarrow> bool"
-  where "isCycle u p \<equiv> isPath u p u \<and> p \<noteq> []"
+definition isCycle :: "node \<Rightarrow> path \<Rightarrow> bool" where
+  "isCycle u p \<equiv> isPath u p u \<and> p \<noteq> []"
 
 lemma cycle_induces_arbitrary_length_paths: "isCycle u p \<Longrightarrow> \<exists>p'. isPath u p' u \<and> length p' \<ge> n"
 proof (induction n)
@@ -204,7 +204,7 @@ end
 locale Acyclic_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
   assumes acyclic: "\<nexists>u p. isCycle u p"
 begin
-lemma paths_are_simple: "isPath s p t \<Longrightarrow> isSimplePath s p t"
+lemma paths_are_simple: "isPath u p v \<Longrightarrow> isSimplePath u p v"
   using split_non_simple_path acyclic by auto
 
 lemma no_parallel_edge: "(u, v) \<in> E \<Longrightarrow> (v, u) \<notin> E"
@@ -464,6 +464,7 @@ next
   ultimately show "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t" by auto
 qed*)
 
+(* TODO unify with Path_Kind *)
 lemma split_shortest_path_around_edge:
   assumes "isShortestPath s (p @ (u, v) # p') t"
   shows "isShortestPath s p u \<and> isShortestPath u ((u, v) # p') t

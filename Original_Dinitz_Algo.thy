@@ -201,6 +201,7 @@ end
 subsection \<open>Dinitz inner loop\<close>
 context NFlow
 begin
+(*
 definition dinitz_phase :: "_ flow nres" where
   "dinitz_phase \<equiv> do {
     if cf.connected s t
@@ -216,6 +217,19 @@ definition dinitz_phase :: "_ flow nres" where
           (f, stl);
         RETURN f'}
       else RETURN f}"
+*)
+definition dinitz_phase :: "_ flow nres" where
+  "dinitz_phase \<equiv> do {
+    let stl = induced_st_layering cf s t;
+    (f', _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, stl). Graph.connected stl s t)
+      (\<lambda>(f', stl). do {
+        p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
+        let stl = cleaning s t (Graph.subtract_path stl p);
+        let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+        RETURN (f', stl)})
+      (f, stl);
+    RETURN f'}"
 thm Graph.subtract_path_alt
 
 definition dinitzPhaseInvar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" where
