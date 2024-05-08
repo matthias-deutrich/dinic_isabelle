@@ -51,11 +51,14 @@ thm Graph.split_shortest_path_around_edge
 locale Path_Kind =
   fixes isKindPath
   assumes path_kind: "\<And>c u p v. isKindPath c u p v \<Longrightarrow> Graph.isPath c u p v"
-    and split_path: "\<And>c u p\<^sub>1 p\<^sub>2 v. isKindPath c u (p\<^sub>1 @ p\<^sub>2) v \<Longrightarrow> \<exists>w. isKindPath c u p\<^sub>1 w \<and> isKindPath c w p\<^sub>2 v"
 begin
 lemma connected: "isKindPath c u p v \<Longrightarrow> Graph.connected c u v"
   using Graph.connected_def path_kind by blast
+end
 
+locale Splittable_Path_Kind = Path_Kind +
+  assumes split_path: "\<And>c u p\<^sub>1 p\<^sub>2 v. isKindPath c u (p\<^sub>1 @ p\<^sub>2) v \<Longrightarrow> \<exists>w. isKindPath c u p\<^sub>1 w \<and> isKindPath c w p\<^sub>2 v"
+begin
 lemma split_around_edge:
   assumes "isKindPath c s (p @ (u, v) # p') t"
   shows "isKindPath c s p u \<and> isKindPath c u ((u, v) # p') t
@@ -73,20 +76,80 @@ next
 qed
 end
 
-interpretation isPath: Path_Kind Graph.isPath
-  by unfold_locales (auto simp: Graph.isPath_append)
+(* TODO is this useful? *)
+locale Connecting_Path_Kind = Path_Kind +
+  assumes connecting: "\<And>c u v. Graph.connected c u v \<Longrightarrow> \<exists>p. isKindPath c u p v"
+begin
+(* TODO can we derive this if we just assume Path_Kind? *)
+(* sublocale Splittable_Path_Kind *)
 
-interpretation isSimplePath: Path_Kind Graph.isSimplePath
+lemma obtain_path:
+  assumes "Graph.connected c u v"
+  obtains p where "isKindPath c u p v"
+  using assms connecting by blast
+end
+
+locale Subgraph_Path_Kind = Path_Kind +
+  assumes transfer_path: "\<And>c' c u p v. \<lbrakk>Subgraph c' c; set p \<subseteq> Graph.E c'; isKindPath c u p v\<rbrakk> \<Longrightarrow> isKindPath c' u p v"
+
+locale Regular_Path_Kind = Splittable_Path_Kind + Connecting_Path_Kind + Subgraph_Path_Kind
+
+(* TODO manually prove the interpretations, then replace the corresponding theorems in Graph.thy *)
+interpretation isPath: Regular_Path_Kind Graph.isPath
   apply unfold_locales
-   apply (simp add: Graph.isSimplePath_def)
-  by (blast intro: Graph.split_simple_path)
+     apply simp
+    apply (simp add: Graph.isPath_append)
+   apply (simp add: Graph.connected_def)
+  by (simp add: Graph.isPath_alt)
 
-interpretation isShortestPath: Path_Kind Graph.isShortestPath
-  by unfold_locales (auto intro: Graph.shortestPath_is_path Graph.split_shortest_path)
+interpretation isSimplePath: Regular_Path_Kind Graph.isSimplePath
+  apply unfold_locales
+    apply (simp add: Graph.isSimplePath_def)
+    apply (simp add: Graph.split_simple_path)
+  using Graph.connected_def Graph.isSPath_pathLE apply blast
+  by (simp add: Graph.isPath_alt Graph.isSimplePath_def)
 
-locale Path_Kind_Union = Path_Kind + Capacity_Compatible +
+interpretation isShortestPath: Regular_Path_Kind Graph.isShortestPath
+  apply unfold_locales
+     apply (simp add: Graph.shortestPath_is_path)
+    apply (simp add: Graph.split_shortest_path)
+   apply (meson Graph.obtain_shortest_path)
+  by (meson Graph.shortestPath_is_path Subgraph_def Subset_Graph.sub_shortest_path_if_contained isPath.transfer_path)
+
+locale Graph_Prop_Union = Capacity_Compatible c' c
+  for P c' c +
+  (* for P and c' c :: "'capacity::linordered_idom graph" + *)
   fixes S T
-  assumes path_union: "E' = \<Union> {set p | p. \<exists>s t. s \<in> S \<and> t \<in> T \<and> isKindPath c s p t}"
+  assumes path_union: "E' = \<Union> {set p | p. \<exists>s t. s \<in> S \<and> t \<in> T \<and> P c s p t}"
+
+locale Source_Graph_Prop_Union = Capacity_Compatible c' c
+  for P c' c +
+  (* for P and c' c :: "'capacity::linordered_idom graph" + *)
+  fixes s T
+  assumes source_path_union: "E' = \<Union> {set p | p. \<exists>t. t \<in> T \<and> P c s p t}"
+sublocale Source_Graph_Prop_Union \<subseteq> Graph_Prop_Union _ _ _ "{s}"
+  by unfold_locales (simp add: source_path_union)
+
+locale Target_Graph_Prop_Union = Capacity_Compatible c' c
+  for P c' c +
+  (* for P and c' c :: "'capacity::linordered_idom graph" + *)
+  fixes S t
+  assumes target_path_union: "E' = \<Union> {set p | p. \<exists>s. s \<in> S \<and> P c s p t}"
+sublocale Target_Graph_Prop_Union \<subseteq> Graph_Prop_Union _ _ _ _ "{t}"
+  by unfold_locales (simp add: target_path_union)
+
+locale Dual_Graph_Prop_Union = Capacity_Compatible c' c
+  for P c' c +
+  (* for P and c' c :: "'capacity::linordered_idom graph" + *)
+  fixes s t
+  assumes dual_path_union: "E' = \<Union> {set p | p. P c s p t}"
+sublocale Dual_Graph_Prop_Union \<subseteq> Source_Graph_Prop_Union _ _ _ _ "{t}"
+  by unfold_locales (simp add: dual_path_union)
+sublocale Dual_Graph_Prop_Union \<subseteq> Target_Graph_Prop_Union _ _ _ "{s}"
+  by unfold_locales (simp add: dual_path_union)
+
+
+locale Path_Kind_Union = Path_Kind + Graph_Prop_Union isKindPath
 begin
 sublocale Restricted_Graph c' c "\<lambda>e. \<exists>p s t. e \<in> set p \<and> s \<in> S \<and> t \<in> T \<and> isKindPath c s p t"
   by unfold_locales (fastforce simp: path_union intro: path_kind isPath_edgeset)
@@ -99,6 +162,11 @@ lemma obtain_ST_path_via_edge:
   assumes "(u, v) \<in> E'"
   obtains s t p\<^sub>s p\<^sub>t where "s \<in> S" "t \<in> T" "isKindPath c s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
   using assms by (metis edge_on_path in_set_conv_decomp)
+end
+
+locale Splittable_Path_Kind_Union = Splittable_Path_Kind + Graph_Prop_Union isKindPath
+begin
+sublocale Path_Kind_Union by intro_locales
 
 lemma obtain_ST_paths:
   assumes "u \<in> V'"
@@ -113,6 +181,32 @@ lemma obtain_connected_ST:
   using assms by (fastforce elim: obtain_ST_paths intro: connected)
 end
 
+locale Subgraph_Path_Kind_Union = Subgraph_Path_Kind + Graph_Prop_Union isKindPath
+begin
+sublocale Path_Kind_Union by intro_locales
+
+lemma ST_path_remains:
+  assumes PATH: "isKindPath c s p t"
+    and "s \<in> S" "t \<in> T"
+  shows "isKindPath c' s p t"
+proof -
+  from assms have "set p \<subseteq> E'" by (auto simp: path_union)
+  with PATH show ?thesis using transfer_path 
+    using Subgraph_Path_Kind.transfer_path Subgraph_Path_Kind_axioms Subgraph_axioms by blast
+qed
+end
+
+locale Regular_Path_Kind_Union = Regular_Path_Kind + Graph_Prop_Union isKindPath
+begin
+sublocale Splittable_Path_Kind_Union by intro_locales
+sublocale Subgraph_Path_Kind_Union by intro_locales
+end
+
+
+
+
+(* TODO do these make sense? *)
+(*
 locale Source_Path_Kind_Union = Path_Kind + Capacity_Compatible +
   fixes s T
   assumes source_path_union: "E' = \<Union> {set p | p. \<exists>t. t \<in> T \<and> isKindPath c s p t}"
@@ -139,61 +233,87 @@ sublocale Source_Path_Kind_Union _ _ _ _ "{t}"
 sublocale Target_Path_Kind_Union _ _ _ "{s}"
   by unfold_locales (simp add: dual_path_union)
 end
+*)
 
+locale Path_Union = Graph_Prop_Union Graph.isPath
+sublocale Path_Union \<subseteq> Regular_Path_Kind_Union Graph.isPath by intro_locales
 
-
-
-
-locale Shortest_Path_Union = Path_Kind_Union Graph.isShortestPath
+(*
 begin
-thm edge_on_path
-thm obtain_ST_path_via_edge
-thm obtain_ST_paths
-
-lemma shortest_ST_path_remains:
-  assumes "s \<in> S" "t \<in> T" and SP: "isShortestPath s p t"
-  shows "g'.isShortestPath s p t"
+lemma transfer_ST_connected_edge:
+  assumes EDGE: "(u, v) \<in> E"
+    and DUAL_CON: "\<exists>s\<in>S. connected s u" "\<exists>t\<in>T. connected v t"
+  shows "(u, v) \<in> E'"
 proof -
-  from assms have "g'.isPath s p t"
-    by (auto simp: Graph.isPath_alt path_union dest: shortestPath_is_path)
-  with SP show ?thesis by (auto intro: sub_shortest_path_if_contained)
+  from DUAL_CON obtain s t p\<^sub>s p\<^sub>t where ST: "s \<in> S" "t \<in> T" and "isPath s p\<^sub>s u" "isPath v p\<^sub>t t"
+    unfolding connected_def by blast
+  with EDGE have "isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t" by (simp add: isPath_append)
+  with ST show ?thesis using path_union by fastforce
 qed
 
-lemma obtain_connected_subgraph_ST:
-  assumes "u \<in> V'"
-  obtains s t where "s \<in> S" "t \<in> T" "g'.connected s u" "g'.connected u t"
+lemma transfer_ST_connected_path:
+  assumes PATH: "isPath u p v"
+    and DUAL_CON: "\<exists>s\<in>S. connected s u" "\<exists>t\<in>T. connected v t"
+  shows "g'.isPath u p v"
+using PATH DUAL_CON(1) proof (induction rule: isPath_front_induct)
+  case (EdgePath u w p)
+  with DUAL_CON(2) have "(u, w) \<in> E'"
+    using transfer_ST_connected_edge connected connected_trans by meson
+  moreover from EdgePath have "g'.isPath w p v"
+    using connected_append_edge by blast
+  ultimately show ?case by simp
+qed simp
+
+corollary ST_path_remains: "\<lbrakk>isPath s p t; s \<in> S; t \<in> T\<rbrakk> \<Longrightarrow> g'.isPath s p t"
+  using transfer_ST_connected_path by blast
+end
+*)
+
+locale Source_Path_Union = Source_Graph_Prop_Union Graph.isPath
+sublocale Source_Path_Union \<subseteq> Path_Union _ _ "{s}" by intro_locales
+
+locale Target_Path_Union = Target_Graph_Prop_Union Graph.isPath
+sublocale Target_Path_Union \<subseteq> Path_Union _ _ _ "{t}" by intro_locales
+
+locale Dual_Path_Union = Dual_Graph_Prop_Union Graph.isPath
+sublocale Dual_Path_Union \<subseteq> Source_Path_Union _ _ _ "{t}" by intro_locales
+sublocale Dual_Path_Union \<subseteq> Target_Path_Union _ _ "{s}" by intro_locales
+
+lemma Dual_Path_Union_right_leftI:
+  assumes RIGHT: "Source_Path_Union c' c s (Graph.V c)"
+    and LEFT: "Target_Path_Union c'' c (Graph.V c') t"
+  shows "Dual_Path_Union c'' c s t"
 proof -
-  from assms obtain s t p\<^sub>1 p\<^sub>2 where "s \<in> S" "t \<in> T" "isShortestPath s p\<^sub>1 u" "isShortestPath u p\<^sub>2 t" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
-    by (rule obtain_ST_paths)
-  then have "isPath s p\<^sub>1 u" "isPath u p\<^sub>2 t" "g'.isPath s (p\<^sub>1 @ p\<^sub>2) t"
-    by (auto intro: Graph.shortestPath_is_path shortest_ST_path_remains)
-  with that \<open>s \<in> S\<close> \<open>t \<in> T\<close> show thesis
-    by (meson g'.connected_def Graph.isPath_alt g'.isPath_append)
+  from RIGHT interpret right: Source_Path_Union c' c s "Graph.V c" .
+  from LEFT interpret left: Target_Path_Union c'' c "Graph.V c'" t .
+  interpret Subgraph c'' c by intro_locales
+
+  show ?thesis
+  proof (unfold_locales, intro pair_set_eqI)
+    fix u v
+    assume "(u, v) \<in> left.E'"
+    then obtain w p where "w \<in> right.V'" and IN_P: "(u, v) \<in> set p" and P: "right.isPath w p t"
+      using left.target_path_union by blast
+    then obtain p' where "right.isPath s p' w" using right.obtain_ST_paths by blast
+    with P have "right.isPath s (p' @ p) t" using right.isPath_append by blast
+    with IN_P show "(u, v) \<in> \<Union> {set p |p. right.isPath s p t}" by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. right.isPath s p t}"
+    then obtain p where P: "(u, v) \<in> set p" "right.isPath s p t" by blast
+    then have "right.g'.isPath s p t" apply (elim right.ST_path_remains) apply simp (* TODO *)
+      by (metis (no_types, lifting) Graph.isPath_bwd_cases P(2) empty_iff empty_set mem_Collect_eq right.V_def)
+(*
+      using right.ST_path_remains
+      by (smt (verit, del_insts) Graph.V_def Graph.distinct_nodes_in_V_if_connected(2) empty_iff empty_set insertI1 isPath.connected mem_Collect_eq right.isPath_fwd_cases)
+*)
+    then have "s \<in> right.V'"
+      by (metis (no_types, lifting) Graph.isPath_fwd_cases P(1) emptyE list.set(1) mem_Collect_eq right.g'.V_def) (* TODO *)
+    with P show "(u, v) \<in> left.E'" unfolding left.target_path_union by blast
+  qed
 qed
 
-text \<open>Note: for the direction from g' to g, we actually DO need BOTH endpoints in S/T.
-      Alternatively, it also works as long as g' is layered, which we show later.\<close>
-lemma shortest_ST_path_transfer:
-  assumes "s \<in> S" "t \<in> T"
-  shows "g'.isShortestPath s p t \<longleftrightarrow> isShortestPath s p t"
-proof
-  assume "g'.isShortestPath s p t"
-  then show "isShortestPath s p t"
-    by (metis connected_def Graph.isShortestPath_min_dist_def assms obtain_shortest_path sub_path shortest_ST_path_remains)
-qed (rule shortest_ST_path_remains[OF assms])
 
-corollary min_ST_dist_transfer: "\<lbrakk>s \<in> S; t \<in> T; connected s t\<rbrakk> \<Longrightarrow> g'.min_dist s t = min_dist s t"
-  using obtain_shortest_path shortest_ST_path_transfer min_dist_eqI by meson
-end
-
-(* TODO fix *)
-locale Source_Shortest_Path_Union' = Source_Path_Kind_Union Graph.isShortestPath
-begin
-(* TODO can we somehow automatically derive this? *)
-sublocale Shortest_Path_Union _ _ "{s}" oops
-thm obtain_ST_paths
-thm Shortest_Path_Union.shortest_ST_path_transfer
-end
 
 
 
@@ -213,77 +333,23 @@ end
 
 
 subsection \<open>Unions of shortest paths\<close>
-(*
-locale Shortest_Path_Union' = Capacity_Compatible +
-  fixes S T
-  assumes shortest_path_union: "E' = \<Union>{set p | p. \<exists>s t. s \<in> S \<and> t \<in> T \<and> isShortestPath s p t}"
 
-(*sublocale Shortest_Path_Union \<subseteq> Generic_Path_Union _ _ isShortestPath
-  by unfold_locales (auto simp: shortestPath_is_path shortest_path_union)
-(* TODO *)
-context Shortest_Path_Union*)
+locale Shortest_Path_Union = Graph_Prop_Union Graph.isShortestPath
 begin
-(*
-sublocale Subgraph
-  using shortest_path_union isPath_edgeset shortestPath_is_path by unfold_locales blast*)
-(* transferred *)
-(*
-lemma edge_on_shortest_path:
-  "(u, v) \<in> E' \<Longrightarrow> \<exists>s t p. s \<in> S \<and> t \<in> T \<and> isShortestPath s p t \<and> (u, v) \<in> set p"
-  using shortest_path_union by blast*)
+sublocale Regular_Path_Kind_Union Graph.isShortestPath by intro_locales
 
-(* transferred *)
-(*
-lemma obtain_shortest_ST_edge_path:
-  assumes "(u, v) \<in> E'"
-  obtains s t p\<^sub>s p\<^sub>t where "s \<in> S" "t \<in> T" "isShortestPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
-  using assms by (metis edge_on_shortest_path in_set_conv_decomp)
-*)
-
-(* transferred *)
-(*
-lemma obtain_shortest_ST_paths:
-  assumes "u \<in> V'"
-  obtains s t p\<^sub>s p\<^sub>t where "s \<in> S" "t \<in> T" "isShortestPath s p\<^sub>s u" "isShortestPath u p\<^sub>t t" "isShortestPath s (p\<^sub>s @ p\<^sub>t) t"
-  using assms apply (elim g'.vertex_cases obtain_shortest_ST_edge_path)
-   apply (metis split_shortest_path_around_edge)
-  by (metis split_shortest_path_around_edge append.assoc append.left_neutral append_Cons)
-*)
-
-(*
-lemma shortest_ST_path_remains:
-  assumes "s \<in> S" "t \<in> T" and SP: "isShortestPath s p t"
-  shows "g'.isShortestPath s p t"
-proof -
-  from assms have "g'.isPath s p t"
-    by (auto simp: Graph.isPath_alt shortest_path_union dest: shortestPath_is_path)
-  with SP show ?thesis by (auto intro: sub_shortest_path_if_contained)
-qed
-*)
-
-(*
-lemma obtain_connected_ST:
+lemma obtain_connected_subgraph_ST:
   assumes "u \<in> V'"
   obtains s t where "s \<in> S" "t \<in> T" "g'.connected s u" "g'.connected u t"
 proof -
   from assms obtain s t p\<^sub>1 p\<^sub>2 where "s \<in> S" "t \<in> T" "isShortestPath s p\<^sub>1 u" "isShortestPath u p\<^sub>2 t" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
-    by (rule obtain_shortest_ST_paths)
+    by (rule obtain_ST_paths)
   then have "isPath s p\<^sub>1 u" "isPath u p\<^sub>2 t" "g'.isPath s (p\<^sub>1 @ p\<^sub>2) t"
-    by (auto intro: Graph.shortestPath_is_path shortest_ST_path_remains)
+    by (auto intro: Graph.shortestPath_is_path ST_path_remains)
   with that \<open>s \<in> S\<close> \<open>t \<in> T\<close> show thesis
     by (meson g'.connected_def Graph.isPath_alt g'.isPath_append)
 qed
-*)
 
-(*
-corollary obtain_shortest_ST_paths': (* TODO is this necessary? *)
-  assumes "u \<in> V'"
-  obtains s t p\<^sub>1 p\<^sub>2 where "s \<in> S" "t \<in> T" "g'.isShortestPath s p\<^sub>1 u" "g'.isShortestPath u p\<^sub>2 t" "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
-  using assms obtain_shortest_ST_paths shortest_ST_path_remains
-  by (smt (verit, best) Graph.shortestPath_is_path Graph.split_shortest_path_around_edge isPath_bwd_cases isPath_fwd_cases) (* TODO prettify *)
-*)
-
-(*
 text \<open>Note: for the direction from g' to g, we actually DO need BOTH endpoints in S/T.
       Alternatively, it also works as long as g' is layered, which we show later.\<close>
 lemma shortest_ST_path_transfer:
@@ -292,40 +358,12 @@ lemma shortest_ST_path_transfer:
 proof
   assume "g'.isShortestPath s p t"
   then show "isShortestPath s p t"
-    by (metis connected_def Graph.isShortestPath_min_dist_def assms obtain_shortest_path sub_path shortest_ST_path_remains)
-qed (rule shortest_ST_path_remains[OF assms])
-*)
+    by (metis connected_def Graph.isShortestPath_min_dist_def assms obtain_shortest_path sub_path ST_path_remains)
+qed (simp add: assms ST_path_remains)
 
-(*
 corollary min_ST_dist_transfer: "\<lbrakk>s \<in> S; t \<in> T; connected s t\<rbrakk> \<Longrightarrow> g'.min_dist s t = min_dist s t"
   using obtain_shortest_path shortest_ST_path_transfer min_dist_eqI by meson
-*)
-
-(* TODO necessary? if so, prettify *)
-lemma empty_iff_ST_disconnected: "g'.isEmpty \<longleftrightarrow> (\<forall>s \<in> S. \<forall>t \<in> T. connected s t \<longleftrightarrow> s = t)"
-proof
-  assume "g'.isEmpty"
-  then show "\<forall>s\<in>S. \<forall>t\<in>T. connected s t \<longleftrightarrow> s = t"
-    by (metis Graph.connected_def Graph.empty_connected Graph.shortestPath_is_path connected_refl obtain_shortest_path shortest_ST_path_remains)
-next
-  assume assm: "\<forall>s\<in>S. \<forall>t\<in>T. connected s t \<longleftrightarrow> s = t"
-  thm obtain_shortest_ST_edge_path
-  show "g'.isEmpty"
-  proof (rule ccontr)
-    assume "\<not> g'.isEmpty"
-    then obtain u v where "(u, v) \<in> E'" unfolding g'.isEmpty_def by auto
-    then obtain s t p\<^sub>s p\<^sub>t where "s \<in> S" "t \<in> T" and SP: "isShortestPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
-      by (rule obtain_shortest_ST_edge_path)
-    with assm have "s = t" by (meson Graph.isShortestPath_def connected_def)
-    with SP show False by (simp add: isShortestPath_min_dist_def)
-  qed
-qed
-
-lemma spu_unique: "Shortest_Path_Union c'' c S T \<Longrightarrow> c'' = c'"
-  by (simp add: CapComp_comm CapComp_transfer Capacity_Compatible.eq_if_E_eq Shortest_Path_Union.shortest_path_union Shortest_Path_Union_def shortest_path_union)
-end
-*)
-\<comment> \<open>Shortest_Path_Union\<close>
+end \<comment> \<open>Shortest_Path_Union\<close>
 
 locale Layered_Shortest_Path_Union = Shortest_Path_Union + Generic_Layer_Graph c'
 begin
@@ -359,14 +397,11 @@ lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow>  isShortestPath
 corollary min_dist_transfer: "g'.connected u v \<Longrightarrow> g'.min_dist u v = min_dist u v"
   using shortest_path_transfer g'.obtain_shortest_path g'.shortestPath_is_path min_dist_eqI
   by meson
-end
+end \<comment> \<open>Layered_Shortest_Path_Union\<close>
 
-locale Source_Shortest_Path_Union = Capacity_Compatible + 
-  fixes s T
-  assumes shortest_s_path_union: "E' = \<Union>{set p | p. \<exists>t. t \<in> T \<and> isShortestPath s p t}"
+locale Source_Shortest_Path_Union = Source_Graph_Prop_Union Graph.isShortestPath
 begin
-sublocale Shortest_Path_Union c' c "{s}" T
-  by unfold_locales (simp add: shortest_s_path_union)
+sublocale Shortest_Path_Union _ _ "{s}" by intro_locales
 
 sublocale Source_Layer_Graph c' s
 proof
@@ -374,44 +409,26 @@ proof
   assume "u \<in> V'"
   then obtain p\<^sub>1 p\<^sub>2 t where "t \<in> T" "isShortestPath s p\<^sub>1 u" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
     by (blast elim: obtain_ST_paths)
-  then have "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t" using shortest_ST_path_remains by blast
+  then have "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t" using ST_path_remains by blast
   with \<open>isShortestPath s p\<^sub>1 u\<close> show "g'.connected s u" unfolding g'.connected_def
     by (fastforce dest: Graph.shortestPath_is_path simp: g'.isPath_append Graph.isPath_alt)
 next
   fix u v
   assume "(u, v) \<in> E'"
   then show "Suc (g'.min_dist s u) = g'.min_dist s v"
-    using edge_on_path g'.isShortestPath_level_edge(4) shortest_ST_path_remains by fastforce
+    using edge_on_path g'.isShortestPath_level_edge(4) ST_path_remains by fastforce
 qed
 
-sublocale Layered_Shortest_Path_Union c' c "{s}" T layer unfolding Layered_Shortest_Path_Union_def
-  using Shortest_Path_Union_axioms Generic_Layer_Graph_axioms by blast
+sublocale Layered_Shortest_Path_Union _ _ "{s}" T layer by intro_locales
 
-(* TODO remove *)
-(*
-thm path_respects_layer
-sublocale old_prelayer: Local_Prelayer_Graph_Old c layer V'
-  apply unfold_locales
-  using min_dist_succ min_dist_transfer s_connected sg_connected_remains_base_connected by presburger
-*)
 
 (* TODO prettify, necessary? *)
 sublocale Local_Prelayer_Graph c layer V'
   apply unfold_locales
   by (metis Graph.isPath_distD dist_trans min_dist_is_dist min_dist_minD min_dist_transfer s_connected sub_connected)
 
-thm dist_prelayered
-(* TODO does this really work? there might be nodes not connected to s which may be assigned an arbitrary layer *)
-(*
-text \<open>Since s is connected to everything, the lemma path_respects_layer gives us a Prelayer_Graph.\<close>
-sublocale Prelayer_Graph
-proof
-  fix u v
-  assume "(u, v) \<in> E"
-*)
-
 lemma restrict_T_to_reachable: "Source_Shortest_Path_Union c' c s (reachableNodes s \<inter> T)"
-  using shortest_s_path_union reachableNodes_def connected_def isShortestPath_min_dist_def
+  using source_path_union reachableNodes_def connected_def isShortestPath_min_dist_def
   by unfold_locales auto
 
 (* TODO check if necessary, and if so, cleanup *)
@@ -424,7 +441,7 @@ proof (elim g'.vertex_cases)
     (*by (elim obtain_shortest_ST_edge_path)*)
   with SP have "isShortestPath s (p @ (u, v) # p\<^sub>2) t"
     by (metis (no_types, lifting) isShortestPath_min_dist_def isPath_append length_append split_shortest_path_around_edge)
-  with \<open>t \<in> T\<close> have "g'.isShortestPath s (p @ (u, v) # p\<^sub>2) t" using shortest_ST_path_remains by blast
+  with \<open>t \<in> T\<close> have "g'.isShortestPath s (p @ (u, v) # p\<^sub>2) t" using ST_path_remains by blast
   then show ?thesis using g'.shortestPath_is_path g'.split_shortest_path_around_edge by blast
 next
   fix v
@@ -434,30 +451,18 @@ next
     (*by (elim obtain_shortest_sT_edge_path)*)
   with SP have "isShortestPath s (p @ p\<^sub>2) t"
     by (metis (mono_tags, lifting) Graph.isShortestPath_min_dist_def append.assoc append_Cons isPath_append length_append self_append_conv2 split_shortest_path_around_edge)
-  with \<open>t \<in> T\<close> have "g'.isShortestPath s (p @  p\<^sub>2) t" using shortest_ST_path_remains by blast
+  with \<open>t \<in> T\<close> have "g'.isShortestPath s (p @  p\<^sub>2) t" using ST_path_remains by blast
   with SP show ?thesis
     by (meson Graph.isPath_alt Graph.shortestPath_is_path g'.split_shortest_path)
 qed
 end \<comment> \<open>Source_Shortest_Path_Union\<close>
 
-(* TODO generalize and use universally *)
-(* this will only work in one direction TODO fix or remove *)
-(*
-lemma (in CapacityCompatibleGraphs) Source_Shortest_Path_Union_pathI:
-  "(\<And>t p. \<lbrakk>t \<in> T; isShortestPath s p t\<rbrakk> \<Longrightarrow> g'.isShortestPath s p t) \<Longrightarrow> Source_Shortest_Path_Union c' c s T"
-proof
-*)
-
-locale Target_Shortest_Path_Union = Capacity_Compatible +
-  fixes S t
-  assumes shortest_t_path_union: "E' = \<Union>{set p | p. \<exists>s. s \<in> S \<and> isShortestPath s p t}"
+locale Target_Shortest_Path_Union = Target_Graph_Prop_Union Graph.isShortestPath
 begin
 text \<open>Note that this is symmetric to Source_Shortest_Path_Union, thus the path/dist transfer properties
       hold here as well. However, since we never use this locale without the other, and we would
       need to setup Generic_Layer_Graph using int instead of nat, we do not show them here again.\<close>
-
-sublocale Shortest_Path_Union c' c S "{t}"
-  by unfold_locales (simp add: shortest_t_path_union)
+sublocale Shortest_Path_Union _ _ _ "{t}" by intro_locales
 
 sublocale Target_Layer_Graph c' t
 proof
@@ -465,34 +470,32 @@ proof
   assume "u \<in> V'"
   then obtain p\<^sub>1 p\<^sub>2 s where "s \<in> S" "isShortestPath u p\<^sub>2 t" "isShortestPath s (p\<^sub>1 @ p\<^sub>2) t"
     by (blast elim: obtain_ST_paths)
-  then have "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t" using shortest_ST_path_remains by blast
+  then have "g'.isShortestPath s (p\<^sub>1 @ p\<^sub>2) t" using ST_path_remains by blast
   with \<open>isShortestPath u p\<^sub>2 t\<close> show "g'.connected u t" unfolding g'.connected_def
     by (fastforce dest: Graph.shortestPath_is_path simp: g'.isPath_append Graph.isPath_alt)
 next
   fix u v
   assume "(u, v) \<in> E'"
   then show "Suc (g'.min_dist v t) = g'.min_dist u t"
-    using edge_on_path g'.isShortestPath_level_edge(5) shortest_ST_path_remains by fastforce
+    using edge_on_path g'.isShortestPath_level_edge(5) ST_path_remains by fastforce
 qed
 end \<comment> \<open>Target_Shortest_Path_Union\<close>
 
-locale Dual_Shortest_Path_Union = Capacity_Compatible +
-  fixes s t
-  assumes shortest_st_path_union: "E' = \<Union>{set p | p. isShortestPath s p t}"
+locale Dual_Shortest_Path_Union = Dual_Graph_Prop_Union Graph.isShortestPath
 begin
-sublocale Source_Shortest_Path_Union c' c s "{t}"
-  by unfold_locales (simp add: shortest_st_path_union)
+sublocale Source_Shortest_Path_Union _ _ _"{t}" by intro_locales
 
-sublocale Target_Shortest_Path_Union c' c "{s}" t
-  by unfold_locales (simp add: shortest_st_path_union)
+sublocale Target_Shortest_Path_Union _ _ "{s}" by intro_locales
 
 text \<open>Note that due connectivity being declared as intro for S/T_Layer_Graph, this proof is
       completely automatic (as opposed to the ones in S/T_Shortest_Path_Union).\<close>
-sublocale Dual_Layer_Graph c' s t unfolding Dual_Layer_Graph_def
-  using edge_on_path g'.isShortestPath_level_edge(6) shortest_ST_path_remains by fastforce
+sublocale Dual_Layer_Graph c' s t
+  apply unfold_locales
+   apply blast
+  using edge_on_path g'.isShortestPath_level_edge(6) ST_path_remains by fastforce
 
 lemma st_connected_iff: "g'.connected s t \<longleftrightarrow> connected s t"
-  by (meson Graph.obtain_shortest_path isShortestPath.connected shortest_ST_path_remains singletonI sub_connected)
+  by (meson Graph.obtain_shortest_path isShortestPath.connected ST_path_remains singletonI sub_connected)
   (*using empty_iff_ST_disconnected g'.empty_connected s_in_V_if_nonempty by fastforce*)
 
 (*
@@ -507,39 +510,50 @@ lemma ST_SPU_dualI: (* TODO prettify *)
   by (smt (verit, best) Collect_cong Dual_Shortest_Path_Union_axioms.intro Dual_Shortest_Path_Union_def T_Shortest_Path_Union.axioms(1) T_Shortest_Path_Union.shortest_t_path_union singleton_iff)
 *)
 
-lemma ST_SPU_dualI:
-  assumes S_SPU: "Source_Shortest_Path_Union c' c s (Graph.V c)"
-    and T_SPU: "Target_Shortest_Path_Union c'' c' (Graph.V c') t"
+(* TODO adapt style to the one for paths, maybe unify *)
+lemma Dual_Shortest_Path_Union_right_leftI:
+  assumes RIGHT: "Source_Shortest_Path_Union c' c s (Graph.V c)"
+    and LEFT: "Target_Shortest_Path_Union c'' c' (Graph.V c') t"
   shows "Dual_Shortest_Path_Union c'' c s t"
 proof
-  from S_SPU interpret Source_Shortest_Path_Union c' c s "Graph.V c" .
-  from T_SPU interpret t: Target_Shortest_Path_Union c'' c' "Graph.V c'" t .
+  from RIGHT interpret right: Source_Shortest_Path_Union c' c s "Graph.V c" .
+  from LEFT interpret left: Target_Shortest_Path_Union c'' c' "Graph.V c'" t .
 
   show "\<And>u v. c'' (u, v) = 0 \<or> c (u, v) = 0 \<or> c'' (u, v) = c (u, v)"
-    by (metis sg_cap_cases t.sg_cap_cases)
+    by (metis right.sg_cap_cases left.sg_cap_cases)
 
-  show "t.E' = \<Union> {set p |p. isShortestPath s p t}" (* TODO prettify *)
+  show "left.E' = \<Union> {set p |p. right.isShortestPath s p t}" (* TODO prettify *)
   proof (intro pair_set_eqI)
     fix u v
-    assume "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}"
-    then obtain p where SP: "(u, v) \<in> set p" "isShortestPath s p t" by blast
-    then have "s \<in> V" "t \<in> V" using distinct_nodes_in_V_if_connected isShortestPath_level_edge
-      by (metis min_dist_z empty_set ex_in_conv isShortestPath_min_dist_def length_0_conv)+
-    with SP have "g'.isShortestPath s p t" using shortest_ST_path_remains by blast
-    with \<open>(u, v) \<in> set p\<close> \<open>s \<in> V\<close> show "(u, v) \<in> t.E'" using t.shortest_t_path_union
-      using Graph.isEmpty_def Graph.isPath_edgeset Graph.isShortestPath_min_dist_def s_in_V_if_nonempty by fastforce
+    assume "(u, v) \<in> \<Union> {set p |p. right.isShortestPath s p t}"
+    then obtain p where SP: "(u, v) \<in> set p" "right.isShortestPath s p t" by blast
+    then have "s \<in> right.V" "t \<in> right.V" using right.distinct_nodes_in_V_if_connected right.isShortestPath_level_edge
+      by (metis right.min_dist_z empty_set ex_in_conv right.isShortestPath_min_dist_def length_0_conv)+
+    with SP have "right.g'.isShortestPath s p t" using right.ST_path_remains by blast
+    with \<open>(u, v) \<in> set p\<close> \<open>s \<in> right.V\<close> show "(u, v) \<in> left.E'" using left.target_path_union
+      using Graph.isEmpty_def Graph.isPath_edgeset Graph.isShortestPath_min_dist_def right.s_in_V_if_nonempty by fastforce
   next
     fix u v
-    assume "(u, v) \<in> t.E'"
-    then obtain p w where "(u, v) \<in> set p" "w \<in> V'" "g'.isShortestPath w p t"
-      using t.shortest_t_path_union by blast
-    then obtain p' where "g'.isShortestPath s p' w" using g'.obtain_shortest_path by blast
-    with \<open>g'.isShortestPath w p t\<close> have "isShortestPath s (p' @ p) t"
-      using g'.shortestPath_is_path g'.isPath_append shortest_path_transfer by blast
-    with \<open>(u, v) \<in> set p\<close> show "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}" by auto
+    assume "(u, v) \<in> left.E'"
+    then obtain p w where "(u, v) \<in> set p" "w \<in> right.V'" "right.g'.isShortestPath w p t"
+      using left.target_path_union by blast
+    then obtain p' where "right.g'.isShortestPath s p' w" using right.g'.obtain_shortest_path by blast
+    with \<open>right.g'.isShortestPath w p t\<close> have "right.isShortestPath s (p' @ p) t"
+      using right.g'.shortestPath_is_path right.g'.isPath_append right.shortest_path_transfer by blast
+    with \<open>(u, v) \<in> set p\<close> show "(u, v) \<in> \<Union> {set p |p. right.isShortestPath s p t}" by auto
   qed
 qed
 \<comment> \<open>Unions of shortest paths\<close>
+
+
+
+(* TODO refactor starting here *)
+
+
+
+
+
+
 
 
 (* TODO this is mostly the same, but includes a length bound. Is there a way without so much duplication? *)
@@ -773,10 +787,15 @@ lemma empty_iff_no_short_paths: "g'.isEmpty \<longleftrightarrow> (\<forall>p. i
 
 end \<comment> \<open>Bounded_Dual_Shortest_Path_Union\<close>
 
+(* TODO *)
 lemma min_st_dist_bound:
   "Graph.min_dist c s t \<le> b \<Longrightarrow> Bounded_Dual_Shortest_Path_Union c' c s t b \<longleftrightarrow> Dual_Shortest_Path_Union c' c s t"
-  unfolding Bounded_Dual_Shortest_Path_Union_def Dual_Shortest_Path_Union_def Bounded_Dual_Shortest_Path_Union_axioms_def
-    Dual_Shortest_Path_Union_axioms_def Graph.isShortestPath_min_dist_def
+  unfolding Bounded_Dual_Shortest_Path_Union_def
+  unfolding Dual_Shortest_Path_Union_def
+  unfolding Bounded_Dual_Shortest_Path_Union_axioms_def
+  unfolding Dual_Graph_Prop_Union_def
+  unfolding Dual_Graph_Prop_Union_axioms_def
+  unfolding Graph.isShortestPath_min_dist_def
   by fastforce
 
 \<comment> \<open>Unions of bounded length shortest paths\<close>

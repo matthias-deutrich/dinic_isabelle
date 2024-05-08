@@ -96,7 +96,7 @@ inductive isLinked :: "node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> 
   SelfPrePath: "isLinked u [] u"
 | StepPrePath: "isLinked v p w \<Longrightarrow> isLinked u ((u, v) # p) w"
 
-lemma (in Graph) isPath_alt: "isPath u p v \<longleftrightarrow>  isLinked u p v \<and> (set p) \<subseteq> E"
+lemma (in Graph) isPath_alt: "isPath u p v \<longleftrightarrow>  isLinked u p v \<and> set p \<subseteq> E"
 proof
   assume "isPath u p v"
   then show "isLinked u p v \<and> (set p) \<subseteq> E"

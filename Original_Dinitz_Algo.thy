@@ -7,13 +7,14 @@ begin
 (* TODO do we need f? *)
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
 locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f': Flow stl s t f'
-  for c s t f stl f'
+  for c :: "'capacity::linordered_idom graph" and s t f stl f'
 begin
 interpretation g': Irreducible_Graph stl
   unfolding Irreducible_Graph_def Irreducible_Graph_axioms_def
   using no_parallel_edge cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
-interpretation aug_cf: Graph_Comparison "cleaning s t (g'.subtract_graph f')" "cf_of (augment f')" .
+(* TODO fix *)
+(*interpretation aug_cf: Graph_Comparison "cleaning s t (g'.subtract_graph f')" "cf_of (augment f')" .*)
 
 interpretation f'_cont_cf: Pos_Contained_Graph f' cf
   by unfold_locales (metis NPreflow.resE_nonNegative NPreflow_axioms c'_sg_c_old f'.flow_pos_cont.cap_le order_trans)
