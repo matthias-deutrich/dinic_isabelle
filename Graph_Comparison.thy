@@ -29,6 +29,8 @@ lemma cap_nonzero: "c' (u, v) \<noteq> 0 \<Longrightarrow> c (u, v) \<noteq> 0" 
 
 lemma V_ss: "V' \<subseteq> V" unfolding Graph.V_def using E_ss by blast
 
+lemma vertex'_if_vertex: "u \<in> V' \<Longrightarrow> u \<in> V" using V_ss by blast
+
 lemma sub_path: "g'.isPath u p v \<Longrightarrow> isPath u p v"
   by (induction rule: g'.isPath_front_induct) (auto intro: edge'_if_edge)
 

@@ -4,20 +4,53 @@ theory Original_Dinitz_Algo
     Network_Utils
     Refine_Monadic.Refine_Monadic
 begin
+(* TODO refactor *)
+definition cleaning :: "node \<Rightarrow> node \<Rightarrow> _ graph \<Rightarrow> _ graph"
+  where "cleaning s t c \<equiv> \<lambda>(u, v).
+    if Graph.connected c s u \<and> Graph.connected c v t then
+      c (u, v)
+    else
+      0"
+
+lemma Dual_Path_Union_cleaningI: "Dual_Path_Union (cleaning s t c) c s t"
+proof
+  interpret Graph_Comparison "cleaning s t c" c .
+  show "E' = \<Union> {set p |p. isPath s p t}"
+  proof (intro pair_set_eqI)
+    fix u v
+    assume "(u, v) \<in> E'"
+    then have "connected s u" "connected v t" "(u, v) \<in> E"
+      unfolding cleaning_def Graph.E_def apply simp_all by presburger+
+    then obtain p\<^sub>s p\<^sub>t where "isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
+      using connected_def isPath_append by auto
+    then show "(u, v) \<in> \<Union> {set p |p. isPath s p t}"
+      by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. isPath s p t}"
+    then obtain p\<^sub>s p\<^sub>t where "isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t" using split_list by fastforce
+    then have "connected s u" "connected v t" "(u, v) \<in> E"
+      using connected_def isPath_append by auto
+    then show "(u, v) \<in> E'" unfolding cleaning_def Graph.E_def by simp
+  qed
+qed (simp add: cleaning_def)
+
 (* TODO do we need f? *)
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
 locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f': Flow stl s t f'
-  for c :: "'capacity::linordered_idom graph" and s t f stl f'
+  for c s t f stl f'
 begin
 interpretation g': Irreducible_Graph stl
   unfolding Irreducible_Graph_def Irreducible_Graph_axioms_def
   using no_parallel_edge cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
-(* TODO fix *)
-(*interpretation aug_cf: Graph_Comparison "cleaning s t (g'.subtract_graph f')" "cf_of (augment f')" .*)
+interpretation aug_cf: Graph_Comparison "cleaning s t (g'.subtract_graph f')" "cf_of (augment f')" .
 
 interpretation f'_cont_cf: Pos_Contained_Graph f' cf
   by unfold_locales (metis NPreflow.resE_nonNegative NPreflow_axioms c'_sg_c_old f'.flow_pos_cont.cap_le order_trans)
+
+interpretation cleaning: Dual_Path_Union "cleaning s t (g'.subtract_graph f')" "g'.subtract_graph f'"
+  using Dual_Path_Union_cleaningI .
 
 find_theorems name:augment_alt
 find_theorems "residualGraph ?c (NFlow.augment ?c ?f ?f') = Graph.subtract_skew_graph (residualGraph ?c ?f) ?f'"
@@ -116,11 +149,12 @@ next
     unfolding Graph.isEmpty_def by auto
 
   (* TODO make SUB an interpretation *)
+
+
   
   show ?thesis unfolding Bounded_Dual_Shortest_Path_Union_def Bounded_Dual_Shortest_Path_Union_axioms_def
   proof
-    have "Subgraph (cleaning s t (g'.subtract_graph f')) (g'.subtract_graph f')"
-      using cleaning_rp_Subgraph right_pass_Subgraph subgraph.order.trans by blast
+    have "Subgraph (cleaning s t (g'.subtract_graph f')) (g'.subtract_graph f')" by intro_locales
     also have SUB: "Subgraph ... (cf_of (augment f'))" unfolding aug_cf_alt
       using irreducible_contained_skew_subtract f'.flow_pos_cont.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
     finally show "Capacity_Compatible (cleaning s t (g'.subtract_graph f')) (cf_of (augment f'))"
@@ -131,7 +165,7 @@ next
       fix u v
       assume "(u, v) \<in> aug_cf.E'"
       then obtain p where "Graph.isPath (g'.subtract_graph f') s p t" "(u, v) \<in> set p"
-        using ST_Graph.cleaning_edge_set by blast
+        using cleaning.dual_path_union by blast
       with SUB have "aug_cf.isPath s p t"
         using Subgraph_def Subset_Graph.sub_path by blast
       moreover have "length p = cf.min_dist s t"
@@ -163,7 +197,7 @@ next
       with SP' have "Graph.isPath (g'.subtract_graph f') s p t"
         using aug_cf_path_transfer aug_cf.shortestPath_is_path by blast
       then have "Graph.isPath (cleaning s t (g'.subtract_graph f')) s p t"
-        using ST_Graph.cleaning_edge_set unfolding Graph.isPath_alt by blast
+        using cleaning.dual_path_union unfolding Graph.isPath_alt by blast
       with UV_IN_P show "(u, v) \<in> Graph.E (cleaning s t (g'.subtract_graph f'))"
         using Graph.isPath_edgeset by blast
     qed
@@ -191,8 +225,7 @@ proof
   proof -
     interpret f'': Contained_Graph "g'.subtract_graph f'" stl
       using f'.flow_pos_cont.subtract_contained .
-    show ?thesis
-      by (meson Subgraph_def Subset_Graph.E_ss cleaning_rp_Subgraph f''.E_ss subset_trans right_pass_Subgraph)
+    show ?thesis using cleaning.E_ss f''.E_ss by blast
   qed
 qed
 end

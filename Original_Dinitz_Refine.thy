@@ -315,37 +315,44 @@ proof (clarify, intro conjI)
   show "finite (g'.outgoing u)" by blast
 qed
 
+(* TODO is c' = c needed? *)
 lemma (in Distance_Bounded_Graph) rightPassRefine_final:
   assumes SUB: "Subgraph c' c"
     and S_CON: "\<And>u v. connected s u \<Longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
     and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - {s}. Graph.incoming c' u \<noteq> {}"
-  shows "right_pass s c = c'"
-proof (intro subgraph.order_antisym Subgraph_edgeI)
-  fix u v
-  assume "right_pass s c (u, v) \<noteq> 0"
-  with S_CON show "c' (u, v) = right_pass s c (u, v)"
-    using right_pass_nz_iff S_Graph.rp_is_c_if_s_connected by metis
-next
-  interpret Subgraph c' c using SUB .
+  shows "Source_Path_Union c' c s V"
+proof -
+  from SUB interpret Subgraph c' c .
   interpret g': Distance_Bounded_Graph c' b
     using sub_Distance_Bounded Distance_Bounded_Graph_axioms by blast
-  fix u v
-  assume "c' (u, v) \<noteq> 0"
-  then have "u \<in> g'.V" unfolding Graph.V_def Graph.E_def by blast
-  obtain w where W_CON: "g'.connected w u" and W_NO_IN: "g'.incoming w = {}" using g'.obtain_front_terminal_connected by blast
-  from W_CON \<open>u \<in> g'.V\<close> have "w \<in> g'.V" by (meson g'.connected_inV_iff)
-  with W_NO_IN NODE_HAS_IN have "w = s" by blast
-  with W_CON have "right_pass s c (u, v) = c (u, v)"
-    using sub_connected S_Graph.rp_is_c_if_s_connected by fastforce
-  also from SUB \<open>c' (u, v) \<noteq> 0\<close> have "... = c' (u, v)" by (metis Subgraph.c'_sg_c_old)
-  finally show "right_pass s c (u, v) = c' (u, v)" by simp
-qed (* TODO cleanup *)
+  show "Source_Path_Union c' c s V"
+  proof (unfold_locales, intro pair_set_eqI)
+    fix u v
+    assume EDGE: "(u, v) \<in> E'"
+    then have "u \<in> V'" "v \<in> V'" unfolding g'.V_def by auto
+    obtain w where W_CON: "g'.connected w u" and W_NO_IN: "g'.incoming w = {}"
+      using g'.obtain_front_terminal_connected by blast
+    with \<open>u \<in> V'\<close> have "w \<in> g'.V" by (meson g'.connected_inV_iff)
+    with W_NO_IN NODE_HAS_IN have "w = s" by blast
+    with W_CON S_CON obtain p where "isPath s p u" using isPath.connecting sub_connected by blast
+    with EDGE have "isPath s (p @ [(u, v)]) v" by (simp add: edge'_if_edge isPath_append_edge)
+    with \<open>v \<in> V'\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isPath s p t}"
+      using vertex'_if_vertex by force
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isPath s p t}"
+    then obtain p p' t where "isPath s (p @ (u, v) # p') t" using split_list by fastforce
+    then have "connected s u" "(u, v) \<in> E"
+      using connected_def isPath.split_around_edge by blast+
+    with S_CON show "(u, v) \<in> E'" unfolding Graph.E_def by simp
+  qed
+qed
 
 (* TODO remove right_pass, instead use locale *)
 theorem (in Finite_Bounded_Graph) rightPassRefine'_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine' Q c \<le> RETURN (right_pass s c)"
+  shows "rightPassRefine' Q c \<le> (spec c'. Source_Path_Union c' c s V)"
   unfolding rightPassRefine'_def
 proof (refine_vcg WHILET_rule[where I="rightPassInvar c s" and R=graphWorkingSetRel], clarsimp_all)
   show "wf graphWorkingSetRel" by (rule wf_graphWorkingSetRel)
@@ -368,7 +375,7 @@ next
 next
   fix c'
   assume "rightPassInvar c s ({}, c')"
-  then show "right_pass s c = c'" unfolding rightPassInvar_def
+  then show "Source_Path_Union c' c s V" unfolding rightPassInvar_def
     using rightPassRefine_final by simp
 qed
 
@@ -407,7 +414,7 @@ lemma (in Finite_Graph) rightPassRefine'_refine:
 theorem (in Finite_Bounded_Graph) rightPassRefine_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine Q c \<le> RETURN (right_pass s c)"
+  shows "rightPassRefine Q c \<le> (spec c'. Source_Path_Union c' c s V)"
   using rightPassRefine'_correct rightPassRefine'_refine assms
   by (meson conc_trans_additional(5))
 \<comment> \<open>Right Pass\<close>
@@ -433,6 +440,58 @@ definition leftPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ gr
       (Q, c);
     RETURN c
   }"
+
+(* TODO simplify and unify with dual_spu *)
+lemma (in Graph) dual_pu: "Target_Path_Union c' c (Graph.V c) t = Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+proof
+  assume "Target_Path_Union c' c (Graph.V c) t"
+  then interpret pu: Target_Path_Union c' c "Graph.V c" t .
+  show "Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+  proof
+    show "\<And>u v. (c'\<^sup>T) (u, v) = 0 \<or> (c\<^sup>T) (u, v) = 0 \<or> (c'\<^sup>T) (u, v) = (c\<^sup>T) (u, v)"
+      using pu.cap_compatible by simp
+    show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>ta. ta \<in> Graph.V (c\<^sup>T) \<and> Graph.isPath (c\<^sup>T) t p ta}"
+    proof (simp, intro pair_set_eqI)
+      fix u v
+      assume "(u, v) \<in> pu.E'\<inverse>"
+      then obtain s p where "(v, u) \<in> set p" "s \<in> V" "isPath s p t"
+        using pu.target_path_union by blast
+      then have "(u, v) \<in> set (transpose_path p)" "isPath s (transpose_path (transpose_path p)) t"
+        by auto
+      with \<open>s \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isPath ta (transpose_path p) t}"
+        by blast
+    next
+      fix u v
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isPath ta (transpose_path p) t}"
+      then show "(u, v) \<in> pu.E'\<inverse>" using pu.target_path_union by fastforce
+    qed
+  qed
+next
+  assume "Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+  then interpret pu: Source_Path_Union "c'\<^sup>T" "c\<^sup>T" t "Graph.V c" by simp
+  show "Target_Path_Union c' c (Graph.V c) t"
+  proof
+    show "\<And>u v. c' (u, v) = 0 \<or> c (u, v) = 0 \<or> c' (u, v) = c (u, v)"
+      using pu.cap_compatible by simp
+    show "Graph.E c' = \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isPath c s p t}"
+    proof (intro pair_set_eqI)
+      fix u v
+      assume "(u, v) \<in> Graph.E c'"
+      then obtain s p where "(v, u) \<in> set p" "s \<in> V" "pu.isPath t p s"
+        using pu.source_path_union by fastforce
+      then show "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isPath c s p t}"
+        by fastforce
+    next
+      fix u v
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isPath c s p t}"
+      then obtain s p where "(u, v) \<in> set p" "s \<in> Graph.V c" "Graph.isPath c s p t"
+        by blast
+      then have "(v, u) \<in> set (transpose_path p)" "pu.isPath t (transpose_path p) s" by auto
+      with \<open>s \<in> Graph.V c\<close> have "(v, u) \<in> pu.E'" using pu.source_path_union by blast
+      then show "(u, v) \<in> Graph.E c'" by simp
+    qed
+  qed
+qed
 
 context Finite_Bounded_Graph
 begin
@@ -466,13 +525,18 @@ proof
     by (fastforce simp: conc_simp)+
 qed
 
+thm transfer_return
+thm transfer_spec
+
+
+
 (* TODO cleanup proof *)
 theorem leftPassRefine_correct:
   assumes T_NO_OUT: "outgoing t = {}"
     and Q_START: "t \<notin> Q" "\<forall>u \<in> V - Q - {t}. outgoing u \<noteq> {}" "finite Q"
-  shows "leftPassRefine Q c \<le> RETURN (left_pass t c)"
-  apply (intro transfer_return[where ret'="right_pass t"])
-   apply (fastforce simp: right_pass_def left_pass_def)
+  shows "leftPassRefine Q c \<le> (spec c'. Target_Path_Union c' c V t)"
+  apply (intro transfer_spec[where spec'="\<lambda>c c'. Source_Path_Union c' c t (Graph.V c)"])
+  using Graph.dual_pu apply blast
   apply (intro Finite_Bounded_Graph.rightPassRefine_correct)
   using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
 end
@@ -487,27 +551,27 @@ definition cleaningRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ gr
     c \<leftarrow> leftPassRefine Q c;
     RETURN c}"
 
-lemma (in Finite_Bounded_Graph) cleaning_algo_correct:
+lemma (in Finite_Bounded_Graph) cleaningRefine_correct:
   assumes S_NO_IN: "incoming s = {}"
     and T_NO_OUT: "outgoing t = {}"
     and Q_START: "s \<notin> Q" "t \<notin> Q" "\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}" "finite Q"
-  shows "cleaningRefine Q c \<le> RETURN (cleaning s t c)"
+  shows "cleaningRefine Q c \<le> (spec c'. Dual_Path_Union c' c s t)"
   unfolding cleaningRefine_def
 proof (refine_vcg, simp)
   from T_NO_OUT \<open>\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}\<close> have "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
     by (cases "incoming t = {}") (auto simp: incoming_def outgoing_def V_def)
-  with assms have "rightPassRefine Q c \<le> RETURN (right_pass s c)"
+  with assms have "rightPassRefine Q c \<le> (spec c'. Source_Path_Union c' c s V)"
     by (blast intro: rightPassRefine_correct)
-  also have "... \<le> SPEC (\<lambda>ca. leftPassRefine Q ca \<le> RES {cleaning s t c})"
-  proof simp
-    interpret Subgraph "right_pass s c" c using right_pass_Subgraph .
-    have "leftPassRefine Q (right_pass s c) \<le> RETURN (left_pass t (right_pass s c))" (* TODO prettify *)
+  also have "... \<le> (spec ca. leftPassRefine Q ca \<le> (spec c'. Dual_Path_Union c' c s t))"
+  proof clarsimp
+    fix c'
+    assume "Source_Path_Union c' c s V"
+    then interpret Source_Path_Union c' c s V .
+    have "leftPassRefine Q c' \<le> (spec c''. Target_Path_Union c'' c' V' t)"
       apply (intro Finite_Bounded_Graph.leftPassRefine_correct)
           prefer 3 using assms apply simp
          prefer 4 using assms apply simp
-        prefer 2 subgoal
-        using \<open>outgoing t = {}\<close>
-        unfolding Graph.outgoing_def Graph.E_def right_pass_def by simp
+        prefer 2 using \<open>outgoing t = {}\<close> outgoing_ss apply blast
       unfolding Finite_Bounded_Graph_def apply auto[1]
       using E_ss g'.Finite_Graph_EI rev_finite_subset apply blast
       using Distance_Bounded_Graph_axioms apply (rule sub_Distance_Bounded)
@@ -528,17 +592,18 @@ proof (refine_vcg, simp)
       then obtain v where "(u, v) \<in> E" by fast
 
       from \<open>u \<in> V' - Q - {t}\<close> have "u \<in> V'" by blast
-      then have "connected s u" unfolding g'.V_def
-        using S_Graph.rp_edges_s_connected connected_append_edge edge'_if_edge by blast
-      with \<open>(u, v) \<in> E\<close> have "(u, v) \<in> E'"
-        using S_Graph.s_connected_edges_remain by blast
+      then have "connected s u" unfolding g'.V_def using Graph.V_def obtain_connected_ST by blast
+      with \<open>(u, v) \<in> E\<close> obtain p where "isPath s (p @ [(u, v)]) v" "v \<in> V"
+        using connected_def isPath_append_edge V_def by blast
+      then have "(u, v) \<in> E'"
+        using Graph.isPath_tail ST_path_remains by blast
       then show "g'.outgoing u \<noteq> {}" unfolding g'.outgoing_def by blast
     qed
-    also have "... \<le> RES {cleaning s t c}"
-      by (simp add: ST_Graph.left_right_pass_is_cleaning)
-    finally show "leftPassRefine Q (right_pass s c) \<le> RES {cleaning s t c}" .
+    also from \<open>Source_Path_Union c' c s V\<close> have "... \<le> (spec c''. Dual_Path_Union c'' c s t)"
+      by (auto intro: Dual_Path_Union_right_leftI)
+    finally show "leftPassRefine Q c' \<le> (spec c''. Dual_Path_Union c'' c s t)" .
   qed
-  finally show "rightPassRefine Q c \<le> SPEC (\<lambda>ca. leftPassRefine Q ca \<le> RES {cleaning s t c})" .
+  finally show "rightPassRefine Q c \<le> (spec ca. leftPassRefine Q ca \<le> (spec c'. Dual_Path_Union c' c s t))" .
 qed
 
 \<comment> \<open>Cleaning Algorithm\<close>
@@ -955,7 +1020,7 @@ proof
       fix u v
       assume "(u, v) \<in> spu.E'\<inverse>"
       then obtain s p where "(v, u) \<in> set p" "s \<in> V" "isShortestPath s p t"
-        using spu.shortest_t_path_union by blast
+        using spu.target_path_union by blast
       then have "(u, v) \<in> set (transpose_path p)" "isShortestPath s (transpose_path (transpose_path p)) t"
         by auto
       with \<open>s \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isShortestPath ta (transpose_path p) t}"
@@ -963,7 +1028,7 @@ proof
     next
       fix u v
       assume "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isShortestPath ta (transpose_path p) t}"
-      then show "(u, v) \<in> spu.E'\<inverse>" using spu.shortest_t_path_union by fastforce
+      then show "(u, v) \<in> spu.E'\<inverse>" using spu.target_path_union by fastforce
     qed
   qed
 next
@@ -978,7 +1043,7 @@ next
       fix u v
       assume "(u, v) \<in> Graph.E c'"
       then obtain s p where "(v, u) \<in> set p" "s \<in> V" "spu.isShortestPath t p s"
-        using spu.shortest_s_path_union by fastforce
+        using spu.source_path_union by fastforce
       then show "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isShortestPath c s p t}"
         by fastforce
     next
@@ -987,7 +1052,7 @@ next
       then obtain s p where "(u, v) \<in> set p" "s \<in> Graph.V c" "Graph.isShortestPath c s p t"
         by blast
       then have "(v, u) \<in> set (transpose_path p)" "spu.isShortestPath t (transpose_path p) s" by auto
-      with \<open>s \<in> Graph.V c\<close> have "(v, u) \<in> spu.E'" using spu.shortest_s_path_union by blast
+      with \<open>s \<in> Graph.V c\<close> have "(v, u) \<in> spu.E'" using spu.source_path_union by blast
       then show "(u, v) \<in> Graph.E c'" by simp
     qed
   qed
@@ -1052,7 +1117,7 @@ proof (refine_vcg, simp)
     then have "g'.ebfsBackward t \<le> (spec c''. Target_Shortest_Path_Union c'' c' V' t)"
       by (rule g'.ebfsBackward_correct)
     also from \<open>Source_Shortest_Path_Union c' c s V\<close> have "... \<le> (spec c''. Dual_Shortest_Path_Union c'' c s t)"
-      using SPEC_rule ST_SPU_dualI by metis
+      using SPEC_rule Dual_Shortest_Path_Union_right_leftI by metis
     finally show "g'.ebfsBackward t \<le> (spec c''. Dual_Shortest_Path_Union c'' c s t)" .
   qed
   finally show "ebfs s \<le> (spec sl. Graph.ebfsBackward sl t \<le> (spec c'. Dual_Shortest_Path_Union c' c s t))" .
@@ -1277,7 +1342,7 @@ next
   fix stl'
   assume "Contained_Graph stl' stl" "Graph.E stl \<subseteq> Graph.E stl' \<union> set p"
   show "cleaningRefine (set (Graph.pathVertices s p) - {s, t}) stl' \<le> RES {cleaning s t stl'}"
-  proof (unfold RES_sng_eq_RETURN, intro Finite_Bounded_Graph.cleaning_algo_correct)
+  proof (unfold RES_sng_eq_RETURN, intro Finite_Bounded_Graph.cleaningRefine_correct)
     interpret Contained_Graph stl' stl using \<open>Contained_Graph stl' stl\<close> .
     show "s \<notin> set (Graph.pathVertices s p) - {s, t}"
       "t \<notin> set (Graph.pathVertices s p) - {s, t}"

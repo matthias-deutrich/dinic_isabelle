@@ -61,9 +61,13 @@ locale Splittable_Path_Kind = Path_Kind +
 begin
 lemma split_around_edge:
   assumes "isKindPath c s (p @ (u, v) # p') t"
-  shows "isKindPath c s p u \<and> isKindPath c u ((u, v) # p') t
+  shows "(u, v) \<in> Graph.E c
+        \<and> isKindPath c s p u \<and> isKindPath c u ((u, v) # p') t
         \<and> isKindPath c s (p @ [(u, v)]) v \<and> isKindPath c v p' t"
 proof (intro conjI)
+  from assms show "(u, v) \<in> Graph.E c"
+    by (meson Graph.isPath_edgeset in_set_conv_decomp path_kind)
+next
   from assms obtain w where "isKindPath c s p w" "isKindPath c w ((u, v) # p') t"
     using split_path by blast
   moreover from this have "w = u" by (meson Graph.isPath.simps(2) path_kind)
@@ -279,6 +283,7 @@ locale Dual_Path_Union = Dual_Graph_Prop_Union Graph.isPath
 sublocale Dual_Path_Union \<subseteq> Source_Path_Union _ _ _ "{t}" by intro_locales
 sublocale Dual_Path_Union \<subseteq> Target_Path_Union _ _ "{s}" by intro_locales
 
+(*
 lemma Dual_Path_Union_right_leftI:
   assumes RIGHT: "Source_Path_Union c' c s (Graph.V c)"
     and LEFT: "Target_Path_Union c'' c (Graph.V c') t"
@@ -310,6 +315,41 @@ proof -
     then have "s \<in> right.V'"
       by (metis (no_types, lifting) Graph.isPath_fwd_cases P(1) emptyE list.set(1) mem_Collect_eq right.g'.V_def) (* TODO *)
     with P show "(u, v) \<in> left.E'" unfolding left.target_path_union by blast
+  qed
+qed
+*)
+lemma Dual_Path_Union_right_leftI:
+  assumes RIGHT: "Source_Path_Union c' c s (Graph.V c)"
+    and LEFT: "Target_Path_Union c'' c' (Graph.V c') t"
+  shows "Dual_Path_Union c'' c s t"
+proof -
+  from RIGHT interpret right: Source_Path_Union c' c s "Graph.V c" .
+  from LEFT interpret left: Target_Path_Union c'' c' "Graph.V c'" t .
+  interpret Subgraph c'' c
+    using left.Subgraph_axioms right.Subgraph_axioms by force
+
+  show ?thesis
+  proof (unfold_locales, intro pair_set_eqI)
+    fix u v
+    assume "(u, v) \<in> left.E'"
+    then obtain w p where "w \<in> right.V'" and IN_P: "(u, v) \<in> set p" and P: "right.g'.isPath w p t"
+      using left.target_path_union by blast
+    then obtain p' where "right.isPath s p' w" using right.obtain_ST_paths by blast
+    with P have "right.isPath s (p' @ p) t" using right.isPath_append using right.sub_path by blast
+    with IN_P show "(u, v) \<in> \<Union> {set p |p. right.isPath s p t}" by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. right.isPath s p t}"
+    then obtain p where P: "(u, v) \<in> set p" "right.isPath s p t" by blast
+    then have P': "right.g'.isPath s p t" apply (elim right.ST_path_remains) apply simp (* TODO *)
+      by (metis (no_types, lifting) Graph.isPath_bwd_cases P(2) empty_iff empty_set mem_Collect_eq right.V_def)
+(*
+      using right.ST_path_remains
+      by (smt (verit, del_insts) Graph.V_def Graph.distinct_nodes_in_V_if_connected(2) empty_iff empty_set insertI1 isPath.connected mem_Collect_eq right.isPath_fwd_cases)
+*)
+    then have "s \<in> right.V'"
+      by (metis (no_types, lifting) Graph.isPath_fwd_cases P(1) emptyE list.set(1) mem_Collect_eq right.g'.V_def) (* TODO *)
+    with P(1) P' show "(u, v) \<in> left.E'" unfolding left.target_path_union by blast
   qed
 qed
 
