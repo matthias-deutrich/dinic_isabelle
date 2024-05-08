@@ -1171,7 +1171,7 @@ definition dinitzPhaseAssert :: "(_ flow \<times> bool) nres" where
             assert (set Q_ls = set (Graph.pathVertices s p) - {s, t});
             stl' \<leftarrow> return (Graph.subtract_path stl p);
             assert (Contained_Graph stl' stl \<and> Graph.E stl \<subseteq> Graph.E stl' \<union> set p);
-            stl' \<leftarrow> return (cleaning s t stl');
+            stl' \<leftarrow> (spec c'. Dual_Path_Union c' stl' s t);
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             RETURN (f', stl', False, True)
           }})
@@ -1206,6 +1206,7 @@ proof -
     unfolding dinitzPhaseInvar_def using min_st_dist_bound by fastforce
 qed
 
+(*
 lemma dinitzPhaseAssert_step:
   fixes f' stl changed
   assumes PATH: "Graph.isPath stl s p t"
@@ -1234,6 +1235,47 @@ proof -
     apply (meson Graph.connected_def Dual_Shortest_Path_Union.st_connected_iff dual_spu_if_invar_and_path)
     by blast+
 qed
+*)
+
+lemma dinitzPhaseAssert_step:
+  fixes f' stl stl' changed
+  assumes PATH: "Graph.isPath stl s p t"
+      and CLEANED: "Dual_Path_Union stl' (Graph.subtract_path stl p) s t"
+      and INVAR: "dinitzPhaseAssertInvar (f', stl, False, changed)"
+  defines "aug_f' \<equiv> NFlow.augment c f' (NPreflow.augmentingFlow c f' p)"
+    shows "dinitzPhaseAssertInvar (aug_f', stl', False, True) \<and> Graph.E stl' \<subset> Graph.E stl \<and> finite (Graph.E stl)"
+proof -
+  have "Flow.val c s f' < Flow.val c s aug_f'"
+  proof -
+    from INVAR interpret f': NFlow c s t f' unfolding dinitzPhaseAssertInvar_def by blast
+    from INVAR PATH interpret stu: Dual_Shortest_Path_Union stl "cf_of f'" s t
+      unfolding dinitzPhaseAssertInvar_alt using dual_spu_if_invar_and_path by blast
+
+    have "Flow f'.cf s t (f'.augmentingFlow p)"
+      apply (intro f'.augFlow_resFlow)
+      unfolding f'.isAugmentingPath_def
+      using PATH f'.cf.isShortestPath_alt stu.shortest_path_transfer by blast
+    moreover have "0 < Flow.val f'.cf s (f'.augmentingFlow p)"
+      by (simp add: Graph.shortestPath_is_path Graph.shortestPath_is_simple PATH f'.augFlow_val f'.isAugmentingPath_def f'.resCap_gzero_aux stu.shortest_path_transfer)
+    ultimately show ?thesis unfolding aug_f'_def using f'.augment_flow_value by simp
+  qed
+  moreover have "stl' = cleaning s t (Graph.subtract_path stl p)"
+    using CLEANED Dual_Path_Union_iff_cleaning by blast
+  moreover note PATH INVAR
+  ultimately show ?thesis unfolding dinitzPhaseAssertInvar_alt aug_f'_def
+    using dinitz_phase_step (* TODO prettify *)
+    apply auto
+    apply (meson Graph.connected_def Dual_Shortest_Path_Union.st_connected_iff dual_spu_if_invar_and_path)
+    by blast+
+qed
+
+
+
+
+
+
+
+
 
 definition "dinitzPhaseAssert_wf_rel \<equiv> inv_image
   (less_than_bool <*lex*> finite_psubset)
@@ -1341,8 +1383,8 @@ next
 
   fix stl'
   assume "Contained_Graph stl' stl" "Graph.E stl \<subseteq> Graph.E stl' \<union> set p"
-  show "cleaningRefine (set (Graph.pathVertices s p) - {s, t}) stl' \<le> RES {cleaning s t stl'}"
-  proof (unfold RES_sng_eq_RETURN, intro Finite_Bounded_Graph.cleaningRefine_correct)
+  show "cleaningRefine (set (Graph.pathVertices s p) - {s, t}) stl' \<le> (spec c'. Dual_Path_Union c' stl' s t)"
+  proof (intro Finite_Bounded_Graph.cleaningRefine_correct)
     interpret Contained_Graph stl' stl using \<open>Contained_Graph stl' stl\<close> .
     show "s \<notin> set (Graph.pathVertices s p) - {s, t}"
       "t \<notin> set (Graph.pathVertices s p) - {s, t}"

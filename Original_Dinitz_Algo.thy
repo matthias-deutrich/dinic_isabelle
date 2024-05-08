@@ -35,6 +35,15 @@ proof
   qed
 qed (simp add: cleaning_def)
 
+lemma Dual_Path_Union_iff_cleaning: "Dual_Path_Union c' c s t \<longleftrightarrow> c' = cleaning s t c"
+proof
+  assume "Dual_Path_Union c' c s t"
+  then interpret union': Dual_Path_Union c' c s t .
+  interpret Dual_Path_Union "cleaning s t c" c s t using Dual_Path_Union_cleaningI .
+  show "c' = cleaning s t c"
+    using restricted_unique union'.Restricted_Graph_axioms by blast
+qed (simp add: Dual_Path_Union_cleaningI)
+
 (* TODO do we need f? *)
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
 locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f': Flow stl s t f'
