@@ -12,6 +12,10 @@ term filter
 definition restrict_edges :: "_ graph \<Rightarrow> (edge \<Rightarrow> bool) \<Rightarrow> _ graph"
   where "restrict_edges c P \<equiv> \<lambda>(u, v). if P (u, v) then c (u, v) else 0"
 
+(* For presentation *)
+definition (in Graph) restrict_edges :: "(edge \<Rightarrow> bool) \<Rightarrow> _ graph"
+  where "restrict_edges P \<equiv> \<lambda>(u, v). if P (u, v) then c (u, v) else 0"
+
 lemma restrict_edges_Subgraph: "Subgraph (restrict_edges c P) c" unfolding restrict_edges_def
   by unfold_locales (auto simp: Graph.E_def split: if_splits)
 
@@ -33,7 +37,7 @@ typedef (overloaded) 'capacity::linordered_idom irreducible_graph = "{c::('capac
 *)
 
 locale Restricted_Graph = Capacity_Compatible +
-  fixes P
+  fixes P :: "edge \<Rightarrow> bool"
   assumes filtered_edges: "E' = Set.filter P E"
 begin
 sublocale Subgraph
@@ -885,43 +889,5 @@ proof
     then show "(u, v) \<in> g'.E" unfolding induced_s_layering_def Graph.E_def by simp
   qed
 qed (simp add: induced_s_layering_def)
-
-subsubsection \<open>Building from source to target node\<close>
-
-definition induced_st_layering :: "'capacity::linordered_idom graph \<Rightarrow> node \<Rightarrow> node \<Rightarrow> 'capacity graph"
-  where "induced_st_layering c s t \<equiv> \<lambda>(u, v).
-    if Graph.connected c s u \<and> Graph.connected c v t \<and> Suc (Graph.min_dist c s u + Graph.min_dist c v t) = Graph.min_dist c s t then
-      c (u, v)
-    else
-      0"
-
-(* TODO why can this not coexist with sl? *)
-(*interpretation stl: Dual_Shortest_Path_Union "induced_st_layering c s t" c s t*)
-theorem induced_st_shortest_path_union: "Dual_Shortest_Path_Union (induced_st_layering c s t) c s t"
-proof
-  interpret Graph c .
-  interpret g': Graph "induced_st_layering c s t" .
-  show "g'.E = \<Union> {set p |p. isShortestPath s p t}"
-  proof (rule pair_set_eqI)
-    fix u v
-    assume "(u, v) \<in> g'.E"
-    then have MIN_DIST: "(u, v) \<in> E \<and> Suc (min_dist s u + min_dist v t) = min_dist s t" and "connected s u \<and> connected v t"
-      unfolding induced_st_layering_def Graph.E_def by (smt case_prod_conv mem_Collect_eq)+
-    then obtain p\<^sub>1 p\<^sub>2 where "isShortestPath s p\<^sub>1 u" "isShortestPath v p\<^sub>2 t"
-      by (meson obtain_shortest_path)
-    with MIN_DIST have "isShortestPath s (p\<^sub>1 @ (u, v) # p\<^sub>2) t" unfolding isShortestPath_min_dist_def
-      by (simp add: isPath_append)
-    then show "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}" by fastforce
-  next
-    fix u v
-    assume "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}"
-    then obtain p where "isShortestPath s p t" "(u, v) \<in> set p" by blast
-    then have "(u, v) \<in> E" "connected s u" "connected v t" "Suc (min_dist s u + min_dist v t) = min_dist s t"
-      using isShortestPath_level_edge by (auto intro: isPath_edgeset shortestPath_is_path)
-    then show "(u, v) \<in> g'.E" unfolding induced_st_layering_def Graph.E_def by simp
-  qed
-qed (simp add: induced_st_layering_def)
-
-\<comment> \<open>Building a layering from an arbitrary graph\<close>
 
 end

@@ -4,17 +4,17 @@ theory Original_Dinitz_Algo
     Network_Utils
     Refine_Monadic.Refine_Monadic
 begin
-(* TODO refactor *)
-definition cleaning :: "node \<Rightarrow> node \<Rightarrow> _ graph \<Rightarrow> _ graph"
-  where "cleaning s t c \<equiv> \<lambda>(u, v).
-    if Graph.connected c s u \<and> Graph.connected c v t then
+
+definition (in Graph) cleaning :: "node \<Rightarrow> node \<Rightarrow> _ graph"
+  where "cleaning s t \<equiv> \<lambda>(u, v).
+    if connected s u \<and> connected v t then
       c (u, v)
     else
       0"
 
-lemma Dual_Path_Union_cleaningI: "Dual_Path_Union (cleaning s t c) c s t"
+lemma Dual_Path_Union_cleaningI: "Dual_Path_Union (Graph.cleaning c s t) c s t"
 proof
-  interpret Graph_Comparison "cleaning s t c" c .
+  interpret Graph_Comparison "Graph.cleaning c s t" c .
   show "E' = \<Union> {set p |p. isPath s p t}"
   proof (intro pair_set_eqI)
     fix u v
@@ -33,18 +33,65 @@ proof
       using connected_def isPath_append by auto
     then show "(u, v) \<in> E'" unfolding cleaning_def Graph.E_def by simp
   qed
-qed (simp add: cleaning_def)
+qed (simp add: Graph.cleaning_def)
 
-lemma Dual_Path_Union_iff_cleaning: "Dual_Path_Union c' c s t \<longleftrightarrow> c' = cleaning s t c"
+lemma Dual_Path_Union_iff_cleaning: "Dual_Path_Union c' c s t \<longleftrightarrow> c' = Graph.cleaning c s t"
 proof
   assume "Dual_Path_Union c' c s t"
   then interpret union': Dual_Path_Union c' c s t .
-  interpret Dual_Path_Union "cleaning s t c" c s t using Dual_Path_Union_cleaningI .
-  show "c' = cleaning s t c"
+  interpret Dual_Path_Union "Graph.cleaning c s t" c s t using Dual_Path_Union_cleaningI .
+  show "c' = Graph.cleaning c s t"
     using restricted_unique union'.Restricted_Graph_axioms by blast
 qed (simp add: Dual_Path_Union_cleaningI)
 
-(* TODO do we need f? *)
+subsubsection \<open>Building from source to target node\<close>
+
+definition (in Graph) induced_dual_layering :: "node \<Rightarrow> node \<Rightarrow> _ graph"
+  where "induced_dual_layering s t \<equiv> \<lambda>(u, v).
+    if connected s u \<and> connected v t \<and> Suc (min_dist s u + min_dist v t) = min_dist s t then
+      c (u, v)
+    else
+      0"
+
+lemma Dual_Shortest_Path_Union_layeringI:
+  "Dual_Shortest_Path_Union (Graph.induced_dual_layering c s t) c s t"
+proof
+  interpret Graph c .
+  interpret g': Graph "Graph.induced_dual_layering c s t" .
+  show "g'.E = \<Union> {set p |p. isShortestPath s p t}"
+  proof (rule pair_set_eqI)
+    fix u v
+    assume "(u, v) \<in> g'.E"
+    then have MIN_DIST: "(u, v) \<in> E \<and> Suc (min_dist s u + min_dist v t) = min_dist s t" and "connected s u \<and> connected v t"
+      unfolding induced_dual_layering_def Graph.E_def by (smt case_prod_conv mem_Collect_eq)+
+    then obtain p\<^sub>1 p\<^sub>2 where "isShortestPath s p\<^sub>1 u" "isShortestPath v p\<^sub>2 t"
+      by (meson obtain_shortest_path)
+    with MIN_DIST have "isShortestPath s (p\<^sub>1 @ (u, v) # p\<^sub>2) t" unfolding isShortestPath_min_dist_def
+      by (simp add: isPath_append)
+    then show "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}" by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. isShortestPath s p t}"
+    then obtain p where "isShortestPath s p t" "(u, v) \<in> set p" by blast
+    then have "(u, v) \<in> E" "connected s u" "connected v t" "Suc (min_dist s u + min_dist v t) = min_dist s t"
+      using isShortestPath_level_edge by (auto intro: isPath_edgeset shortestPath_is_path)
+    then show "(u, v) \<in> g'.E" unfolding induced_dual_layering_def Graph.E_def by simp
+  qed
+qed (simp add: Graph.induced_dual_layering_def)
+
+lemma Dual_Shortest_Path_Union_iff_induced:
+  "Dual_Shortest_Path_Union c' c s t \<longleftrightarrow> c' = Graph.induced_dual_layering c s t"
+proof
+  assume "Dual_Shortest_Path_Union c' c s t"
+  then interpret union': Dual_Shortest_Path_Union c' c s t .
+  interpret Dual_Shortest_Path_Union "Graph.induced_dual_layering c s t" c s t
+    using Dual_Shortest_Path_Union_layeringI .
+  show "c' = Graph.induced_dual_layering c s t"
+    using restricted_unique union'.Restricted_Graph_axioms by blast
+qed (simp add: Dual_Shortest_Path_Union_layeringI)
+
+\<comment> \<open>Building a layering from an arbitrary graph\<close>
+
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
 locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f': Flow stl s t f'
   for c s t f stl f'
@@ -53,12 +100,14 @@ interpretation g': Irreducible_Graph stl
   unfolding Irreducible_Graph_def Irreducible_Graph_axioms_def
   using no_parallel_edge cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
-interpretation aug_cf: Graph_Comparison "cleaning s t (g'.subtract_graph f')" "cf_of (augment f')" .
+abbreviation "stl' \<equiv> Graph.cleaning (g'.subtract_graph f') s t"
+
+interpretation aug_cf: Graph_Comparison stl' "cf_of (augment f')" .
 
 interpretation f'_cont_cf: Pos_Contained_Graph f' cf
   by unfold_locales (metis NPreflow.resE_nonNegative NPreflow_axioms c'_sg_c_old f'.flow_pos_cont.cap_le order_trans)
 
-interpretation cleaning: Dual_Path_Union "cleaning s t (g'.subtract_graph f')" "g'.subtract_graph f'"
+interpretation cleaning: Dual_Path_Union stl' "g'.subtract_graph f'"
   using Dual_Path_Union_cleaningI .
 
 find_theorems name:augment_alt
@@ -140,13 +189,13 @@ proof (unfold Graph.isPath_alt, clarify)
 qed
 
 lemma cleaning_maintains_bounded_union:
-  "Bounded_Dual_Shortest_Path_Union (cleaning s t (g'.subtract_graph f')) (cf_of (augment f')) s t (cf.min_dist s t)"
+  "Bounded_Dual_Shortest_Path_Union stl' (cf_of (augment f')) s t (cf.min_dist s t)"
 proof (cases "Graph.isEmpty f'")
   case True
   then have "(g'.subtract_graph f') = stl"
     unfolding Graph.isEmpty_def g'.subtract_graph_def by simp
-  then have "(cleaning s t (g'.subtract_graph f')) = stl"
-    unfolding cleaning_def using g'.V_def g'.zero_cap_simp by fastforce
+  then have "stl' = stl"
+    unfolding Graph.cleaning_def using g'.V_def g'.zero_cap_simp by fastforce
   moreover from True have "cf_of (augment f') = cf"
     unfolding Graph.isEmpty_def aug_cf_alt cf.subtract_skew_graph_def by simp
   moreover note Dual_Shortest_Path_Union_axioms
@@ -163,10 +212,10 @@ next
   
   show ?thesis unfolding Bounded_Dual_Shortest_Path_Union_def Bounded_Dual_Shortest_Path_Union_axioms_def
   proof
-    have "Subgraph (cleaning s t (g'.subtract_graph f')) (g'.subtract_graph f')" by intro_locales
+    have "Subgraph stl' (g'.subtract_graph f')" by intro_locales
     also have SUB: "Subgraph ... (cf_of (augment f'))" unfolding aug_cf_alt
       using irreducible_contained_skew_subtract f'.flow_pos_cont.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
-    finally show "Capacity_Compatible (cleaning s t (g'.subtract_graph f')) (cf_of (augment f'))"
+    finally show "Capacity_Compatible stl' (cf_of (augment f'))"
       unfolding Subgraph_def by blast
   
     show "aug_cf.E' = \<Union> {set p |p. aug_cf.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
@@ -205,9 +254,9 @@ next
       then have "g'.isPath s p t" using ST_IN_V' shortest_s_path_remains_path by blast
       with SP' have "Graph.isPath (g'.subtract_graph f') s p t"
         using aug_cf_path_transfer aug_cf.shortestPath_is_path by blast
-      then have "Graph.isPath (cleaning s t (g'.subtract_graph f')) s p t"
+      then have "Graph.isPath stl' s p t"
         using cleaning.dual_path_union unfolding Graph.isPath_alt by blast
-      with UV_IN_P show "(u, v) \<in> Graph.E (cleaning s t (g'.subtract_graph f'))"
+      with UV_IN_P show "(u, v) \<in> Graph.E stl'"
         using Graph.isPath_edgeset by blast
     qed
   qed
@@ -227,7 +276,7 @@ proof
   assume "\<exists>u v. stl (u, v) = f' (u, v) \<and> f' (u, v) > 0"
   then obtain u v where "stl (u, v) = f' (u, v)" "f' (u, v) > 0" by blast
   then have "(u, v) \<in> E'" "(u, v) \<notin> aug_cf.E'"
-    unfolding Graph.E_def g'.subtract_graph_def cleaning_def by auto
+    unfolding Graph.E_def g'.subtract_graph_def Graph.cleaning_def by auto
   then show "aug_cf.E' \<noteq> E'" by blast
 
   show "aug_cf.E' \<subseteq> E'"
@@ -263,12 +312,12 @@ definition dinitz_phase :: "_ flow nres" where
 *)
 definition dinitz_phase :: "_ flow nres" where
   "dinitz_phase \<equiv> do {
-    let stl = induced_st_layering cf s t;
+    let stl = Graph.induced_dual_layering cf s t;
     (f', _) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, stl). Graph.connected stl s t)
       (\<lambda>(f', stl). do {
         p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
-        let stl = cleaning s t (Graph.subtract_path stl p);
+        let stl = Graph.cleaning (Graph.subtract_path stl p) s t;
         let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
         RETURN (f', stl)})
       (f, stl);
@@ -286,7 +335,7 @@ lemma dinitz_phase_step:
   assumes PATH: "Graph.isPath stl s p t"
       and INVAR: "dinitzPhaseInvar (f', stl)"
   defines "aug_f' \<equiv> NFlow.augment c f' (NPreflow.augmentingFlow c f' p)"
-      and "stl' \<equiv> cleaning s t (Graph.subtract_path stl p)"
+      and "stl' \<equiv> Graph.cleaning (Graph.subtract_path stl p) s t"
     shows "dinitzPhaseInvar (aug_f', stl') \<and> Graph.E stl' \<subset> Graph.E stl \<and> finite (Graph.E stl)"
 proof (intro conjI)
   from INVAR interpret f': NFlow c s t f' unfolding dinitzPhaseInvar_def by blast
@@ -404,9 +453,8 @@ lemma dinitz_phase_correct:
   unfolding dinitz_phase_def
   apply (refine_vcg WHILET_rule[where I=dinitzPhaseInvar and R="inv_image finite_psubset (Graph.E \<circ> snd)"])
        apply (simp_all add: dinitz_phase_step dinitz_phase_final)
-  thm induced_st_shortest_path_union (* TODO *)
   apply (simp add: dinitzPhaseInvar_def NFlow_axioms) (* TODO *)
-  by (simp_all add: dinitzPhaseInvar_def res_dist_increasing_flow_def NFlow_axioms induced_st_shortest_path_union min_st_dist_bound)
+  by (simp_all add: dinitzPhaseInvar_def res_dist_increasing_flow_def NFlow_axioms Dual_Shortest_Path_Union_layeringI min_st_dist_bound)
 end
 
 \<comment> \<open>Dinitz inner loop\<close>
