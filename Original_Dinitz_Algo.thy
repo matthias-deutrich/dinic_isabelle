@@ -296,18 +296,22 @@ end
 \<comment> \<open>Properties when removing a flow from the ST_Layering\<close>
 
 subsection \<open>Dinitz inner loop\<close>
+
+(* TODO *)
+interpretation Refine_Monadic_Syntax .
+
 context NFlow
 begin
-definition dinitz_phase :: "_ flow nres" where
-  "dinitz_phase \<equiv> do {
+definition dinitzPhase :: "_ flow nres" where
+  "dinitzPhase \<equiv> do {
     let stl = Graph.induced_dual_layering cf s t;
     (f', _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, stl). Graph.connected stl s t)
-      (\<lambda>(f', stl). do {
-        p \<leftarrow> SPEC (\<lambda>p. Graph.isPath stl s p t);
-        let stl = Graph.cleaning (Graph.subtract_path stl p) s t;
+      (\<lambda>(_, stl'). Graph.connected stl' s t)
+      (\<lambda>(f', stl'). do {
+        p \<leftarrow> spec p. Graph.isPath stl' s p t;
+        let stl' = Graph.cleaning (Graph.subtract_path stl' p) s t;
         let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-        RETURN (f', stl)})
+        RETURN (f', stl')})
       (f, stl);
     RETURN f'}"
 thm Graph.subtract_path_alt
@@ -347,7 +351,7 @@ proof -
     unfolding dinitzPhaseInvar_def using min_st_dist_bound by fastforce
 qed
 
-lemma dinitz_phase_step:
+lemma dinitzPhase_step:
   fixes f' stl
   assumes PATH: "Graph.isPath stl s p t"
       and INVAR: "dinitzPhaseInvar (f', stl)"
@@ -452,7 +456,7 @@ definition res_dist_increasing_flow
   where "res_dist_increasing_flow f' \<equiv>
     NFlow c s t f' \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t < Graph.min_dist (cf_of f') s t)"
 
-lemma dinitz_phase_final:
+lemma dinitzPhase_final:
   fixes f' stl
     assumes DISCON: "\<not> Graph.connected stl s t"
       and INVAR: "dinitzPhaseInvar (f', stl)"
@@ -468,11 +472,11 @@ proof
     by (metis Bounded_Dual_Shortest_Path_Union_axioms Dual_Shortest_Path_Union.st_connected_iff le_eq_less_or_eq linorder_neqE_nat min_st_dist_bound)
 qed
 
-lemma dinitz_phase_correct:
-  "dinitz_phase \<le> SPEC (\<lambda>f'. res_dist_increasing_flow f')"
-  unfolding dinitz_phase_def
+lemma dinitzPhase_correct:
+  "dinitzPhase \<le> SPEC (\<lambda>f'. res_dist_increasing_flow f')"
+  unfolding dinitzPhase_def
   apply (refine_vcg WHILET_rule[where I=dinitzPhaseInvar and R="inv_image finite_psubset (Graph.E \<circ> snd)"])
-       apply (simp_all add: dinitz_phase_step dinitz_phase_final)
+       apply (simp_all add: dinitzPhase_step dinitzPhase_final)
   apply (simp add: dinitzPhaseInvar_def NFlow_axioms) (* TODO *)
   by (simp_all add: dinitzPhaseInvar_def res_dist_increasing_flow_def NFlow_axioms Dual_Shortest_Path_Union_layeringI min_st_dist_bound)
 end
@@ -486,7 +490,7 @@ definition dinitz :: "_ flow nres" where
   "dinitz \<equiv> do {
     f \<leftarrow> WHILE\<^sub>T
       (\<lambda>f. Graph.connected (residualGraph c f) s t)
-      (\<lambda>f. NFlow.dinitz_phase c s t f)
+      (\<lambda>f. NFlow.dinitzPhase c s t f)
       (\<lambda>_. 0);
     RETURN f}"
 
@@ -517,7 +521,7 @@ theorem dinitz_correct: "dinitz \<le> SPEC (\<lambda>f. isMaxFlow f)"
   apply (refine_vcg WHILET_rule[where I="NFlow c s t" and R=res_dist_rel])
      apply (rule res_dist_wf)
     apply (simp add: NFlowI Network_axioms zero_is_flow)
-   apply (fastforce intro: NFlow.dinitz_phase_correct[THEN SPEC_cons_rule] simp: NFlow.res_dist_increasing_flow_def res_dist_rel_def)
+   apply (fastforce intro: NFlow.dinitzPhase_correct[THEN SPEC_cons_rule] simp: NFlow.res_dist_increasing_flow_def res_dist_rel_def)
   by (simp add: Graph.connected_def Graph.isSimplePath_def NFlow.axioms(1) NFlow.ford_fulkerson(1) NPreflow.isAugmentingPath_def)
 end
 

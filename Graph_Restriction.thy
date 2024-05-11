@@ -155,6 +155,7 @@ lemma obtain_connected_ST:
   using assms by (fastforce elim: obtain_ST_paths intro: connected)
 end
 
+(* TODO should the transfer go in both directions? *)
 locale Subgraph_Path_Kind_Union = Subgraph_Path_Kind + Graph_Prop_Union isKindPath
 begin
 sublocale Path_Kind_Union by intro_locales
