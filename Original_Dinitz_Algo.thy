@@ -101,6 +101,7 @@ interpretation g': Irreducible_Graph stl
   using no_parallel_edge cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
 abbreviation "stl' \<equiv> Graph.cleaning (g'.subtract_graph f') s t"
+interpretation stl': Graph stl' .
 
 interpretation aug_cf: Graph_Comparison stl' "cf_of (augment f')" .
 
@@ -120,6 +121,13 @@ lemma aug_cf_alt: "cf_of (augment f') = cf.subtract_skew_graph f'"
 definition new_edge_count :: "path \<Rightarrow> nat"
   where "new_edge_count p \<equiv> length (filter (\<lambda>e. e \<notin> cf.E) p)"
 
+thm path_prelayered
+thm g'.E_def
+thm cf.E_def
+thm aug_cf.E_def
+thm stl'.E_def
+find_theorems "layer ?v \<le> layer ?u + length ?p"
+
 lemma aug_cf_new_edge_prelayered:
   "\<lbrakk>u \<in> V'; v \<in> V'; aug_cf.isPath u p v\<rbrakk> \<Longrightarrow> layer v + 2 * new_edge_count p \<le> layer u + length p"
 proof (induction "new_edge_count p" arbitrary: u p v rule: less_induct)
@@ -130,7 +138,7 @@ proof (induction "new_edge_count p" arbitrary: u p v rule: less_induct)
     with less.prems have "cf.isPath u p v"
       unfolding new_edge_count_def Graph.isPath_alt
       by (metis empty_filter_conv length_0_conv subrelI)
-    with zero less.prems show ?thesis using path_prelayered by simp
+    with zero less.prems show ?thesis using path_prelayered sorry apply auto by simp
   next
     case Suc
     then obtain w\<^sub>1 w\<^sub>2 p\<^sub>1 p\<^sub>2 where P: "p = p\<^sub>1 @ (w\<^sub>1, w\<^sub>2) # p\<^sub>2" and W_NOT_CF: "(w\<^sub>1, w\<^sub>2) \<notin> cf.E"
@@ -168,7 +176,7 @@ next
   then have IN_V': "s \<in> V'" "t \<in> V'"
     using f'.flow_pos_cont.E_ss s_in_V_if_nonempty t_in_V_if_nonempty
     unfolding Graph.isEmpty_def by auto
-  then have "cf.min_dist s t = layer t" using min_dist_transfer s_connected by simp
+  then have "cf.min_dist s t = layer t" sorry using min_dist_transfer s_connected by simp
   also from SP' IN_V' have "layer t \<le> length p"
     using aug_cf.shortestPath_is_path aug_cf_new_edge_prelayered by fastforce
   finally show ?thesis using SP' aug_cf.isShortestPath_min_dist_def by simp
@@ -209,21 +217,19 @@ next
   (* TODO make SUB an interpretation *)
 
 
-  
-  show ?thesis unfolding Bounded_Dual_Shortest_Path_Union_def Bounded_Dual_Shortest_Path_Union_axioms_def
+  have "Subgraph stl' (g'.subtract_graph f')" by intro_locales
+  also have SUB: "Subgraph ... (cf_of (augment f'))" unfolding aug_cf_alt
+    using irreducible_contained_skew_subtract f'.flow_pos_cont.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
+  finally interpret Capacity_Compatible stl' "cf_of (augment f')"
+    unfolding Subgraph_def by blast
+  show ?thesis
   proof
-    have "Subgraph stl' (g'.subtract_graph f')" by intro_locales
-    also have SUB: "Subgraph ... (cf_of (augment f'))" unfolding aug_cf_alt
-      using irreducible_contained_skew_subtract f'.flow_pos_cont.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
-    finally show "Capacity_Compatible stl' (cf_of (augment f'))"
-      unfolding Subgraph_def by blast
-  
     show "aug_cf.E' = \<Union> {set p |p. aug_cf.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
     proof (intro pair_set_eqI)
       fix u v
       assume "(u, v) \<in> aug_cf.E'"
       then obtain p where "Graph.isPath (g'.subtract_graph f') s p t" "(u, v) \<in> set p"
-        using cleaning.dual_path_union by blast
+        using cleaning.dual_path_union oops by blast
       with SUB have "aug_cf.isPath s p t"
         using Subgraph_def Subset_Graph.sub_path by blast
       moreover have "length p = cf.min_dist s t"
