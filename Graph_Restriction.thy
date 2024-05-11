@@ -567,6 +567,12 @@ proof
     using edge_on_path g'.isShortestPath_level_edge(6) ST_path_remains by fastforce
 qed (blast elim: obtain_connected_subgraph_ST)
 
+sublocale Layered_Shortest_Path_Union _ _ "{s}" "{t}" layer by intro_locales
+
+sublocale Local_Prelayer_Graph c layer V'
+  apply unfold_locales
+  by (metis Graph.isPath_distD dist_trans min_dist_is_dist min_dist_minD min_dist_transfer s_connected sub_connected)
+
 (* TODO right place? *)
 lemma st_connected_iff: "g'.connected s t \<longleftrightarrow> connected s t"
   by (meson Graph.obtain_shortest_path isShortestPath.connected ST_path_remains singletonI sub_connected)
@@ -792,6 +798,22 @@ proof
   with \<open>(u, v) \<in> set p\<close> show "Suc (g'.min_dist s u + g'.min_dist v t) = g'.min_dist s t"
     unfolding isBoundedShortestPath_def using g'.isShortestPath_level_edge(6) by fastforce
 qed (blast elim: obtain_connected_subgraph_ST)
+
+sublocale Distance_Bounded_Graph c' b
+proof (intro g'.Distance_Bounded_Graph_PathI)
+  fix u p v
+  assume PATH: "g'.isPath u p v"
+  show "length p \<le> b"
+  proof (cases "p = []")
+    case False
+    with PATH have "v \<in> V'" using g'.V_def g'.isPath_bwd_cases by fastforce
+    then obtain p' where "isBoundedShortestPath b c' s p' v"
+      using obtain_ST_paths ST_path_remains vertex'_if_vertex (* TODO fix *)
+      by (metis Graph.connected_inV_iff Graph.isShortestPath_min_dist_def empty_iff insert_iff isBoundedShortestPath_def isPath.connected layer_bounded_by_t min.bounded_iff min.order_iff obtain_front_terminal_path only_s_without_incoming path_is_shortest) (*by (metis singleton_iff)*)
+    then have "layer v \<le> b" unfolding isBoundedShortestPath_def g'.isShortestPath_min_dist_def by simp
+    with PATH show ?thesis using path_ascends_layer by simp
+  qed simp
+qed
 
 (* TODO necessary? *)
 (*

@@ -320,12 +320,12 @@ lemma (in Distance_Bounded_Graph) rightPassRefine_final:
   assumes SUB: "Subgraph c' c"
     and S_CON: "\<And>u v. connected s u \<Longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v)"
     and NODE_HAS_IN: "\<forall>u \<in> Graph.V c' - {s}. Graph.incoming c' u \<noteq> {}"
-  shows "Source_Path_Union c' c s V"
+  shows "Source_Path_Union c' c s"
 proof -
   from SUB interpret Subgraph c' c .
   interpret g': Distance_Bounded_Graph c' b
     using sub_Distance_Bounded Distance_Bounded_Graph_axioms by blast
-  show "Source_Path_Union c' c s V"
+  show "Source_Path_Union c' c s"
   proof (unfold_locales, intro pair_set_eqI)
     fix u v
     assume EDGE: "(u, v) \<in> E'"
@@ -336,11 +336,11 @@ proof -
     with W_NO_IN NODE_HAS_IN have "w = s" by blast
     with W_CON S_CON obtain p where "isPath s p u" using isPath.connecting sub_connected by blast
     with EDGE have "isPath s (p @ [(u, v)]) v" by (simp add: edge'_if_edge isPath_append_edge)
-    with \<open>v \<in> V'\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isPath s p t}"
+    with \<open>v \<in> V'\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>t\<in>V. isPath s p t}"
       using vertex'_if_vertex by force
   next
     fix u v
-    assume "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isPath s p t}"
+    assume "(u, v) \<in> \<Union> {set p |p. \<exists>t\<in>V. isPath s p t}"
     then obtain p p' t where "isPath s (p @ (u, v) # p') t" using split_list by fastforce
     then have "connected s u" "(u, v) \<in> E"
       using connected_def isPath.split_around_edge by blast+
@@ -352,7 +352,7 @@ qed
 theorem (in Finite_Bounded_Graph) rightPassRefine'_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine' Q c \<le> (spec c'. Source_Path_Union c' c s V)"
+  shows "rightPassRefine' Q c \<le> (spec c'. Source_Path_Union c' c s)"
   unfolding rightPassRefine'_def
 proof (refine_vcg WHILET_rule[where I="rightPassInvar c s" and R=graphWorkingSetRel], clarsimp_all)
   show "wf graphWorkingSetRel" by (rule wf_graphWorkingSetRel)
@@ -375,7 +375,7 @@ next
 next
   fix c'
   assume "rightPassInvar c s ({}, c')"
-  then show "Source_Path_Union c' c s V" unfolding rightPassInvar_def
+  then show "Source_Path_Union c' c s" unfolding rightPassInvar_def
     using rightPassRefine_final by simp
 qed
 
@@ -414,7 +414,7 @@ lemma (in Finite_Graph) rightPassRefine'_refine:
 theorem (in Finite_Bounded_Graph) rightPassRefine_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine Q c \<le> (spec c'. Source_Path_Union c' c s V)"
+  shows "rightPassRefine Q c \<le> (spec c'. Source_Path_Union c' c s)"
   using rightPassRefine'_correct rightPassRefine'_refine assms
   by (meson conc_trans_additional(5))
 \<comment> \<open>Right Pass\<close>
@@ -442,15 +442,15 @@ definition leftPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ gr
   }"
 
 (* TODO simplify and unify with dual_spu *)
-lemma (in Graph) dual_pu: "Target_Path_Union c' c (Graph.V c) t = Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+lemma (in Graph) dual_pu: "Target_Path_Union c' c t = Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
 proof
-  assume "Target_Path_Union c' c (Graph.V c) t"
-  then interpret pu: Target_Path_Union c' c "Graph.V c" t .
-  show "Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+  assume "Target_Path_Union c' c t"
+  then interpret pu: Target_Path_Union c' c t .
+  show "Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
   proof
     show "\<And>u v. (c'\<^sup>T) (u, v) = 0 \<or> (c\<^sup>T) (u, v) = 0 \<or> (c'\<^sup>T) (u, v) = (c\<^sup>T) (u, v)"
       using pu.cap_compatible by simp
-    show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>ta. ta \<in> Graph.V (c\<^sup>T) \<and> Graph.isPath (c\<^sup>T) t p ta}"
+    show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>s \<in> Graph.V (c\<^sup>T). Graph.isPath (c\<^sup>T) t p s}"
     proof (simp, intro pair_set_eqI)
       fix u v
       assume "(u, v) \<in> pu.E'\<inverse>"
@@ -458,36 +458,36 @@ proof
         using pu.target_path_union by blast
       then have "(u, v) \<in> set (transpose_path p)" "isPath s (transpose_path (transpose_path p)) t"
         by auto
-      with \<open>s \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isPath ta (transpose_path p) t}"
+      with \<open>s \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>s \<in> V. isPath s (transpose_path p) t}"
         by blast
     next
       fix u v
-      assume "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isPath ta (transpose_path p) t}"
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>s \<in> V. isPath s (transpose_path p) t}"
       then show "(u, v) \<in> pu.E'\<inverse>" using pu.target_path_union by fastforce
     qed
   qed
 next
-  assume "Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
-  then interpret pu: Source_Path_Union "c'\<^sup>T" "c\<^sup>T" t "Graph.V c" by simp
-  show "Target_Path_Union c' c (Graph.V c) t"
+  assume "Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
+  then interpret pu: Source_Path_Union "c'\<^sup>T" "c\<^sup>T" t by simp
+  show "Target_Path_Union c' c t"
   proof
     show "\<And>u v. c' (u, v) = 0 \<or> c (u, v) = 0 \<or> c' (u, v) = c (u, v)"
       using pu.cap_compatible by simp
-    show "Graph.E c' = \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isPath c s p t}"
+    show "Graph.E c' = \<Union> {set p |p. \<exists>s \<in> V. Graph.isPath c s p t}"
     proof (intro pair_set_eqI)
       fix u v
       assume "(u, v) \<in> Graph.E c'"
       then obtain s p where "(v, u) \<in> set p" "s \<in> V" "pu.isPath t p s"
         using pu.source_path_union by fastforce
-      then show "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isPath c s p t}"
+      then show "(u, v) \<in> \<Union> {set p |p. \<exists>s \<in> V. Graph.isPath c s p t}"
         by fastforce
     next
       fix u v
-      assume "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isPath c s p t}"
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>s \<in> V. Graph.isPath c s p t}"
       then obtain s p where "(u, v) \<in> set p" "s \<in> Graph.V c" "Graph.isPath c s p t"
         by blast
       then have "(v, u) \<in> set (transpose_path p)" "pu.isPath t (transpose_path p) s" by auto
-      with \<open>s \<in> Graph.V c\<close> have "(v, u) \<in> pu.E'" using pu.source_path_union by blast
+      with \<open>s \<in> Graph.V c\<close> have "(v, u) \<in> pu.E'" using pu.source_path_union transpose_V by blast
       then show "(u, v) \<in> Graph.E c'" by simp
     qed
   qed
@@ -534,8 +534,8 @@ thm transfer_spec
 theorem leftPassRefine_correct:
   assumes T_NO_OUT: "outgoing t = {}"
     and Q_START: "t \<notin> Q" "\<forall>u \<in> V - Q - {t}. outgoing u \<noteq> {}" "finite Q"
-  shows "leftPassRefine Q c \<le> (spec c'. Target_Path_Union c' c V t)"
-  apply (intro transfer_spec[where spec'="\<lambda>c c'. Source_Path_Union c' c t (Graph.V c)"])
+  shows "leftPassRefine Q c \<le> (spec c'. Target_Path_Union c' c t)"
+  apply (intro transfer_spec[where spec'="\<lambda>c c'. Source_Path_Union c' c t"])
   using Graph.dual_pu apply blast
   apply (intro Finite_Bounded_Graph.rightPassRefine_correct)
   using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
@@ -560,14 +560,14 @@ lemma (in Finite_Bounded_Graph) cleaningRefine_correct:
 proof (refine_vcg, simp)
   from T_NO_OUT \<open>\<forall>u \<in> V - Q - {s, t}. incoming u \<noteq> {} \<and> outgoing u \<noteq> {}\<close> have "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}"
     by (cases "incoming t = {}") (auto simp: incoming_def outgoing_def V_def)
-  with assms have "rightPassRefine Q c \<le> (spec c'. Source_Path_Union c' c s V)"
+  with assms have "rightPassRefine Q c \<le> (spec c'. Source_Path_Union c' c s)"
     by (blast intro: rightPassRefine_correct)
   also have "... \<le> (spec ca. leftPassRefine Q ca \<le> (spec c'. Dual_Path_Union c' c s t))"
   proof clarsimp
     fix c'
-    assume "Source_Path_Union c' c s V"
-    then interpret Source_Path_Union c' c s V .
-    have "leftPassRefine Q c' \<le> (spec c''. Target_Path_Union c'' c' V' t)"
+    assume "Source_Path_Union c' c s"
+    then interpret Source_Path_Union c' c s .
+    have "leftPassRefine Q c' \<le> (spec c''. Target_Path_Union c'' c' t)"
       apply (intro Finite_Bounded_Graph.leftPassRefine_correct)
           prefer 3 using assms apply simp
          prefer 4 using assms apply simp
@@ -599,7 +599,7 @@ proof (refine_vcg, simp)
         using Graph.isPath_tail ST_path_remains by blast
       then show "g'.outgoing u \<noteq> {}" unfolding g'.outgoing_def by blast
     qed
-    also from \<open>Source_Path_Union c' c s V\<close> have "... \<le> (spec c''. Dual_Path_Union c'' c s t)"
+    also from \<open>Source_Path_Union c' c s\<close> have "... \<le> (spec c''. Dual_Path_Union c'' c s t)"
       by (auto intro: Dual_Path_Union_right_leftI)
     finally show "leftPassRefine Q c' \<le> (spec c''. Dual_Path_Union c'' c s t)" .
   qed
@@ -697,25 +697,25 @@ definition ebfsPhaseInvar :: "node \<Rightarrow> nat \<Rightarrow> _ graph \<Rig
     \<and> Q' = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - Q)"
 
 lemma ebfsPhase_initial:
-  assumes "Bounded_Source_Shortest_Path_Union c' c s V n"
+  assumes "Bounded_Source_Shortest_Path_Union c' c s n"
   shows "ebfsPhaseInvar s n c' (exactDistNodes n s) (c', {})"
   unfolding ebfsPhaseInvar_def
 proof (intro case_prodI conjI)
-  from assms interpret Bounded_Source_Shortest_Path_Union c' c s V n .
+  from assms interpret Bounded_Source_Shortest_Path_Union c' c s n .
   show "Capacity_Compatible c' c" by intro_locales
 qed (simp_all)
 
 lemma ebfs_phase_final:
-  assumes BSPU: "Bounded_Source_Shortest_Path_Union c\<^sub>i c s V n"
+  assumes BSPU: "Bounded_Source_Shortest_Path_Union c\<^sub>i c s n"
     and INVAR: "ebfsPhaseInvar s n c\<^sub>i {} (c', Q')"
-  shows "Bounded_Source_Shortest_Path_Union c' c s V (Suc n) \<and> Q' = exactDistNodes (Suc n) s"
+  shows "Bounded_Source_Shortest_Path_Union c' c s (Suc n) \<and> Q' = exactDistNodes (Suc n) s"
 proof
   from INVAR have "Capacity_Compatible c' c"
     and E'_EQ: "Graph.E c' = Graph.E c\<^sub>i \<union> E \<inter> exactDistNodes n s \<times> Q'"
     and Q'_EQ: "Q' = exactDistNodes (Suc n) s \<inter> E `` exactDistNodes n s"
     unfolding ebfsPhaseInvar_def by auto
   then interpret Capacity_Compatible c' c by simp
-  from BSPU interpret g\<^sub>i: Bounded_Source_Shortest_Path_Union c\<^sub>i c s V n .
+  from BSPU interpret g\<^sub>i: Bounded_Source_Shortest_Path_Union c\<^sub>i c s n .
 
   have "exactDistNodes (Suc n) s \<subseteq> E `` exactDistNodes n s"
   proof
@@ -732,19 +732,18 @@ proof
   with E'_EQ have E'_EQ: "E' = g\<^sub>i.E' \<union> E \<inter> exactDistNodes n s \<times> exactDistNodes (Suc n) s"
     by simp
 
-  show "Bounded_Source_Shortest_Path_Union c' c s V (Suc n)"
+  show "Bounded_Source_Shortest_Path_Union c' c s (Suc n)"
   proof (unfold_locales, intro pair_set_eqI)
     fix u v
     assume "(u, v) \<in> E'"
     then consider (OLD) "(u, v) \<in> g\<^sub>i.E'"
       | (NEW) "(u, v) \<in> E \<inter> exactDistNodes n s \<times> exactDistNodes (Suc n) s"
       using E'_EQ by blast
-    then show "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> Suc n}"
+    then show "(u, v) \<in> \<Union> {set p |p. \<exists>t\<in>V. isBoundedShortestPath (Suc n) c s p t}"
     proof cases
       case OLD
-      then have "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> n}"
-        by (simp add: g\<^sub>i.bounded_shortest_s_path_union)
-      then show ?thesis by fastforce
+      then show ?thesis
+        using g\<^sub>i.source_path_union unfolding isBoundedShortestPath_def by fastforce
     next
       case NEW
       then have "connected s u" "Suc (min_dist s u) = min_dist s v" "(u, v) \<in> E" "min_dist s v = Suc n"
@@ -753,12 +752,13 @@ proof
         using obtain_shortest_path shortestPath_append_edge by meson
       with \<open>min_dist s v = Suc n\<close> have "length p = n" unfolding isShortestPath_min_dist_def by simp
       moreover note SP \<open>(u, v) \<in> E\<close>
-      ultimately show ?thesis using V_def by fastforce
+      ultimately show ?thesis unfolding V_def isBoundedShortestPath_def by fastforce
     qed
   next
     fix u v
-    assume "(u, v) \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t \<and> length p \<le> Suc n}"
-    then obtain t p where "(u, v) \<in> set p" "isShortestPath s p t" "length p \<le> Suc n" by blast
+    assume "(u, v) \<in> \<Union> {set p |p. \<exists>t\<in>V. isBoundedShortestPath (Suc n) c s p t}"
+    then obtain t p where "(u, v) \<in> set p" "isShortestPath s p t" "length p \<le> Suc n"
+      unfolding isBoundedShortestPath_def by blast
     then obtain p' where SP: "isShortestPath s (p' @ [(u, v)]) v" and LEN: "length p' \<le> n"
       by (fastforce dest: split_list split_shortest_path_around_edge)
     then have "(u, v) \<in> E" by (simp add: isPath_append isShortestPath_def)
@@ -768,7 +768,7 @@ proof
       case LEN_LE
       with \<open>(u, v) \<in> E\<close> have "length (p' @ [(u, v)]) \<le> n" "v \<in> V"
         unfolding V_def by auto
-      with SP show ?thesis using E'_EQ unfolding g\<^sub>i.bounded_shortest_s_path_union by fastforce
+      with SP show ?thesis using E'_EQ unfolding g\<^sub>i.source_path_union isBoundedShortestPath_def by fastforce
     next
       case LEN_EQ
       with SP have "v \<in> exactDistNodes (Suc n) s"
@@ -799,7 +799,7 @@ qed
 *)
 
 lemma ebfs_phase_step:
-  assumes BSPU: "Bounded_Source_Shortest_Path_Union c\<^sub>i c s V n"
+  assumes BSPU: "Bounded_Source_Shortest_Path_Union c\<^sub>i c s n"
     and Q: "u \<in> Q" "Q \<subseteq> exactDistNodes n s"
     and INVAR: "ebfsPhaseInvar s n c\<^sub>i Q (c', Q')"
   defines "S \<equiv> E `` {u} - (Graph.V c\<^sub>i \<union> {s})"
@@ -827,7 +827,7 @@ proof -
     from Q have "E `` {u} \<subseteq> boundedReachableNodes (Suc n) s"
       unfolding boundedReachableNodes_alt using exactDistNodes_reachable_ss by blast
     with BSPU have S_alt: "S = exactDistNodes (Suc n) s \<inter> E `` {u}"
-      unfolding S_def exactDistNodes_alt using BSPU_V'_boundedReachable by blast
+      unfolding S_def exactDistNodes_alt using Bounded_Source_Shortest_Path_Union.V'_boundedReachable by blast
     with Q Q'_EQ show "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
       by blast
 
@@ -842,8 +842,8 @@ proof -
 qed
 
 lemma ebfs_phase_correct:
-  assumes BSPU: "Bounded_Source_Shortest_Path_Union c' c s V n"
-  shows "ebfsPhase (Graph.V c' \<union> {s}) c' (exactDistNodes n s) \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s V (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
+  assumes BSPU: "Bounded_Source_Shortest_Path_Union c' c s n"
+  shows "ebfsPhase (Graph.V c' \<union> {s}) c' (exactDistNodes n s) \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
   unfolding ebfsPhase_def
   apply (refine_vcg FOREACH_rule[where I="ebfsPhaseInvar s n c'"])
   using FINITE_REACHABLE finite_subset exactDistNodes_reachable_ss boundedReachableNodes_ss apply meson
@@ -874,19 +874,19 @@ definition ebfs :: "node \<Rightarrow> _ graph nres" where
 
 definition ebfsInvar :: "node \<Rightarrow> (_ graph \<times> node set \<times> nat) \<Rightarrow> bool" where
   "ebfsInvar s \<equiv> \<lambda>(c', Q, n).
-    Bounded_Source_Shortest_Path_Union c' c s V n
+    Bounded_Source_Shortest_Path_Union c' c s n
     \<and> Q = exactDistNodes n s"
 
 lemma ebfs_final:
   assumes INVAR: "ebfsInvar s (c', {}, n)"
-  shows "Source_Shortest_Path_Union c' c s V"
+  shows "Source_Shortest_Path_Union c' c s"
 proof -
-  from INVAR interpret Bounded_Source_Shortest_Path_Union c' c s V n unfolding ebfsInvar_def by blast
+  from INVAR interpret Bounded_Source_Shortest_Path_Union c' c s n unfolding ebfsInvar_def by blast
 
   show ?thesis
   proof (unfold_locales, intro equalityI subsetI)
     fix e
-    assume "e \<in> \<Union> {set p |p. \<exists>t. t \<in> V \<and> isShortestPath s p t}"
+    assume "e \<in> \<Union> {set p |p. \<exists>t\<in>V. isShortestPath s p t}"
     then obtain p t where P: "e \<in> set p" "t \<in> V" "isShortestPath s p t" by blast
     have "length p < n"
     proof (rule ccontr)
@@ -897,8 +897,8 @@ proof -
         unfolding exactDistNodes_def isShortestPath_min_dist_def connected_def by auto
       with INVAR show False unfolding ebfsInvar_def by simp
     qed
-    with P show "e \<in> E'" using bounded_shortest_s_path_union by fastforce
-  qed (auto simp: bounded_shortest_s_path_union)
+    with P show "e \<in> E'" using source_path_union unfolding isBoundedShortestPath_def by fastforce
+  qed (auto simp: source_path_union isBoundedShortestPath_def)
 qed
 
 context
@@ -927,7 +927,7 @@ lemma ebfs_step:
   assumes INVAR: "ebfsInvar s (c', Q, n)" and Q: "Q \<noteq> {}"
   shows "ebfsPhase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). ebfsInvar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
 proof -
-  from INVAR have "ebfsPhase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s V (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
+  from INVAR have "ebfsPhase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
     using ebfs_phase_correct[OF FINITE_REACHABLE] unfolding ebfsInvar_def by blast
   also have "... \<le> SPEC (\<lambda>(c'', Q'). ebfsInvar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
   proof (auto simp: ebfsInvar_def)
@@ -942,7 +942,7 @@ proof -
   finally show ?thesis .
 qed
 
-theorem ebfs_correct: "ebfs s \<le> (spec c'. Source_Shortest_Path_Union c' c s V)"
+theorem ebfs_correct: "ebfs s \<le> (spec c'. Source_Shortest_Path_Union c' c s)"
   unfolding ebfs_def
   apply (refine_vcg WHILET_rule[where I="ebfsInvar s"
       and R="inv_image (greater_bounded (card (reachableNodes s))) (snd \<circ> snd)"])
@@ -953,7 +953,7 @@ theorem ebfs_correct: "ebfs s \<le> (spec c'. Source_Shortest_Path_Union c' c s 
     unfolding ebfsInvar_def exactDistNodes_def
     apply auto
     apply unfold_locales
-    unfolding Graph.E_def
+    unfolding Graph.E_def isBoundedShortestPath_def
     by auto
 
   using ebfs_step ebfs_final by simp_all
@@ -1007,15 +1007,15 @@ proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
 qed
 
 (* TODO simplify and extract *)
-lemma dual_spu: "Target_Shortest_Path_Union c' c (Graph.V c) t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+lemma dual_spu: "Target_Shortest_Path_Union c' c t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
 proof
-  assume "Target_Shortest_Path_Union c' c (Graph.V c) t"
-  then interpret spu: Target_Shortest_Path_Union c' c "Graph.V c" t .
-  show "Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+  assume "Target_Shortest_Path_Union c' c t"
+  then interpret spu: Target_Shortest_Path_Union c' c t .
+  show "Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
   proof
     show "\<And>u v. (c'\<^sup>T) (u, v) = 0 \<or> (c\<^sup>T) (u, v) = 0 \<or> (c'\<^sup>T) (u, v) = (c\<^sup>T) (u, v)"
       using spu.cap_compatible by simp
-    show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>ta. ta \<in> Graph.V (c\<^sup>T) \<and> Graph.isShortestPath (c\<^sup>T) t p ta}"
+    show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>s \<in> Graph.V (c\<^sup>T). Graph.isShortestPath (c\<^sup>T) t p s}"
     proof (simp, intro pair_set_eqI)
       fix u v
       assume "(u, v) \<in> spu.E'\<inverse>"
@@ -1023,36 +1023,36 @@ proof
         using spu.target_path_union by blast
       then have "(u, v) \<in> set (transpose_path p)" "isShortestPath s (transpose_path (transpose_path p)) t"
         by auto
-      with \<open>s \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isShortestPath ta (transpose_path p) t}"
+      with \<open>s \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s (transpose_path p) t}"
         by blast
     next
       fix u v
-      assume "(u, v) \<in> \<Union> {set p |p. \<exists>ta. ta \<in> V \<and> isShortestPath ta (transpose_path p) t}"
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s (transpose_path p) t}"
       then show "(u, v) \<in> spu.E'\<inverse>" using spu.target_path_union by fastforce
     qed
   qed
 next
-  assume "Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
-  then interpret spu: Source_Shortest_Path_Union "c'\<^sup>T" "c\<^sup>T" t "Graph.V c" by simp
-  show "Target_Shortest_Path_Union c' c (Graph.V c) t"
+  assume "Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
+  then interpret spu: Source_Shortest_Path_Union "c'\<^sup>T" "c\<^sup>T" t by simp
+  show "Target_Shortest_Path_Union c' c t"
   proof
     show "\<And>u v. c' (u, v) = 0 \<or> c (u, v) = 0 \<or> c' (u, v) = c (u, v)"
       using spu.cap_compatible by simp
-    show "Graph.E c' = \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isShortestPath c s p t}"
+    show "Graph.E c' = \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s p t}"
     proof (intro pair_set_eqI)
       fix u v
       assume "(u, v) \<in> Graph.E c'"
       then obtain s p where "(v, u) \<in> set p" "s \<in> V" "spu.isShortestPath t p s"
         using spu.source_path_union by fastforce
-      then show "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isShortestPath c s p t}"
+      then show "(u, v) \<in> \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s p t}"
         by fastforce
     next
       fix u v
-      assume "(u, v) \<in> \<Union> {set p |p. \<exists>s. s \<in> Graph.V c \<and> Graph.isShortestPath c s p t}"
-      then obtain s p where "(u, v) \<in> set p" "s \<in> Graph.V c" "Graph.isShortestPath c s p t"
+      assume "(u, v) \<in> \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s p t}"
+      then obtain s p where "(u, v) \<in> set p" "s \<in> V" "Graph.isShortestPath c s p t"
         by blast
       then have "(v, u) \<in> set (transpose_path p)" "spu.isShortestPath t (transpose_path p) s" by auto
-      with \<open>s \<in> Graph.V c\<close> have "(v, u) \<in> spu.E'" using spu.source_path_union by blast
+      with \<open>s \<in> V\<close> have "(v, u) \<in> spu.E'" using spu.source_path_union transpose_V by blast
       then show "(u, v) \<in> Graph.E c'" by simp
     qed
   qed
@@ -1060,21 +1060,21 @@ qed
 
 theorem (in Graph) ebfsBackward_correct:
   assumes FINITE_REACHED_FROM: "finite {u. connected u t}"
-  shows "ebfsBackward t \<le> (spec c'. Target_Shortest_Path_Union c' c V t)"
+  shows "ebfsBackward t \<le> (spec c'. Target_Shortest_Path_Union c' c t)"
 proof -
   interpret Dual_Graph_Algorithms "swap_args2 Graph.ebfsBackward t" "swap_args2 Graph.ebfs t"
     using dual_ebfs .
-  have "swap_args2 Graph.ebfsBackward t c \<le> (spec c'. Target_Shortest_Path_Union c' c V t)"
+  have "swap_args2 Graph.ebfsBackward t c \<le> (spec c'. Target_Shortest_Path_Union c' c t)"
     (*using dual_spu apply (auto elim!: transfer_spec)*)
     (*thm dual_spu[THEN transfer_spec]*)
     (*thm transfer_spec[OF dual_spu]*)
-  proof (intro transfer_spec[where spec'="\<lambda>c c'. Source_Shortest_Path_Union c' c t (Graph.V c)"])
-    show "\<And>c c'. Target_Shortest_Path_Union c' c (Graph.V c) t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t (Graph.V (c\<^sup>T))"
+  proof (intro transfer_spec[where spec'="\<lambda>c c'. Source_Shortest_Path_Union c' c t"])
+    show "\<And>c c'. Target_Shortest_Path_Union c' c t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t "
       using Graph.dual_spu .
     thm Graph.ebfs_correct
     from FINITE_REACHED_FROM have "finite (Graph.reachableNodes (c\<^sup>T) t)"
       unfolding Graph.reachableNodes_def by simp
-    then show "swap_args2 Graph.ebfs t (c\<^sup>T) \<le> (spec c'. Source_Shortest_Path_Union c' (c\<^sup>T) t (Graph.V (c\<^sup>T)))"
+    then show "swap_args2 Graph.ebfs t (c\<^sup>T) \<le> (spec c'. Source_Shortest_Path_Union c' (c\<^sup>T) t)"
       using Graph.ebfs_correct by fastforce
   qed
   then show ?thesis by simp
@@ -1104,19 +1104,19 @@ proof (refine_vcg, simp)
   have "reachableNodes s \<subseteq> V \<union> {s}"
     using Graph.distinct_nodes_in_V_if_connected(2) reachableNodes_def by auto
   then have "finite (reachableNodes s)" using finite_V by (simp add: finite_subset)
-  then have "ebfs s \<le> (spec sl. Source_Shortest_Path_Union sl c s V)" by (rule ebfs_correct)
+  then have "ebfs s \<le> (spec sl. Source_Shortest_Path_Union sl c s)" by (rule ebfs_correct)
   also have "... \<le> (spec sl. Graph.ebfsBackward sl t \<le> (spec c'. Dual_Shortest_Path_Union c' c s t))"
   proof (rule SPEC_rule)
     fix c'
-    assume "Source_Shortest_Path_Union c' c s V"
-    then interpret Source_Shortest_Path_Union c' c s V .
+    assume "Source_Shortest_Path_Union c' c s"
+    then interpret Source_Shortest_Path_Union c' c s .
 
     have "{u. g'.connected u t} \<subseteq> V' \<union> {t}"
       using g'.distinct_nodes_in_V_if_connected by auto
     then have "finite {u. g'.connected u t}" using finite_V V_ss by (simp add: finite_subset)
-    then have "g'.ebfsBackward t \<le> (spec c''. Target_Shortest_Path_Union c'' c' V' t)"
+    then have "g'.ebfsBackward t \<le> (spec c''. Target_Shortest_Path_Union c'' c' t)"
       by (rule g'.ebfsBackward_correct)
-    also from \<open>Source_Shortest_Path_Union c' c s V\<close> have "... \<le> (spec c''. Dual_Shortest_Path_Union c'' c s t)"
+    also from \<open>Source_Shortest_Path_Union c' c s\<close> have "... \<le> (spec c''. Dual_Shortest_Path_Union c'' c s t)"
       using SPEC_rule Dual_Shortest_Path_Union_right_leftI by metis
     finally show "g'.ebfsBackward t \<le> (spec c''. Dual_Shortest_Path_Union c'' c s t)" .
   qed
@@ -1180,31 +1180,6 @@ definition dinitzPhaseAssert :: "(_ flow \<times> bool) nres" where
 
 (* TODO comment about val needed for changed inequality *)
 
-(* TODO use this in phase step *)
-lemma dual_spu_if_invar_and_path:
-  assumes INVAR: "dinitzPhaseInvar (f', stl)"
-    and PATH: "Graph.isPath stl s p t"
-  shows "Dual_Shortest_Path_Union stl (cf_of f') s t"
-proof -
-  from INVAR interpret f': NFlow c s t f' unfolding dinitzPhaseInvar_def by blast
-
-  have BOUND_EQ: "cf.min_dist s t = f'.cf.min_dist s t"
-  proof -
-    from INVAR interpret Bounded_Dual_Shortest_Path_Union stl f'.cf s t "cf.min_dist s t"
-      unfolding dinitzPhaseInvar_def by simp
-    show ?thesis
-    proof (intro antisym)
-      from PATH INVAR show "cf.min_dist s t \<le> f'.cf.min_dist s t"
-        unfolding dinitzPhaseInvar_def Graph.connected_def
-        using sub_path by blast
-      from PATH show "f'.cf.min_dist s t \<le> cf.min_dist s t" (* TODO fix proof *)
-      using f'.cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer (* by simp *)
-      by (metis Bounded_Shortest_Path_Union.obtain_close_ST Bounded_Shortest_Path_Union_axioms emptyE g'.isEmpty_def g'.isPath_bwd_cases min_dist_transfer s_in_V_if_nonempty singleton_iff t_not_s)
-    qed
-  qed
-  with INVAR show "Dual_Shortest_Path_Union stl (f'.cf) s t"
-    unfolding dinitzPhaseInvar_def using min_st_dist_bound by fastforce
-qed
 
 (*
 lemma dinitzPhaseAssert_step:
@@ -1259,7 +1234,7 @@ proof -
       by (simp add: Graph.shortestPath_is_path Graph.shortestPath_is_simple PATH f'.augFlow_val f'.isAugmentingPath_def f'.resCap_gzero_aux stu.shortest_path_transfer)
     ultimately show ?thesis unfolding aug_f'_def using f'.augment_flow_value by simp
   qed
-  moreover have "stl' = cleaning s t (Graph.subtract_path stl p)"
+  moreover have "stl' = Graph.cleaning (Graph.subtract_path stl p) s t"
     using CLEANED Dual_Path_Union_iff_cleaning by blast
   moreover note PATH INVAR
   ultimately show ?thesis unfolding dinitzPhaseAssertInvar_alt aug_f'_def

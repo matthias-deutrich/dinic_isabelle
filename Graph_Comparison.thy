@@ -37,6 +37,10 @@ lemma sub_path: "g'.isPath u p v \<Longrightarrow> isPath u p v"
 corollary sub_connected: "g'.connected u v \<Longrightarrow> connected u v"
   unfolding Graph.connected_def using sub_path by blast
 
+(* TODO use more often *)
+lemma sub_min_dist_geq: "g'.connected u v \<Longrightarrow> g'.min_dist u v \<ge> min_dist u v"
+  by (metis Graph.isPath_distD Graph.isShortestPath_min_dist_def Graph.min_dist_minD g'.obtain_shortest_path sub_path)
+
 lemma sub_shortest_path_if_contained: "\<lbrakk>g'.isPath u p v; isShortestPath u p v\<rbrakk> \<Longrightarrow> g'.isShortestPath u p v"
   using sub_path by (meson Graph.isShortestPath_def)
 

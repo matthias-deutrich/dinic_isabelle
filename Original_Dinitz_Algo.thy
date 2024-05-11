@@ -138,7 +138,7 @@ proof (induction "new_edge_count p" arbitrary: u p v rule: less_induct)
     with less.prems have "cf.isPath u p v"
       unfolding new_edge_count_def Graph.isPath_alt
       by (metis empty_filter_conv length_0_conv subrelI)
-    with zero less.prems show ?thesis using path_prelayered sorry apply auto by simp
+    with zero less.prems show ?thesis using path_prelayered by simp
   next
     case Suc
     then obtain w\<^sub>1 w\<^sub>2 p\<^sub>1 p\<^sub>2 where P: "p = p\<^sub>1 @ (w\<^sub>1, w\<^sub>2) # p\<^sub>2" and W_NOT_CF: "(w\<^sub>1, w\<^sub>2) \<notin> cf.E"
@@ -176,7 +176,7 @@ next
   then have IN_V': "s \<in> V'" "t \<in> V'"
     using f'.flow_pos_cont.E_ss s_in_V_if_nonempty t_in_V_if_nonempty
     unfolding Graph.isEmpty_def by auto
-  then have "cf.min_dist s t = layer t" sorry using min_dist_transfer s_connected by simp
+  then have "cf.min_dist s t = layer t" using min_dist_transfer s_connected by simp
   also from SP' IN_V' have "layer t \<le> length p"
     using aug_cf.shortestPath_is_path aug_cf_new_edge_prelayered by fastforce
   finally show ?thesis using SP' aug_cf.isShortestPath_min_dist_def by simp
@@ -223,48 +223,47 @@ next
   finally interpret Capacity_Compatible stl' "cf_of (augment f')"
     unfolding Subgraph_def by blast
   show ?thesis
-  proof
-    show "aug_cf.E' = \<Union> {set p |p. aug_cf.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
-    proof (intro pair_set_eqI)
-      fix u v
-      assume "(u, v) \<in> aug_cf.E'"
-      then obtain p where "Graph.isPath (g'.subtract_graph f') s p t" "(u, v) \<in> set p"
-        using cleaning.dual_path_union oops by blast
-      with SUB have "aug_cf.isPath s p t"
-        using Subgraph_def Subset_Graph.sub_path by blast
-      moreover have "length p = cf.min_dist s t"
-      proof -
-        interpret f'': Contained_Graph "g'.subtract_graph f'" stl
-          using f'.flow_pos_cont.subtract_contained .
-        from \<open>Graph.isPath (g'.subtract_graph f') s p t\<close> have "g'.isPath s p t"
-          unfolding Graph.isPath_alt using f''.E_ss by blast
-        then show ?thesis using cf.isShortestPath_min_dist_def shortest_path_transfer by presburger
-      qed
-      moreover from \<open>aug_cf.isPath s p t\<close> have "cf.min_dist s t \<le> aug_cf.min_dist s t"
-        using st_min_dist_non_decreasing aug_cf.connected_def by blast
-      moreover note \<open>(u, v) \<in> set p\<close>
-      ultimately show "(u, v) \<in> \<Union> {set p |p. aug_cf.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
-        unfolding aug_cf.isShortestPath_min_dist_def
-        using aug_cf.isPath_distD aug_cf.min_dist_minD by fastforce
-    next
-      fix u v
-      assume "(u, v) \<in> \<Union> {set p |p. aug_cf.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"
-      then obtain p where SP': "aug_cf.isShortestPath s p t" "length p \<le> cf.min_dist s t"
-        and UV_IN_P: "(u, v) \<in> set p" by blast
-      with ST_IN_V' have "layer t + 2 * new_edge_count p \<le> layer s + cf.min_dist s t"
-        using aug_cf_new_edge_prelayered aug_cf.shortestPath_is_path by fastforce
-      with ST_IN_V' have "new_edge_count p = 0" using min_dist_transfer st_connected by simp
-      with SP' have "cf.isShortestPath s p t"
-        unfolding new_edge_count_def Graph.isShortestPath_min_dist_def
-        by (metis aug_cf.connected_def Graph.isPath_alt empty_filter_conv length_0_conv nle_le st_min_dist_non_decreasing subset_code(1)) (* TODO fix *)
-      then have "g'.isPath s p t" using ST_IN_V' shortest_s_path_remains_path by blast
-      with SP' have "Graph.isPath (g'.subtract_graph f') s p t"
-        using aug_cf_path_transfer aug_cf.shortestPath_is_path by blast
-      then have "Graph.isPath stl' s p t"
-        using cleaning.dual_path_union unfolding Graph.isPath_alt by blast
-      with UV_IN_P show "(u, v) \<in> Graph.E stl'"
-        using Graph.isPath_edgeset by blast
+  proof (unfold_locales, intro pair_set_eqI)
+    (*show "aug_cf.E' = \<Union> {set p |p. aug_cf.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"*)
+    fix u v
+    assume "(u, v) \<in> stl'.E"
+    then obtain p where "Graph.isPath (g'.subtract_graph f') s p t" "(u, v) \<in> set p"
+      using cleaning.dual_path_union by blast
+    with SUB have "aug_cf.isPath s p t"
+      using Subgraph_def Subset_Graph.sub_path by blast
+    moreover have "length p = cf.min_dist s t"
+    proof -
+      interpret f'': Contained_Graph "g'.subtract_graph f'" stl
+        using f'.flow_pos_cont.subtract_contained .
+      from \<open>Graph.isPath (g'.subtract_graph f') s p t\<close> have "g'.isPath s p t"
+        unfolding Graph.isPath_alt using f''.E_ss by blast
+      then show ?thesis using cf.isShortestPath_min_dist_def (* using shortest_path_transfer by presburger *)
+        by (metis Graph.connected_def g'.isShortestPath_min_dist_def insert_iff min_ST_dist_transfer path_is_shortest st_connected_iff)
     qed
+    moreover from \<open>aug_cf.isPath s p t\<close> have "cf.min_dist s t \<le> aug_cf.min_dist s t"
+      using st_min_dist_non_decreasing aug_cf.connected_def by blast
+    moreover note \<open>(u, v) \<in> set p\<close>
+    ultimately show "(u, v) \<in> \<Union> {set p |p. isBoundedShortestPath (cf.min_dist s t) (cf_of (augment f')) s p t}"
+      unfolding isBoundedShortestPath_def aug_cf.isShortestPath_min_dist_def
+      using aug_cf.isPath_distD aug_cf.min_dist_minD by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. isBoundedShortestPath (cf.min_dist s t) (cf_of (augment f')) s p t}"
+    then obtain p where SP': "aug_cf.isShortestPath s p t" "length p \<le> cf.min_dist s t"
+      and UV_IN_P: "(u, v) \<in> set p" unfolding isBoundedShortestPath_def by blast
+    with ST_IN_V' have "layer t + 2 * new_edge_count p \<le> layer s + cf.min_dist s t"
+      using aug_cf_new_edge_prelayered aug_cf.shortestPath_is_path by fastforce
+    with ST_IN_V' have "new_edge_count p = 0" using min_dist_transfer st_connected by simp
+    with SP' have "cf.isShortestPath s p t"
+      unfolding new_edge_count_def Graph.isShortestPath_min_dist_def
+      by (metis aug_cf.connected_def Graph.isPath_alt empty_filter_conv length_0_conv nle_le st_min_dist_non_decreasing subset_code(1)) (* TODO fix *)
+    then have "g'.isPath s p t" using ST_IN_V' by (simp add: ST_path_remains path_kind)
+    with SP' have "Graph.isPath (g'.subtract_graph f') s p t"
+      using aug_cf_path_transfer aug_cf.shortestPath_is_path by blast
+    then have "Graph.isPath stl' s p t"
+      using cleaning.dual_path_union unfolding Graph.isPath_alt by blast
+    with UV_IN_P show "(u, v) \<in> Graph.E stl'"
+      using Graph.isPath_edgeset by blast
   qed
 qed
 
@@ -336,6 +335,35 @@ definition dinitzPhaseInvar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" wh
     \<and> Bounded_Dual_Shortest_Path_Union stl (cf_of f') s t (cf.min_dist s t)
     \<and> (Graph.connected (cf_of f') s t \<longrightarrow> (cf.min_dist s t) \<le> (Graph.min_dist (cf_of f') s t))"
 
+(* TODO use this in phase step *)
+lemma dual_spu_if_invar_and_path:
+  assumes INVAR: "dinitzPhaseInvar (f', stl)"
+    and PATH: "Graph.isPath stl s p t"
+  shows "Dual_Shortest_Path_Union stl (cf_of f') s t"
+proof -
+  from INVAR interpret f': NFlow c s t f' unfolding dinitzPhaseInvar_def by blast
+  find_theorems "length ?p \<le> _" Graph.isPath
+  have BOUND_EQ: "cf.min_dist s t = f'.cf.min_dist s t"
+  proof -
+    from INVAR interpret Bounded_Dual_Shortest_Path_Union stl f'.cf s t "cf.min_dist s t"
+      unfolding dinitzPhaseInvar_def by simp
+    show ?thesis
+    proof (intro antisym)
+      from PATH INVAR show "cf.min_dist s t \<le> f'.cf.min_dist s t"
+        unfolding dinitzPhaseInvar_def Graph.connected_def
+        using sub_path by blast
+
+      from PATH have "f'.cf.min_dist s t \<le> g'.min_dist s t"
+        using isPath.connected sub_min_dist_geq by blast
+      also have "... = length p" using PATH path_ascends_layer by force
+      also have "... \<le> cf.min_dist s t" using PATH path_length_bounded by simp
+      finally show "f'.cf.min_dist s t \<le> cf.min_dist s t" .
+    qed
+  qed
+  with INVAR show "Dual_Shortest_Path_Union stl (f'.cf) s t"
+    unfolding dinitzPhaseInvar_def using min_st_dist_bound by fastforce
+qed
+
 lemma dinitz_phase_step:
   fixes f' stl
   assumes PATH: "Graph.isPath stl s p t"
@@ -355,9 +383,12 @@ proof (intro conjI)
       from PATH INVAR show "cf.min_dist s t \<le> f'.cf.min_dist s t"
         unfolding dinitzPhaseInvar_def Graph.connected_def
         using sub_path by blast
-      from PATH show "f'.cf.min_dist s t \<le> cf.min_dist s t" (* TODO fix proof *)
-      using f'.cf.isShortestPath_min_dist_def path_length_bounded shortest_path_transfer (* by simp *)
-      by (metis Bounded_Shortest_Path_Union.obtain_close_ST Bounded_Shortest_Path_Union_axioms emptyE g'.isEmpty_def g'.isPath_bwd_cases min_dist_transfer s_in_V_if_nonempty singleton_iff t_not_s)
+
+      from PATH have "f'.cf.min_dist s t \<le> g'.min_dist s t"
+        using isPath.connected sub_min_dist_geq by blast
+      also have "... = length p" using PATH path_ascends_layer by force
+      also have "... \<le> cf.min_dist s t" using PATH path_length_bounded by simp
+      finally show "f'.cf.min_dist s t \<le> cf.min_dist s t" .
     qed
   qed
   with INVAR interpret Dual_Shortest_Path_Union stl f'.cf s t
