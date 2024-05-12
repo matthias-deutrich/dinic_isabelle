@@ -686,7 +686,7 @@ end
 
 subsubsection \<open>Cleaning Algorithm\<close>
 
-definition cleaningSetRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+definition cleaningSetRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
   "cleaningSetRefine Q c \<equiv> do {
     c \<leftarrow> rightPassRefine Q c;
     c \<leftarrow> leftPassRefine Q c;
@@ -746,15 +746,76 @@ proof (refine_vcg, simp)
   qed
   finally show "rightPassRefine Q c \<le> (spec ca. leftPassRefine Q ca \<le> (spec c'. Dual_Path_Union c' c s t))" .
 qed
+
+definition cleaningRefine :: "path \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
+  "cleaningRefine p c \<equiv> cleaningSetRefine (set (innerPathVertices p)) c"
+
+lemma (in Dual_Layer_Graph) cleaningRefine_correct:
+  assumes "Finite_Graph c" "Contained_Graph c' c"
+      and E_SUB: "E \<subseteq> Graph.E c' \<union> set p"
+      and PATH: "isPath s p t"
+    shows "cleaningRefine p c' \<le> (spec c''. Dual_Path_Union c'' c' s t)"
+proof (unfold cleaningRefine_def, intro Finite_Bounded_Graph.cleaningSetRefine_correct)
+  from assms interpret Finite_Graph c + Contained_Graph c' c by simp_all
+
+  show "Finite_Bounded_Graph c' (layer t)"
+    apply intro_locales
+     apply (simp add: Finite_Graph_axioms sub_Finite_Graph)
+    by (simp add: Distance_Bounded_Graph_axioms sub_Distance_Bounded)
+
+  show "g'.incoming s = {}"
+    by (metis Distance_Bounded_Graph.path_length_bounded Distance_Bounded_Graph_axioms Graph.isPath_distD Graph.min_dist_minD PATH b_length_paths_are_terminal(1) incoming_ss order_antisym subset_empty)
+
+  show "g'.outgoing t = {}"
+    by (metis Distance_Bounded_Graph.path_length_bounded Distance_Bounded_Graph_axioms Graph.isPath_distD Graph.min_dist_minD PATH b_length_paths_are_terminal(2) outgoing_ss order_antisym subset_empty)
+    (*by (metis Graph.distinct_nodes_in_V_if_connected(2) no_outgoingD obtain_back_terminal_connected)*)
+
+  (* TODO simplify *)
+  have inner_V_alt: "set (innerPathVertices p) = set (pathVertices s p) - {s, t}"
+  proof (cases "s = t")
+    case True
+    with PATH show ?thesis
+      by (metis Diff_cancel Graph.pathVertices.simps(1) acyclic butlast.simps(1) butlast_tl empty_set innerPathVertices_correct insert_absorb2 isCycle_def list.sel(3) list.simps(15))
+  next
+    case False
+    from PATH have "pathVertices s p = s # (tl (pathVertices s p))"
+      by (simp add: Graph.pathVertices_fwd pathVertices_fwd_def)
+    moreover from PATH have "pathVertices s p = butlast (pathVertices s p) @ [t]"
+      by (metis Graph.isPath_bwd_cases Graph.isPath_tail Graph.pathVertices_alt snoc_eq_iff_butlast' False)
+    ultimately have "pathVertices s p = s # (tl (butlast (pathVertices s p))) @ [t]"
+      by (metis butlast_tl empty_append_eq_id snoc_eq_iff_butlast' False tl_last)
+      (* TODO simplify, probably need to show s, t \<notin> tl (butlast (pathVertices s p)) *)
+    then show ?thesis using innerPathVertices_correct
+      by (smt (verit, ccfv_threshold) Diff_insert0 Graph.isSimplePath_fwd Graph.pathVertices_fwd PATH Un_Diff_Int Un_insert_right distinct.simps(2) distinct_append empty_set insertCI insert_Diff1 list.simps(15) paths_are_simple set_append sup_bot.right_neutral)
+  qed
+
+  show "s \<notin> set (innerPathVertices p)"
+       "t \<notin> set (innerPathVertices p)"
+       "finite (set (innerPathVertices p))"
+    unfolding inner_V_alt by auto
+
+  show "\<forall>u\<in>V' - set (innerPathVertices p) - {s, t}. g'.incoming u \<noteq> {} \<and> g'.outgoing u \<noteq> {}"
+  proof (auto simp del: innerPathVertices.simps) (* TODO *)
+    fix v
+    assume "v \<in> V'"
+    then have "v \<in> V" using V_ss by blast
+    moreover assume NOT_ST: "v \<noteq> s" "v \<noteq> t"
+    ultimately obtain u w where IN_OUT: "(u, v) \<in> E" "(v, w) \<in> E"
+      using incoming_def outgoing_def by fastforce
+    
+    assume "v \<notin> set (innerPathVertices p)"
+    with NOT_ST have "v \<notin> set (pathVertices s p)" using inner_V_alt by blast
+    with PATH have "v \<notin> set (pathVertices_fwd s p)" using pathVertices_fwd by fastforce
+    from IN_OUT have "(u, v) \<notin> set p" "(v, w) \<notin> set p"
+      using adjacent_edges_not_on_path[OF PATH \<open>v \<notin> set (pathVertices_fwd s p)\<close>]
+      unfolding adjacent_def incoming_def outgoing_def by auto
+    with E_SUB IN_OUT have "(u, v) \<in> E'" "(v, w) \<in> E'" by auto
+    then show "g'.incoming v = {} \<Longrightarrow> False" "g'.outgoing v = {} \<Longrightarrow> False"
+      unfolding Graph.incoming_def Graph.outgoing_def by auto
+  qed
+qed
 \<comment> \<open>Cleaning Algorithm\<close>
 
-(* TODO *)
-end end
-definition cleaningRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
-  "cleaningRefine Q c \<equiv> do {
-    c \<leftarrow> rightPassRefine Q c;
-    c \<leftarrow> leftPassRefine Q c;
-    RETURN c}"
 \<comment> \<open>Cleaning\<close>
 
 
@@ -1515,6 +1576,8 @@ subsubsection \<open>Refining the assertion version\<close>
 context NFlow
 begin
 (* TODO prettify Q_ls *)
+
+(*
 definition dinitzPhaseRefine :: "(_ flow \<times> bool) nres" where
   "dinitzPhaseRefine \<equiv> do {
     stl \<leftarrow> cf.buildDualLayering s t;
@@ -1537,70 +1600,57 @@ definition dinitzPhaseRefine :: "(_ flow \<times> bool) nres" where
           }})
       (f, stl, False, False);
     RETURN (f', changed)}"
+*)
+
+definition dinitzPhaseRefine :: "(_ flow \<times> bool) nres" where
+  "dinitzPhaseRefine \<equiv> do {
+    stl \<leftarrow> cf.buildDualLayering s t;
+    (f', _, _, changed) \<leftarrow> WHILE\<^sub>T\<^bsup>dinitzPhaseRestructuredInvar\<^esup>
+      (\<lambda>(_, _, brk, _). \<not> brk)
+      (\<lambda>(f', stl', _, changed). do {
+        p_opt \<leftarrow> Graph.greedyPathFinding stl' s t;
+        case p_opt of
+          None \<Rightarrow> return (f', stl', True, changed)
+        | Some p \<Rightarrow> do {
+            assert (Graph.isPath stl' s p t);
+            assert (Dual_Shortest_Path_Union stl' (cf_of f') s t);
+            stl'' \<leftarrow> Graph.subtractPathRefine stl' p;
+            assert (Contained_Graph stl'' stl' \<and> Graph.E stl' \<subseteq> Graph.E stl'' \<union> set p);
+            stl'' \<leftarrow> cleaningRefine p stl'';
+            let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+            RETURN (f', stl'', False, True)
+          }})
+      (f, stl, False, False);
+    RETURN (f', changed)}"
 
 lemma dinitzPhaseRefine_refine:
   notes [refine_dref_pattern] = RELATESI_in_spec
   shows "dinitzPhaseRefine \<le> \<Down> Id dinitzPhaseAssert"
   unfolding dinitzPhaseRefine_def dinitzPhaseAssert_def
-  apply (refine_rcg, refine_dref_type)
-           apply clarsimp_all
-  using cf.buildDualLayering_correct apply simp
-  defer apply (simp add: innerPathVertices_correct[symmetric])
-proof -
-  fix f' stl changed
-  assume "dinitzPhaseAssertInvar (f', stl, False, changed)"
-  then interpret bstu: Bounded_Dual_Shortest_Path_Union stl "cf_of f'" s t "cf.min_dist s t"
-    unfolding dinitzPhaseAssertInvar_def by blast
-  show "Graph.greedyPathFinding stl s t \<le> (select p. Graph.isPath stl s p t)"
-    using bstu.greedyPathFinding_correct .
+proof (refine_rcg, refine_dref_type, clarsimp_all)
+  show "cf.buildDualLayering s t \<le> (spec c'. Dual_Shortest_Path_Union c' cf s t)"
+    using cf.buildDualLayering_correct .
+
+  fix f' stl' changed
+  assume "dinitzPhaseRestructuredInvar (f', stl', False, changed)"
+  then interpret bdspu: Bounded_Dual_Shortest_Path_Union stl' "cf_of f'" s t "cf.min_dist s t"
+    unfolding dinitzPhaseRestructuredInvar_def by blast
+  show "bdspu.g'.greedyPathFinding s t \<le> (select p. bdspu.g'.isPath s p t)"
+    using bdspu.greedyPathFinding_correct .
 next
-  fix f' stl p
-  assume "Dual_Shortest_Path_Union stl (cf_of f') s t"
-  then interpret stu: Dual_Shortest_Path_Union stl "cf_of f'" s t .
+  fix f' stl' p
+  assume "Dual_Shortest_Path_Union stl' (cf_of f') s t"
+  then interpret dspu: Dual_Shortest_Path_Union stl' "cf_of f'" s t .
 
-  assume "Graph.isPath stl s p t"
-  then have SP: "Graph.isPath stl s p t" by blast
-
-  from SP show "Graph.subtractPathRefine stl p \<le> RES {Graph.subtract_path stl p}"
-    using stu.g'.isSPath_distinct stu.paths_are_simple stu.g'.subtractPathRefine_correct
+  assume PATH: "dspu.g'.isPath s p t"
+  then show "dspu.g'.subtractPathRefine p \<le> RES {dspu.g'.subtract_path p}"
+    using dspu.g'.isSPath_distinct dspu.paths_are_simple dspu.g'.subtractPathRefine_correct
     by (metis RES_sng_eq_RETURN)
 
-  fix stl'
-  assume "Contained_Graph stl' stl" "Graph.E stl \<subseteq> Graph.E stl' \<union> set p"
-  show "cleaningRefine (set (Graph.pathVertices s p) - {s, t}) stl' \<le> (spec c'. Dual_Path_Union c' stl' s t)"
-  proof (intro Finite_Bounded_Graph.cleaningRefine_correct)
-    interpret Contained_Graph stl' stl using \<open>Contained_Graph stl' stl\<close> .
-    show "s \<notin> set (Graph.pathVertices s p) - {s, t}"
-      "t \<notin> set (Graph.pathVertices s p) - {s, t}"
-      "finite (set (Graph.pathVertices s p) - {s, t})"
-      by auto
-    show "Finite_Bounded_Graph stl' (stu.layer t)" unfolding Finite_Bounded_Graph_def
-      by (meson Finite_Graph.intro Graph.Efin_imp_Vfin E_ss sub_Distance_Bounded cfE_of_finite infinite_super stu.Distance_Bounded_Graph_axioms stu.E_ss)
-    show "Graph.incoming stl' s = {}"
-      by (metis Graph.isShortestPath_min_dist_def SP incoming_ss bot.extremum_uniqueI stu.b_length_paths_are_terminal(1) stu.path_is_shortest)
-      (*by (metis Subgraph.incoming_ss Subgraph_axioms incoming_s_empty subset_empty)*)
-    show "Graph.outgoing stl' t = {}"
-      by (metis Diff_empty Diff_eq_empty_iff Graph.distinct_nodes_in_V_if_connected(2) outgoing_ss stu.no_outgoingD stu.obtain_back_terminal_connected)
-      (*by (metis Subgraph.outgoing_ss Subgraph_axioms outgoing_t_empty subset_empty)*)
-    from \<open>Graph.E stl \<subseteq> Graph.E stl' \<union> set p\<close> show "\<forall>u\<in>Graph.V stl' - (set (Graph.pathVertices s p) - {s, t}) - {s, t}. Graph.incoming stl' u \<noteq> {} \<and> Graph.outgoing stl' u \<noteq> {}"
-    proof auto (* TODO *)
-      fix v
-      assume "v \<in> Graph.V stl'"
-      then have "v \<in> Graph.V stl" using V_ss by blast
-      moreover assume "v \<noteq> s" "v \<noteq> t"
-      ultimately obtain u w where IN_OUT: "(u, v) \<in> Graph.E stl" "(v, w) \<in> Graph.E stl"
-        by (metis Graph.isPath_bwd_cases Graph.isPath_fwd_cases stu.g'.connected_def stu.st_connected)
-      
-      assume "v \<notin> set (Graph.pathVertices s p)"
-      with \<open>Graph.isPath stl s p t\<close> have "v \<notin> set (Graph.pathVertices_fwd s p)"
-        by (simp add: stu.g'.pathVertices_fwd)
-      from IN_OUT have "(u, v) \<notin> set p" "(v, w) \<notin> set p" using stu.g'.adjacent_edges_not_on_path[OF \<open>Graph.isPath stl s p t\<close> \<open>v \<notin> set (Graph.pathVertices_fwd s p)\<close>]
-        unfolding stu.g'.adjacent_def stu.g'.incoming_def stu.g'.outgoing_def by auto
-      with \<open>Graph.E stl \<subseteq> Graph.E stl' \<union> set p\<close> IN_OUT have "(u, v) \<in> Graph.E stl'" "(v, w) \<in> Graph.E stl'" by auto
-      then show "Graph.incoming stl' v = {} \<Longrightarrow> False" "Graph.outgoing stl' v = {} \<Longrightarrow> False"
-        unfolding Graph.incoming_def Graph.outgoing_def by auto
-    qed
-  qed
+  fix stl''
+  assume "Contained_Graph stl'' stl'" "dspu.E' \<subseteq> Graph.E stl'' \<union> set p"
+  with PATH show "cleaningRefine p stl'' \<le> (spec c''. Dual_Path_Union c'' stl'' s t)"
+    using dspu.Finite_Graph_EI dspu.sub_Finite_Graph dspu.cleaningRefine_correct by blast
 qed
 
 lemma dinitzPhaseRefine_correct: "dinitzPhaseRefine \<le> SPEC (\<lambda>(f', changed). res_dist_increasing_flow f' \<and> changed = (f' \<noteq> f) \<and> (changed \<longrightarrow> cf.connected s t))"
@@ -1611,7 +1661,6 @@ end
 subsection \<open>Dinitz outer loop refinement\<close>
 context Network
 begin
-(* TODO rework using changed flag *)
 definition dinitzRefine :: "_ flow nres" where
   "dinitzRefine \<equiv> do {
     (f, _) \<leftarrow> WHILE\<^sub>T snd (NFlow.dinitzPhaseRefine c s t \<circ> fst) (\<lambda>_. 0, True);

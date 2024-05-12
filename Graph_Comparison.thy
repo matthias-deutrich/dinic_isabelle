@@ -50,6 +50,9 @@ lemma incoming_ss: "g'.incoming u \<subseteq> incoming u"
 lemma outgoing_ss: "g'.outgoing u \<subseteq> outgoing u"
   unfolding Graph.outgoing_def using edge'_if_edge by blast
 
+lemma sub_Finite_Graph: "Finite_Graph c \<Longrightarrow> Finite_Graph c'"
+  unfolding Finite_Graph_def using V_ss finite_subset by blast
+
 lemma sub_Distance_Bounded: "Distance_Bounded_Graph c b \<Longrightarrow> Distance_Bounded_Graph c' b"
   using sub_path by (metis Distance_Bounded_Graph_def Graph.dist_def)
 end
