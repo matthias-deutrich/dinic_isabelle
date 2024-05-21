@@ -115,6 +115,7 @@ lemma isPath_endpoints_eq:
   "\<lbrakk>Graph.isPath c u p v; Graph.isPath c' u' p v'; p \<noteq> []\<rbrakk> \<Longrightarrow> v' = v"
   by (metis Graph.isPath_head neq_Nil_conv) (metis Graph.isPath_tail rev_exhaust)
 
+(*
 section \<open>Path Union\<close>
 definition isPathUnion :: "_ graph \<Rightarrow> path set \<Rightarrow> bool"
   where "isPathUnion c p_set \<equiv> Graph.E c = \<Union>(set ` p_set)"
@@ -136,7 +137,7 @@ lemma allShortestPaths_singleton_simps[simp]:
   "shortestSPaths s {t} = shortestSTPaths s t"
   unfolding allShortestPaths_def shortestSPaths_def shortestSTPaths_def
   by simp_all
-end
+end*)
 
 (*
 lemma graph_is_all_shortest_paths_union:
@@ -348,7 +349,7 @@ lemma reduced_cong_iff_reduce_eq: "c \<cong> c' \<longleftrightarrow> reduce c =
    apply (fastforce simp: reduce_def reduced_cong_def)
   by (metis equivp_def reduce_reduced_cong reduced_cong_equivp)
 
-locale Nonnegative_Graph = Graph c for c :: "'capacity::linordered_idom graph" +
+locale Nonnegative_Graph = Graph +
   assumes cap_non_negative: "c (u, v) \<ge> 0"
 
 locale Irreducible_Graph = Nonnegative_Graph +

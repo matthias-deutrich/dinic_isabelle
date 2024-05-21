@@ -311,9 +311,9 @@ definition dinitzPhase :: "_ flow nres" where
         p \<leftarrow> spec p. Graph.isPath stl' s p t;
         let stl' = Graph.cleaning (Graph.subtract_path stl' p) s t;
         let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-        RETURN (f', stl')})
+        return (f', stl')})
       (f, stl);
-    RETURN f'}"
+    return f'}"
 thm Graph.subtract_path_alt
 
 definition dinitzPhaseInvar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" where
@@ -492,7 +492,7 @@ definition dinitz :: "_ flow nres" where
       (\<lambda>f. Graph.connected (residualGraph c f) s t)
       (\<lambda>f. NFlow.dinitzPhase c s t f)
       (\<lambda>_. 0);
-    RETURN f}"
+    return f}"
 
 (* TODO check if something like this already exists *)
 definition res_dist_rel :: "(_ flow) rel"

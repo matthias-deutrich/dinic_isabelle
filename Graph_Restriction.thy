@@ -28,7 +28,7 @@ lemma restricted_unique: "Restricted_Graph c'' c P \<Longrightarrow> c'' = c'"
 end
 
 locale Path_Kind =
-  fixes isKindPath
+  fixes isKindPath :: "_ graph \<Rightarrow> node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool"
   assumes path_kind: "\<And>c u p v. isKindPath c u p v \<Longrightarrow> Graph.isPath c u p v"
 begin
 lemma connected: "isKindPath c u p v \<Longrightarrow> Graph.connected c u v"

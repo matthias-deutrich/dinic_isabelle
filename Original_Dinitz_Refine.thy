@@ -40,10 +40,10 @@ definition dinitzPhaseRestructured :: "(_ flow \<times> bool) nres" where
             stl'' \<leftarrow> return (Graph.subtract_path stl' p);
             stl'' \<leftarrow> spec c'. Dual_Path_Union c' stl'' s t;
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-            RETURN (f', stl'', False, True)
+            return (f', stl'', False, True)
           }})
       (f, stl, False, False);
-    RETURN (f', changed)}"
+    return (f', changed)}"
 
 definition dinitzPhaseRestructuredInvar :: "(_ flow \<times> _ graph \<times> bool \<times> bool) \<Rightarrow> bool" where
   "dinitzPhaseRestructuredInvar \<equiv> \<lambda>(f', stl, brk, changed).
@@ -122,7 +122,7 @@ begin
 definition dinitzRestructured :: "_ flow nres" where
   "dinitzRestructured \<equiv> do {
     (f, _) \<leftarrow> WHILE\<^sub>T snd (NFlow.dinitzPhaseRestructured c s t \<circ> fst) (\<lambda>_. 0, True);
-    RETURN f}"
+    return f}"
 
 theorem dinitzRestructured_correct: "dinitzRestructured \<le> SPEC (\<lambda>f. isMaxFlow f)"
   unfolding dinitzRestructured_def
@@ -191,7 +191,7 @@ definition transferEdges :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ grap
   "transferEdges S c' = (\<lambda>e. if e \<in> S then c e else c' e)"
 
 definition transferEdgesRefine :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
-  "transferEdgesRefine S c' \<equiv> foreach S (\<lambda>e c'. RETURN (transferEdge e c')) c'"
+  "transferEdgesRefine S c' \<equiv> foreach S (\<lambda>e c'. return (transferEdge e c')) c'"
 
 lemma transferEdge_alt: "transferEdge e c' = (\<lambda>e'. if e' = e then c e' else c' e')"
   unfolding transferEdge_def by fastforce
@@ -200,7 +200,7 @@ definition transferEdgesRefineInvar :: "edge set \<Rightarrow> _ graph \<Rightar
   "transferEdgesRefineInvar S c' it c'' \<equiv> c'' = (\<lambda>e. if e \<in> S - it then c e else c' e)"
 
 lemma transferEdgesRefine_correct:
-  "finite S \<Longrightarrow> transferEdgesRefine S c' \<le> RETURN (transferEdges S c')"
+  "finite S \<Longrightarrow> transferEdgesRefine S c' \<le> return (transferEdges S c')"
   unfolding transferEdgesRefine_def transferEdges_def
   apply (refine_vcg FOREACH_rule[where I="transferEdgesRefineInvar S c'"])
   unfolding transferEdgesRefineInvar_def transferEdge_alt by fastforce+
@@ -218,9 +218,9 @@ lemma transferEdges_ss_E: "S \<subseteq> E \<Longrightarrow> Graph.E (transferEd
 end
 
 interpretation transferEdges_dual:
-  Dual_Graph_Algorithms "Graph.transferEdgesRefine c S" "Graph.transferEdgesRefine (c\<^sup>T) (prod.swap ` S)" for c S
+  Symmetric_Graph_Algorithms "Graph.transferEdgesRefine c S" "Graph.transferEdgesRefine (c\<^sup>T) (prod.swap ` S)" for c S
   unfolding Graph.transferEdgesRefine_def
-  apply (intro Dual_Graph_AlgorithmsI)
+  apply (intro Symmetric_Graph_AlgorithmsI)
   apply (all \<open>refine_rcg FOREACH_refine_rcg[where \<alpha>="prod.swap"]\<close>)
   by (auto simp: transpose_graph_rel_def Graph.transferEdge_def)
 \<comment> \<open>Transferring edges to another graph\<close>
@@ -246,7 +246,7 @@ definition ebfsPhase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set \
       let S = E `` {u} - V\<^sub>i;
       c' \<leftarrow> transferEdgesRefine ({u} \<times> S) c';
       let Q' = Q' \<union> S;
-      RETURN (c', Q')
+      return (c', Q')
     })
     (c', {})"
 
@@ -414,10 +414,10 @@ definition ebfs :: "node \<Rightarrow> _ graph nres" where
       (\<lambda>(c', Q, n). do {
         let V\<^sub>i = Graph.V c' \<union> {s};
         (c', Q') \<leftarrow> ebfsPhase V\<^sub>i c' Q;
-        RETURN (c', Q', Suc n)
+        return (c', Q', Suc n)
       })
       ((\<lambda>_. 0), {s}, 0);
-    RETURN c'
+    return c'
   }"
 
 definition ebfsInvar :: "node \<Rightarrow> (_ graph \<times> node set \<times> nat) \<Rightarrow> bool" where
@@ -523,19 +523,19 @@ definition ebfsBackward :: "node \<Rightarrow> _ graph nres" where
             let S = E\<inverse> `` {u} - V\<^sub>i;
             c' \<leftarrow> transferEdgesRefine (S \<times> {u}) c';
             let Q' = Q' \<union> S;
-            RETURN (c', Q')
+            return (c', Q')
           })
           (c', {});
-        RETURN (c', Q', Suc n)
+        return (c', Q', Suc n)
       })
       ((\<lambda>_. 0), {t}, 0);
-    RETURN c'
+    return c'
   }"
 
 
 (* TODO improve *)
-lemma dual_ebfs: "Dual_Graph_Algorithms (swap_args2 Graph.ebfsBackward u) (swap_args2 Graph.ebfs u)"
-proof (intro Dual_Graph_AlgorithmsI, unfold swap_args2_def)
+lemma dual_ebfs: "Symmetric_Graph_Algorithms (swap_args2 Graph.ebfsBackward u) (swap_args2 Graph.ebfs u)"
+proof (intro Symmetric_Graph_AlgorithmsI, unfold swap_args2_def)
   fix c' :: "('capacity'::linordered_idom) graph"
   note[refine_dref_RELATES] = RELATESI[of transpose_graph_rel]
   show "Graph.ebfsBackward c' u \<le> \<Down> transpose_graph_rel (Graph.ebfs (c'\<^sup>T) u)"
@@ -610,13 +610,13 @@ theorem (in Graph) ebfsBackward_correct:
   assumes FINITE_REACHED_FROM: "finite {u. connected u t}"
   shows "ebfsBackward t \<le> (spec c'. Target_Shortest_Path_Union c' c t)"
 proof -
-  interpret Dual_Graph_Algorithms "swap_args2 Graph.ebfsBackward t" "swap_args2 Graph.ebfs t"
+  interpret Symmetric_Graph_Algorithms "swap_args2 Graph.ebfsBackward t" "swap_args2 Graph.ebfs t"
     using dual_ebfs .
   have "swap_args2 Graph.ebfsBackward t c \<le> (spec c'. Target_Shortest_Path_Union c' c t)"
     (*using dual_spu apply (auto elim!: transfer_spec)*)
     (*thm dual_spu[THEN transfer_spec]*)
     (*thm transfer_spec[OF dual_spu]*)
-  proof (intro transfer_spec[where spec'="\<lambda>c c'. Source_Shortest_Path_Union c' c t"])
+  proof (intro transfer_spec[where abst'="\<lambda>c c'. Source_Shortest_Path_Union c' c t"])
     show "\<And>c c'. Target_Shortest_Path_Union c' c t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t "
       using Graph.dual_spu .
     thm Graph.ebfs_correct
@@ -638,7 +638,7 @@ definition buildDualLayering :: "node \<Rightarrow> node \<Rightarrow> _ graph n
   "buildDualLayering s t \<equiv> do {
     sl \<leftarrow> ebfs s;
     stl \<leftarrow> Graph.ebfsBackward sl t;
-    RETURN stl
+    return stl
   }"
 end
 
@@ -686,21 +686,21 @@ thm REC_def
 definition (in Graph) greedyPathFinding :: "node \<Rightarrow> node \<Rightarrow> (path option) nres" where
   "greedyPathFinding s t \<equiv> do {
     if s = t
-      then RETURN (Some [])
+      then return (Some [])
       else do {
         (p, _, found, _) \<leftarrow> WHILE\<^sub>T
           (\<lambda>(_, _, _, brk). \<not> brk)
           (\<lambda>(p, u, _, _). do {
             if (outgoing u = {})
-              then RETURN (p, u, False, True)
+              then return (p, u, False, True)
             else do {
               e \<leftarrow> RES (outgoing u);
               let p = p @ [e];
               let u = snd e;
               let found = (u = t);
-              RETURN (p, u, found, found)}})
+              return (p, u, found, found)}})
           ([], s, False, s \<notin> V);
-        RETURN (if found then Some p else None)}}"
+        return (if found then Some p else None)}}"
 
 (* TODO prettify *)
 lemma (in Dual_Layer_Graph) greedyPathFinding_correct:
@@ -732,17 +732,17 @@ text \<open>This is essentially the same as EdmondsKarp_Impl.resCap_cf_impl, exc
       not just the residual graph.\<close>
 definition pathCapRefine :: "path \<Rightarrow> 'capacity nres" where
   "pathCapRefine p \<equiv> case p of
-    [] \<Rightarrow> RETURN 0
-  | (e # p) \<Rightarrow> nfoldli p (\<lambda>_. True) (\<lambda>e cap. RETURN (min (c e) cap)) (c e)"
+    [] \<Rightarrow> return 0
+  | (e # p) \<Rightarrow> nfoldli p (\<lambda>_. True) (\<lambda>e cap. return (min (c e) cap)) (c e)"
 
 definition subtractPathRefine :: "path \<Rightarrow> _ graph nres" where
   "subtractPathRefine p \<equiv> do {
     cap \<leftarrow> pathCapRefine p;
-    c' \<leftarrow> nfoldli p (\<lambda>_. True) (\<lambda>e c'. RETURN (subtractEdge e cap c')) c;
-    RETURN c'
+    c' \<leftarrow> nfoldli p (\<lambda>_. True) (\<lambda>e c'. return (subtractEdge e cap c')) c;
+    return c'
   }"
 
-lemma pathCapRefine_correct: "pathCapRefine p = RETURN (if p = [] then 0 else pathCap p)"
+lemma pathCapRefine_correct: "pathCapRefine p = return (if p = [] then 0 else pathCap p)"
   unfolding pathCapRefine_def pathCap_alt
   apply (simp split: list.split add: nfoldli_to_fold)
   by (metis (no_types, lifting) Min.set_eq_fold fold_map fun_comp_eq_conv list.set_map list.simps(15))
@@ -753,7 +753,7 @@ lemma subtractPathRefine_correct_aux:
 
 lemma subtractPathRefine_correct:
   assumes "distinct p"
-  shows "subtractPathRefine p \<le> RETURN (subtract_path p)"
+  shows "subtractPathRefine p \<le> return (subtract_path p)"
   unfolding subtractPathRefine_def subtract_path_def
   apply (simp split: list.splits add: nfoldli_to_fold pathCapRefine_correct)
   using assms subtractPathRefine_correct_aux by simp
@@ -767,9 +767,9 @@ definition deleteEdges :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph"
   "deleteEdges R c \<equiv> \<lambda>e. if e \<in> R then 0 else c e"
 
 definition deleteEdgesRefine :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
-  "deleteEdgesRefine R c \<equiv> FOREACH R (RETURN \<circ>\<circ> deleteEdge) c"
+  "deleteEdgesRefine R c \<equiv> FOREACH R (return \<circ>\<circ> deleteEdge) c"
 
-lemma deleteEdgesRefine_correct: "finite R \<Longrightarrow> deleteEdgesRefine R c \<le> RETURN (deleteEdges R c)"
+lemma deleteEdgesRefine_correct: "finite R \<Longrightarrow> deleteEdgesRefine R c \<le> return (deleteEdges R c)"
   unfolding deleteEdgesRefine_def
   apply (refine_vcg FOREACH_rule[where I="\<lambda>R' c'. \<forall>e. e \<notin> R' \<longrightarrow> c' e = deleteEdges R c e"])
   by (auto simp: deleteEdges_def deleteEdge_def)
@@ -811,10 +811,10 @@ definition rightPassRefine' :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ 
             ASSERT (finite R);
             let Q = Q \<union> (snd ` R);
             let c = deleteEdges R c;
-            RETURN (Q, c)}
-          else RETURN (Q, c)})
+            return (Q, c)}
+          else return (Q, c)})
       (Q, c);
-    RETURN c
+    return c
   }"
 
 definition rightPassInvar :: "_ graph \<Rightarrow> node \<Rightarrow> (node set \<times>_ graph) \<Rightarrow> bool"
@@ -1019,10 +1019,10 @@ definition rightPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ g
             let R = Graph.outgoing c u;
             let Q = Q \<union> (snd ` R);
             c \<leftarrow> deleteEdgesRefine R c;
-            RETURN (Q, c)}
-          else RETURN (Q, c)})
+            return (Q, c)}
+          else return (Q, c)})
       (Q, c);
-    RETURN c
+    return c
   }"
 
 lemma (in Finite_Graph) rightPassRefine'_refine:
@@ -1057,10 +1057,10 @@ definition leftPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ gr
             let L = Graph.incoming c u;
             let Q = Q \<union> (fst ` L);
             c \<leftarrow> deleteEdgesRefine L c;
-            RETURN (Q, c)}
-          else RETURN (Q, c)})
+            return (Q, c)}
+          else return (Q, c)})
       (Q, c);
-    RETURN c
+    return c
   }"
 
 (* TODO simplify and unify with dual_spu *)
@@ -1117,9 +1117,9 @@ qed
 
 context Finite_Bounded_Graph
 begin
-interpretation Dual_Graph_Algorithms "leftPassRefine Q" "rightPassRefine Q"
+interpretation Symmetric_Graph_Algorithms "leftPassRefine Q" "rightPassRefine Q"
 proof
-  interpret Dual_Graph_Algorithms "deleteEdgesRefine S" "deleteEdgesRefine (S\<inverse>)" for S
+  interpret Symmetric_Graph_Algorithms "deleteEdgesRefine S" "deleteEdgesRefine (S\<inverse>)" for S
   proof
     show "\<And>c. deleteEdgesRefine S c \<le> \<Down> transpose_graph_rel (deleteEdgesRefine (S\<inverse>) (c\<^sup>T))"
       unfolding deleteEdgesRefine_def
@@ -1157,7 +1157,7 @@ theorem leftPassRefine_correct:
   assumes T_NO_OUT: "outgoing t = {}"
     and Q_START: "t \<notin> Q" "\<forall>u \<in> V - Q - {t}. outgoing u \<noteq> {}" "finite Q"
   shows "leftPassRefine Q c \<le> (spec c'. Target_Path_Union c' c t)"
-  apply (intro transfer_spec[where spec'="\<lambda>c c'. Source_Path_Union c' c t"])
+  apply (intro transfer_spec[where abst'="\<lambda>c c'. Source_Path_Union c' c t"])
   using Graph.dual_pu apply blast
   apply (intro Finite_Bounded_Graph.rightPassRefine_correct)
   using assms Finite_Bounded_Graph_axioms by (auto simp: converse_empty_simp)
@@ -1171,7 +1171,7 @@ definition cleaningSetRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> _ 
   "cleaningSetRefine Q c \<equiv> do {
     c \<leftarrow> rightPassRefine Q c;
     c \<leftarrow> leftPassRefine Q c;
-    RETURN c}"
+    return c}"
 
 lemma (in Finite_Bounded_Graph) cleaningSetRefine_correct:
   assumes S_NO_IN: "incoming s = {}"
@@ -1342,10 +1342,10 @@ definition dinitzPhaseAssert :: "(_ flow \<times> bool) nres" where
             assert (Contained_Graph stl'' stl' \<and> Graph.E stl' \<subseteq> Graph.E stl'' \<union> set p);
             stl'' \<leftarrow> spec c'. Dual_Path_Union c' stl'' s t;
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-            RETURN (f', stl'', False, True)
+            return (f', stl'', False, True)
           }})
       (f, stl, False, False);
-    RETURN (f', changed)}"
+    return (f', changed)}"
 
 
 (* TODO comment about val needed for changed inequality *)
@@ -1423,10 +1423,10 @@ definition dinitzPhaseRefine :: "(_ flow \<times> bool) nres" where
             assert (Contained_Graph stl'' stl' \<and> Graph.E stl' \<subseteq> Graph.E stl'' \<union> set p);
             stl'' \<leftarrow> cleaningRefine p stl'';
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
-            RETURN (f', stl'', False, True)
+            return (f', stl'', False, True)
           }})
       (f, stl, False, False);
-    RETURN (f', changed)}"
+    return (f', changed)}"
 
 lemma dinitzPhaseRefine_refine:
   notes [refine_dref_pattern] = RELATESI_in_spec
@@ -1469,7 +1469,7 @@ begin
 definition dinitzRefine :: "_ flow nres" where
   "dinitzRefine \<equiv> do {
     (f, _) \<leftarrow> WHILE\<^sub>T snd (NFlow.dinitzPhaseRefine c s t \<circ> fst) (\<lambda>_. 0, True);
-    RETURN f}"
+    return f}"
 
 theorem dinitzRefine_correct: "dinitzRefine \<le> SPEC (\<lambda>f. isMaxFlow f)"
   unfolding dinitzRefine_def

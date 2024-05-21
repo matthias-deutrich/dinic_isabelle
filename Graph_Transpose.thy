@@ -167,50 +167,66 @@ lemma "\<Up> transpose_graph_rel = \<Down> transpose_graph_rel"
   by (metis (no_types, lifting) Id_refine conc_Id conc_abs_swap conc_fun_chain conc_trans id_apply transpose_graph_rel_comp transpose_graph_rel_sv le_funI)
   (*by (metis Id_refine conc_abs_swap conc_fun_chain dual_order.eq_iff dual_order.refl dual_order.trans transpose_graph_rel_comp transpose_graph_rel_sv refine_IdD)*)
 
-locale Dual_Graph_Algorithms =
+locale Symmetric_Graph_Algorithms =
   fixes alg alg' :: "_ graph \<Rightarrow> _ graph nres"
-  assumes dual_alg: "\<And>c. alg c = \<Down> transpose_graph_rel (alg' (c\<^sup>T))"
+  assumes sym_alg: "\<And>c. alg c = \<Down> transpose_graph_rel (alg' (c\<^sup>T))"
 begin
-lemma dual_alg': "\<And>c. alg' c = \<Down> transpose_graph_rel (alg (c\<^sup>T))"
-  using dual_alg by (simp add: conc_fun_chain)
+lemma sym_alg': "\<And>c. alg' c = \<Down> transpose_graph_rel (alg (c\<^sup>T))"
+  using sym_alg by (simp add: conc_fun_chain)
 
 lemma conc_simp: "\<Down> transpose_graph_rel (alg c) = alg' (c\<^sup>T)"
-  using dual_alg' by simp
+  using sym_alg' by simp
 
 lemma conc_simp': "\<Down> transpose_graph_rel (alg' c) = alg (c\<^sup>T)"
-  using dual_alg by simp
+  using sym_alg by simp
 end
 
 (* TODO can it be sufficient to only show one direction? *)
-lemma Dual_Graph_AlgorithmsI[intro]:
+lemma Symmetric_Graph_AlgorithmsI[intro]:
   assumes LE1: "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (c\<^sup>T))"
     and LE2: "\<And>c. alg' c \<le> \<Down> transpose_graph_rel (alg (c\<^sup>T))"
-  shows "Dual_Graph_Algorithms alg alg'"
+  shows "Symmetric_Graph_Algorithms alg alg'"
 proof (unfold_locales, intro antisym)
   from LE1 show "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (c\<^sup>T))" .
   from LE2 show "\<And>c. \<Down> transpose_graph_rel (alg' (c\<^sup>T)) \<le> alg c"
     by (metis (no_types, lifting) conc_Id conc_fun_chain conc_trans dual_order.refl id_apply transpose_graph_rel_comp transpose_transpose)
 qed
 
-context Dual_Graph_Algorithms
+context Symmetric_Graph_Algorithms
 begin
 
-text \<open>Note: while the duality should hold for any graph, the correctness of the refinement can often
+text \<open>Note: while the symmetricity should hold for any graph, the correctness of the refinement can often
       only be shown for a concrete graph, as we may need some properties of the graph.\<close>
 lemma transfer_abstract:
-  assumes DUAL_ABST: "Dual_Graph_Algorithms abst abst'"
-    and REF'_CORRECT: "alg' (c\<^sup>T) \<le> abst' (c\<^sup>T)"
+  assumes SYM_ABST: "Symmetric_Graph_Algorithms abst abst'"
+    and REFINE'_CORRECT: "alg' (c\<^sup>T) \<le> abst' (c\<^sup>T)"
   shows "alg c \<le> abst c"
-  using assms ref_two_step dual_alg unfolding Dual_Graph_Algorithms_def by fastforce
+  using assms ref_two_step sym_alg unfolding Symmetric_Graph_Algorithms_def by fastforce
 
 lemma transfer_return:
-  assumes DUAL_RET: "ret = transpose_graph \<circ> ret' \<circ> transpose_graph"
-    and REF'_CORRECT: "alg' (c\<^sup>T) \<le> RETURN (ret' (c\<^sup>T))"
-  shows "alg c \<le> RETURN (ret c)"
-  apply (intro transfer_abstract[where abst'="RETURN \<circ> ret'"])
+  fixes abst abst' :: "_ graph \<Rightarrow> _ graph"
+  assumes SYM_RETURN: "abst = transpose_graph \<circ> abst' \<circ> transpose_graph"
+    and REFINE'_CORRECT: "alg' (c\<^sup>T) \<le> RETURN (abst' (c\<^sup>T))"
+  shows "alg c \<le> RETURN (abst c)"
+  apply (intro transfer_abstract[where abst'="RETURN \<circ> abst'"])
   using assms by (auto simp: in_br_conv transpose_graph_rel_alt)
 
-
+(* TODO simplify proof *)
+lemma transfer_res:
+  fixes abst abst' :: "_ graph \<Rightarrow> _ graph set"
+  assumes SYM_RES: "abst = (image transpose_graph) \<circ> abst' \<circ> transpose_graph"
+    and REFINE'_CORRECT: "alg' (c\<^sup>T) \<le> RES (abst' (c\<^sup>T))"
+  shows "alg c \<le> RES (abst c)"
+proof (intro transfer_abstract[where abst'="RES \<circ> abst'"] Symmetric_Graph_AlgorithmsI)
+  fix c
+  from SYM_RES show "RES (abst c) \<le> \<Down> transpose_graph_rel ((RES \<circ> abst') (c\<^sup>T))"
+    apply simp
+    by (smt (verit, ccfv_threshold) Graph_Transpose.transpose_transpose RES_refine imageE in_br_conv transpose_graph_rel_alt)
+  from SYM_RES show "(RES \<circ> abst') c \<le> \<Down> transpose_graph_rel (RES (abst (c\<^sup>T)))"
+    by (simp add: RES_refine in_br_conv transpose_graph_rel_alt)
+next
+  from REFINE'_CORRECT show "alg' (c\<^sup>T) \<le> (RES \<circ> abst') (c\<^sup>T)" by simp
+qed
 
 thm comp_def
 thm fcomp_def
@@ -219,34 +235,11 @@ term "(\<circ>\<circ>)"
 term "(\<circ>\<circ>\<circ>)"
 (* TODO can we phrase this a nicer way? *)
 lemma transfer_spec:
-  assumes DUAL_SPEC: "\<And>c c'. spec c c' \<longleftrightarrow> spec' (c\<^sup>T) (c'\<^sup>T)"
-    and REF'_CORRECT: "alg' (c\<^sup>T) \<le> SPEC (spec' (c\<^sup>T))"
-  shows "alg c \<le> SPEC (spec c)"
-  apply (intro transfer_abstract[where abst'="SPEC \<circ> spec'"])
+  fixes abst abst' :: "_ graph \<Rightarrow> _ graph \<Rightarrow> bool"
+  assumes SYM_SPEC: "\<And>c c'. abst c c' \<longleftrightarrow> abst' (c\<^sup>T) (c'\<^sup>T)"
+    and REFINE'_CORRECT: "alg' (c\<^sup>T) \<le> SPEC (abst' (c\<^sup>T))"
+  shows "alg c \<le> SPEC (abst c)"
+  apply (intro transfer_abstract[where abst'="SPEC \<circ> abst'"])
   using assms by (auto simp: build_rel_SPEC transpose_graph_rel_alt)
-
-(* TODO simplify proof *)
-lemma transfer_res:
-  assumes DUAL_RES: "res = (image transpose_graph) \<circ> res' \<circ> transpose_graph"
-    and REF'_CORRECT: "alg' (c\<^sup>T) \<le> RES (res' (c\<^sup>T))"
-  shows "alg c \<le> RES (res c)"
-  apply (intro transfer_abstract[where abst'="RES \<circ> res'"])
-proof
-  fix c
-  from DUAL_RES show "RES (res c) \<le> \<Down> transpose_graph_rel ((RES \<circ> res') (c\<^sup>T))"
-    apply simp
-    by (smt (verit, ccfv_threshold) Graph_Transpose.transpose_transpose RES_refine imageE in_br_conv transpose_graph_rel_alt)
-  from DUAL_RES show "(RES \<circ> res') c \<le> \<Down> transpose_graph_rel (RES (res (c\<^sup>T)))"
-    by (simp add: RES_refine in_br_conv transpose_graph_rel_alt)
-next
-  from REF'_CORRECT show "alg' (c\<^sup>T) \<le> (RES \<circ> res') (c\<^sup>T)" by simp
-qed
 end
-
-(*
-lemma
-  assumes "\<And>c. alg c \<le> \<Down> transpose_graph_rel (alg' (c\<^sup>T))"
-  shows "\<And>c. alg' c \<le> \<Down> transpose_graph_rel (alg (c\<^sup>T))"
-  using assms oops
-*)
 end
