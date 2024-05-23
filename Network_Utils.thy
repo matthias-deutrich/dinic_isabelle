@@ -24,7 +24,7 @@ subsection \<open>Alternative definitions\<close>
 context Flow
 begin
 thm zero_flow_simp
-lemma residualGraph_alt: "residualGraph c f = (\<lambda>(u, v). if (u, v) \<in> E then c (u, v) - f(u, v) else f (v, u))"
+lemma residualGraph_alt: "residualGraph c f = (\<lambda> (u, v). if (u, v) \<in> E then c (u, v) - f(u, v) else f (v, u))"
   unfolding residualGraph_def by auto
 
 lemma contained: "Contained_Graph f c" using capacity_const by unfold_locales blast
@@ -36,7 +36,7 @@ lemma resCap_pathCap: "resCap p = cf.pathCap p"
   unfolding resCap_def cf.pathCap_def ..
 
 lemma augmentingFlow_alt: "augmentingFlow p = cf.path_induced_graph p"
-  unfolding augmentingFlow_def cf.path_induced_graph_def resCap_pathCap ..
+  unfolding augmentingFlow_def cf.path_induced_graph_def resCap_pathCap by fast
 end
 
 context NFlow

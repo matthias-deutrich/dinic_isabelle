@@ -561,8 +561,8 @@ proof
   then interpret spu: Target_Shortest_Path_Union c' c t .
   show "Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
   proof
-    show "\<And>u v. (c'\<^sup>T) (u, v) = 0 \<or> (c\<^sup>T) (u, v) = 0 \<or> (c'\<^sup>T) (u, v) = (c\<^sup>T) (u, v)"
-      using spu.cap_compatible by simp
+    show "\<And>e. (c'\<^sup>T) e = 0 \<or> (c\<^sup>T) e = 0 \<or> (c'\<^sup>T) e = (c\<^sup>T) e"
+      using spu.cap_compatible by fastforce
     show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>s \<in> Graph.V (c\<^sup>T). Graph.isShortestPath (c\<^sup>T) t p s}"
     proof (simp, intro pair_set_eqI)
       fix u v
@@ -584,8 +584,8 @@ next
   then interpret spu: Source_Shortest_Path_Union "c'\<^sup>T" "c\<^sup>T" t by simp
   show "Target_Shortest_Path_Union c' c t"
   proof
-    show "\<And>u v. c' (u, v) = 0 \<or> c (u, v) = 0 \<or> c' (u, v) = c (u, v)"
-      using spu.cap_compatible by simp
+    show "\<And>e. c' e = 0 \<or> c e = 0 \<or> c' e = c e"
+      using spu.cap_compatible by fastforce
     show "Graph.E c' = \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s p t}"
     proof (intro pair_set_eqI)
       fix u v
@@ -748,7 +748,7 @@ lemma pathCapRefine_correct: "pathCapRefine p = return (if p = [] then 0 else pa
   by (metis (no_types, lifting) Min.set_eq_fold fold_map fun_comp_eq_conv list.set_map list.simps(15))
 
 lemma subtractPathRefine_correct_aux:
-  "distinct p \<Longrightarrow> fold (\<lambda>e c'. subtractEdge e cap c') p c = (\<lambda>(u, v). if (u, v) \<in> set p then c (u, v) - cap else c (u, v))"
+  "distinct p \<Longrightarrow> fold (\<lambda>e c'. subtractEdge e cap c') p c = (\<lambda>e. if e \<in> set p then c e - cap else c e)"
   unfolding subtractEdge_def by (induction p arbitrary: c) auto
 
 lemma subtractPathRefine_correct:
@@ -832,8 +832,8 @@ lemma wf_finiteProperSubgraph: "wf finiteProperSubgraph"
 proof (rule wf_subset)
   show "wf (inv_image finite_psubset Graph.E)" by simp
   show "finiteProperSubgraph \<subseteq> inv_image finite_psubset Graph.E"
-    unfolding finiteProperSubgraph_def inv_image_def finite_psubset_def
-    using Proper_Subgraph.E_pss Finite_Graph.finite_E by blast
+    unfolding finiteProperSubgraph_def Proper_Subgraph_def inv_image_def finite_psubset_def
+    using Proper_Subset_Graph.E_pss Finite_Graph.finite_E by blast
 qed
 
 definition graphWorkingSetRel :: "(_ set \<times> _ graph) rel"
@@ -1070,8 +1070,8 @@ proof
   then interpret pu: Target_Path_Union c' c t .
   show "Source_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
   proof
-    show "\<And>u v. (c'\<^sup>T) (u, v) = 0 \<or> (c\<^sup>T) (u, v) = 0 \<or> (c'\<^sup>T) (u, v) = (c\<^sup>T) (u, v)"
-      using pu.cap_compatible by simp
+    show "\<And>e. (c'\<^sup>T) e = 0 \<or> (c\<^sup>T) e = 0 \<or> (c'\<^sup>T) e = (c\<^sup>T) e"
+      using pu.cap_compatible by fastforce
     show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>s \<in> Graph.V (c\<^sup>T). Graph.isPath (c\<^sup>T) t p s}"
     proof (simp, intro pair_set_eqI)
       fix u v
@@ -1093,8 +1093,8 @@ next
   then interpret pu: Source_Path_Union "c'\<^sup>T" "c\<^sup>T" t by simp
   show "Target_Path_Union c' c t"
   proof
-    show "\<And>u v. c' (u, v) = 0 \<or> c (u, v) = 0 \<or> c' (u, v) = c (u, v)"
-      using pu.cap_compatible by simp
+    show "\<And>e. c' e = 0 \<or> c e = 0 \<or> c' e = c e"
+      using pu.cap_compatible by fastforce
     show "Graph.E c' = \<Union> {set p |p. \<exists>s \<in> V. Graph.isPath c s p t}"
     proof (intro pair_set_eqI)
       fix u v

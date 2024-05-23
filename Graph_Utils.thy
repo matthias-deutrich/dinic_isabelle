@@ -350,7 +350,7 @@ lemma reduced_cong_iff_reduce_eq: "c \<cong> c' \<longleftrightarrow> reduce c =
   by (metis equivp_def reduce_reduced_cong reduced_cong_equivp)
 
 locale Nonnegative_Graph = Graph +
-  assumes cap_non_negative: "c (u, v) \<ge> 0"
+  assumes cap_non_negative: "\<And>e. 0 \<le> c e"
 
 locale Irreducible_Graph = Nonnegative_Graph +
   assumes no_parallel_edge: "\<And>u v. (u, v) \<in> E \<Longrightarrow> (v, u) \<notin> E"
@@ -390,8 +390,8 @@ end
 
 lemma irreducibleI[intro]: "reduce c = c \<Longrightarrow> Irreducible_Graph c"
   apply unfold_locales unfolding reduce_def Graph.E_def
-   apply (smt (verit) case_prod_conv linorder_not_le order_less_imp_not_less)
-  by (smt (verit) case_prod_conv mem_Collect_eq order_less_imp_not_less)
+   apply (smt (verit, ccfv_threshold) leI old.prod.case old.prod.exhaust order.asym)
+  by (smt (verit) case_prod_conv mem_Collect_eq order.asym)
 (* TODO use *)
 
 

@@ -4,7 +4,7 @@ begin
 
 (* For presentation *)
 definition (in Graph) restrict_edges :: "(edge \<Rightarrow> bool) \<Rightarrow> _ graph"
-  where "restrict_edges P \<equiv> \<lambda>(u, v). if P (u, v) then c (u, v) else 0"
+  where "restrict_edges P \<equiv> \<lambda>e. if P e then c e else 0"
 
 lemma (in Graph) restrict_edges_Subgraph: "Subgraph (restrict_edges P) c"
   apply unfold_locales
@@ -129,12 +129,12 @@ sublocale Restricted_Graph c' c "\<lambda>e. \<exists>p s t. e \<in> set p \<and
   by unfold_locales (fastforce simp: path_union intro: path_kind isPath_edgeset)
 
 lemma edge_on_path:
-  "(u, v) \<in> E' \<Longrightarrow> \<exists>s t p. s \<in> S \<and> t \<in> T \<and> isKindPath c s p t \<and> (u, v) \<in> set p"
+  "e \<in> E' \<Longrightarrow> \<exists>s t p. s \<in> S \<and> t \<in> T \<and> isKindPath c s p t \<and> e \<in> set p"
   using path_union by blast
 
 lemma obtain_ST_path_via_edge:
-  assumes "(u, v) \<in> E'"
-  obtains s t p\<^sub>s p\<^sub>t where "s \<in> S" "t \<in> T" "isKindPath c s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
+  assumes "e \<in> E'"
+  obtains s t p\<^sub>s p\<^sub>t where "s \<in> S" "t \<in> T" "isKindPath c s (p\<^sub>s @ e # p\<^sub>t) t"
   using assms by (metis edge_on_path in_set_conv_decomp)
 end
 
@@ -393,8 +393,8 @@ proof
   from RIGHT interpret right: Source_Shortest_Path_Union c' c s .
   from LEFT interpret left: Target_Shortest_Path_Union c'' c' t .
 
-  show "\<And>u v. c'' (u, v) = 0 \<or> c (u, v) = 0 \<or> c'' (u, v) = c (u, v)"
-    by (metis right.sg_cap_cases left.sg_cap_cases)
+  show "\<And>e. c'' e = 0 \<or> c e = 0 \<or> c'' e = c e"
+    by (metis left.c'_sg_c_old right.c'_sg_c_old)
 
   show "left.E' = \<Union> {set p |p. right.isShortestPath s p t}" (* TODO prettify *)
   proof (intro pair_set_eqI)

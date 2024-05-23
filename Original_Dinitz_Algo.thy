@@ -33,7 +33,7 @@ proof
       using connected_def isPath_append by auto
     then show "(u, v) \<in> E'" unfolding cleaning_def Graph.E_def by simp
   qed
-qed (simp add: Graph.cleaning_def)
+qed (simp add: Graph.cleaning_def split_paired_all)
 
 lemma Dual_Path_Union_iff_cleaning: "Dual_Path_Union c' c s t \<longleftrightarrow> c' = Graph.cleaning c s t"
 proof
@@ -77,7 +77,7 @@ proof
       using isShortestPath_level_edge by (auto intro: isPath_edgeset shortestPath_is_path)
     then show "(u, v) \<in> g'.E" unfolding induced_dual_layering_def Graph.E_def by simp
   qed
-qed (simp add: Graph.induced_dual_layering_def)
+qed (simp add: Graph.induced_dual_layering_def split_paired_all)
 
 lemma Dual_Shortest_Path_Union_iff_induced:
   "Dual_Shortest_Path_Union c' c s t \<longleftrightarrow> c' = Graph.induced_dual_layering c s t"
@@ -201,7 +201,7 @@ lemma cleaning_maintains_bounded_union:
 proof (cases "Graph.isEmpty f'")
   case True
   then have "(g'.subtract_graph f') = stl"
-    unfolding Graph.isEmpty_def g'.subtract_graph_def by simp
+    unfolding Graph.isEmpty_def g'.subtract_graph_def by auto
   then have "stl' = stl"
     unfolding Graph.cleaning_def using g'.V_def g'.zero_cap_simp by fastforce
   moreover from True have "cf_of (augment f') = cf"
@@ -276,11 +276,11 @@ proof (intro NFlowI)
 qed
 
 lemma E_pss_if_saturated_edge:
-  "\<exists>u v. stl (u, v) = f' (u, v) \<and> f' (u, v) > 0 \<Longrightarrow> aug_cf.E' \<subset> E'"
+  "\<exists>e. stl e = f' e \<and> f' e > 0 \<Longrightarrow> aug_cf.E' \<subset> E'"
 proof
-  assume "\<exists>u v. stl (u, v) = f' (u, v) \<and> f' (u, v) > 0"
-  then obtain u v where "stl (u, v) = f' (u, v)" "f' (u, v) > 0" by blast
-  then have "(u, v) \<in> E'" "(u, v) \<notin> aug_cf.E'"
+  assume "\<exists>e. stl e = f' e \<and> f' e > 0"
+  then obtain e where "stl e = f' e" "f' e > 0" by blast
+  then have "e \<in> E'" "e \<notin> aug_cf.E'"
     unfolding Graph.E_def g'.subtract_graph_def Graph.cleaning_def by auto
   then show "aug_cf.E' \<noteq> E'" by blast
 
