@@ -24,6 +24,16 @@ proof (induction n arbitrary: xs)
   with XS show ?case by (metis append_Cons length_Cons)
 qed simp
 
+section \<open>Optional Distance\<close>
+context Graph
+begin
+(* TODO use *)
+definition opt_dist :: "node \<Rightarrow> node \<Rightarrow> nat option" where
+  "opt_dist u v \<equiv> if connected u v then Some (min_dist u v) else None"
+
+(* TODO option ordering with None as top element *)
+end
+
 section \<open>Empty graph\<close>
 context Graph
 begin

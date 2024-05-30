@@ -3,12 +3,12 @@ theory Graph_Restriction
 begin
 
 (* For presentation *)
-definition (in Graph) restrict_edges :: "(edge \<Rightarrow> bool) \<Rightarrow> _ graph"
-  where "restrict_edges P \<equiv> \<lambda>e. if P e then c e else 0"
+definition (in Graph) restrict_graph :: "(edge \<Rightarrow> bool) \<Rightarrow> _ graph"
+  where "restrict_graph P \<equiv> \<lambda>e. if P e then c e else 0"
 
-lemma (in Graph) restrict_edges_Subgraph: "Subgraph (restrict_edges P) c"
+lemma (in Graph) restrict_graph_Subgraph: "Subgraph (restrict_graph P) c"
   apply unfold_locales
-  unfolding restrict_edges_def Graph.E_def by auto
+  unfolding restrict_graph_def Graph.E_def by auto
 
 (* TODO check whether something like this can be useful*)
 (*

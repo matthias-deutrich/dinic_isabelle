@@ -241,6 +241,9 @@ lemma subtract_le_contained: "Pos_Contained_Graph (subtract_graph c') c"
   unfolding subtract_graph_def using cap_le g'.cap_non_negative by unfold_locales auto
 end
 
+lemma Pos_Contained_Graph_leI: "(\<And>e. 0 \<le> c' e \<and> c' e \<le> c e) \<Longrightarrow> Pos_Contained_Graph c' c"
+  by unfold_locales auto
+
 context Graph
 begin
 text \<open>While these definitions mostly make sense for Nonnegative_Graphs, they are part of the Graph

@@ -141,4 +141,11 @@ proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative
   qed
 qed
 end
+
+(* TODO prove this more general version and use it to show the previous *)
+lemma transfer_flow:
+  assumes FLOW: "Flow c s t f"
+      and POS_CONT: "Pos_Contained_Graph f c'"
+    shows "Flow c' s t f"
+proof (intro Pos_Contained_Graph.conservation_FlowI[OF POS_CONT]) oops
 end

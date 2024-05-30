@@ -20,7 +20,7 @@ proof
     fix u v
     assume "(u, v) \<in> E'"
     then have "connected s u" "connected v t" "(u, v) \<in> E"
-      unfolding cleaning_def Graph.E_def apply simp_all by presburger+
+      unfolding cleaning_def Graph.E_def by simp_all presburger+
     then obtain p\<^sub>s p\<^sub>t where "isPath s (p\<^sub>s @ (u, v) # p\<^sub>t) t"
       using connected_def isPath_append by auto
     then show "(u, v) \<in> \<Union> {set p |p. isPath s p t}"
@@ -93,7 +93,9 @@ qed (simp add: Dual_Shortest_Path_Union_layeringI)
 \<comment> \<open>Building a layering from an arbitrary graph\<close>
 
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
-locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f': Flow stl s t f'
+(*locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f': Flow stl s t f'
+  for c s t f stl f'*)
+locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f'_stl: Contained_Graph f' stl
   for c s t f stl f'
 begin
 interpretation g': Irreducible_Graph stl
@@ -105,8 +107,11 @@ interpretation stl': Graph stl' .
 
 interpretation aug_cf: Graph_Comparison stl' "cf_of (augment f')" .
 
-interpretation f'_cont_cf: Pos_Contained_Graph f' cf
-  by unfold_locales (metis NPreflow.resE_nonNegative NPreflow_axioms c'_sg_c_old f'.flow_pos_cont.cap_le order_trans)
+interpretation f'_stl: Pos_Contained_Graph f' stl
+  by (meson Pos_Contained_Graph_leI f'_stl.cap_abs_le g'.cap_non_negative order_trans)
+
+interpretation f'_cf: Pos_Contained_Graph f' cf
+  by unfold_locales (metis c'_sg_c_old f'_stl.cap_le f'_stl.cap_nonzero resE_nonNegative)
 
 interpretation cleaning: Dual_Path_Union stl' "g'.subtract_graph f'"
   using Dual_Path_Union_cleaningI .
@@ -116,7 +121,7 @@ find_theorems "residualGraph ?c (NFlow.augment ?c ?f ?f') = Graph.subtract_skew_
 find_theorems "Contained_Graph ?f' cf \<Longrightarrow> cf_of (augment ?f') = cf.subtract_skew_graph ?f'"
 
 lemma aug_cf_alt: "cf_of (augment f') = cf.subtract_skew_graph f'"
-  using augment_alt' f'_cont_cf.Contained_Graph_axioms .
+  using augment_alt' f'_cf.Contained_Graph_axioms .
 
 definition new_edge_count :: "path \<Rightarrow> nat"
   where "new_edge_count p \<equiv> length (filter (\<lambda>e. e \<notin> cf.E) p)"
@@ -153,8 +158,8 @@ proof (induction "new_edge_count p" arbitrary: u p v rule: less_induct)
 
     from P less.prems have "(w\<^sub>1, w\<^sub>2) \<in> aug_cf.E" using aug_cf.isPath_append by simp
     with W_NOT_CF have "(w\<^sub>2, w\<^sub>1) \<in> Graph.E f'"
-      unfolding aug_cf_alt using f'_cont_cf.subtract_skew_edges_sub by blast
-    then have "(w\<^sub>2, w\<^sub>1) \<in> E'" using f'.flow_pos_cont.E_ss by blast
+      unfolding aug_cf_alt using f'_cf.subtract_skew_edges_sub by blast
+    then have "(w\<^sub>2, w\<^sub>1) \<in> E'" using f'_stl.E_ss by blast
     then have "w\<^sub>1 \<in> V'" "w\<^sub>2 \<in> V'" and W_L: "layer w\<^sub>1 = Suc (layer w\<^sub>2)" unfolding g'.V_def by auto
 
     show ?thesis using W_NOT_CF
@@ -174,7 +179,7 @@ next
 
   case False
   then have IN_V': "s \<in> V'" "t \<in> V'"
-    using f'.flow_pos_cont.E_ss s_in_V_if_nonempty t_in_V_if_nonempty
+    using f'_stl.E_ss s_in_V_if_nonempty t_in_V_if_nonempty
     unfolding Graph.isEmpty_def by auto
   then have "cf.min_dist s t = layer t" using min_dist_transfer s_connected by simp
   also from SP' IN_V' have "layer t \<le> length p"
@@ -190,7 +195,7 @@ proof (unfold Graph.isPath_alt, clarify)
   then have assms: "(w\<^sub>1, w\<^sub>2) \<in> aug_cf.E" "(w\<^sub>1, w\<^sub>2) \<in> E'" by auto
   then have "(w\<^sub>2, w\<^sub>1) \<notin> E'" using no_parallel_edge by blast
   then have "f' (w\<^sub>2, w\<^sub>1) = 0"
-    using Graph.zero_cap_simp f'.flow_pos_cont.E_ss by blast
+    using Graph.zero_cap_simp f'_stl.E_ss by blast
   with assms show "(w\<^sub>1, w\<^sub>2) \<in> Graph.E (g'.subtract_graph f')"
     unfolding Graph.E_def aug_cf_alt g'.subtract_graph_def cf.subtract_skew_graph_def
     by simp (metis cap_compatible cap_nonzero)
@@ -211,7 +216,7 @@ proof (cases "Graph.isEmpty f'")
 next
   case False
   then have ST_IN_V': "s \<in> V'" "t \<in> V'"
-    using f'.flow_pos_cont.E_ss s_in_V_if_nonempty t_in_V_if_nonempty
+    using f'_stl.E_ss s_in_V_if_nonempty t_in_V_if_nonempty
     unfolding Graph.isEmpty_def by auto
 
   (* TODO make SUB an interpretation *)
@@ -219,7 +224,7 @@ next
 
   have "Subgraph stl' (g'.subtract_graph f')" by intro_locales
   also have SUB: "Subgraph ... (cf_of (augment f'))" unfolding aug_cf_alt
-    using irreducible_contained_skew_subtract f'.flow_pos_cont.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
+    using irreducible_contained_skew_subtract f'_stl.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
   finally interpret Capacity_Compatible stl' "cf_of (augment f')"
     unfolding Subgraph_def by blast
   show ?thesis
@@ -234,7 +239,7 @@ next
     moreover have "length p = cf.min_dist s t"
     proof -
       interpret f'': Contained_Graph "g'.subtract_graph f'" stl
-        using f'.flow_pos_cont.subtract_contained .
+        using f'_stl.subtract_contained .
       from \<open>Graph.isPath (g'.subtract_graph f') s p t\<close> have "g'.isPath s p t"
         unfolding Graph.isPath_alt using f''.E_ss by blast
       then show ?thesis using cf.isShortestPath_min_dist_def (* using shortest_path_transfer by presburger *)
@@ -267,6 +272,7 @@ next
   qed
 qed
 
+(*
 lemma augment_NFlow: "NFlow c s t (augment f')"
 proof (intro NFlowI)
   show "Network c s t" using Network_axioms .
@@ -274,6 +280,7 @@ proof (intro NFlowI)
     using transfer_flow[OF f'.Flow_axioms cf.Nonnegative_Graph_axioms cf.Finite_Graph_axioms] .
   then show "Flow c s t (augment f')" using augment_flow_presv by blast
 qed
+*)
 
 lemma E_pss_if_saturated_edge:
   "\<exists>e. stl e = f' e \<and> f' e > 0 \<Longrightarrow> aug_cf.E' \<subset> E'"
@@ -287,7 +294,7 @@ proof
   show "aug_cf.E' \<subseteq> E'"
   proof -
     interpret f'': Contained_Graph "g'.subtract_graph f'" stl
-      using f'.flow_pos_cont.subtract_contained .
+      using f'_stl.subtract_contained .
     show ?thesis using cleaning.E_ss f''.E_ss by blast
   qed
 qed
@@ -389,7 +396,8 @@ proof (intro conjI)
 
   (* TODO the following is just a consequence of f'.augFlow_resFlow and Subgraphing, extract *)
   thm f'.augFlow_resFlow
-
+  thm augFlow_resFlow
+  (* TODO extract this for path_induced_graph *)
   interpret st_layered_flow.f': Flow stl s t "f'.augmentingFlow p"
   proof (intro Pos_Contained_Graph.conservation_FlowI)
     from INDUCED_EQ show "Pos_Contained_Graph (f'.augmentingFlow p) stl"
@@ -430,7 +438,17 @@ proof (intro conjI)
   qed
   interpret st_layered_flow: ST_Layered_Flow c s t f' stl "f'.augmentingFlow p" by intro_locales
 
-  have "NFlow c s t aug_f'" unfolding aug_f'_def using st_layered_flow.augment_NFlow .
+  thm f'.augment_flow_presv
+  have "NFlow c s t aug_f'" unfolding aug_f'_def
+  proof (intro NFlowI)
+    show "Network c s t" using Network_axioms .
+    have "Flow f'.cf s t (f'.augmentingFlow p)"
+      apply (intro transfer_flow)
+        apply (simp add: st_layered_flow.f'.Flow_axioms)
+       apply (simp add: f'.cf.Nonnegative_Graph_axioms)
+      by (simp add: f'.cf.Finite_Graph_axioms)
+    then show "Flow c s t (f'.augment (f'.augmentingFlow p))" using f'.augment_flow_presv by blast
+  qed
   moreover have "Bounded_Dual_Shortest_Path_Union stl' (cf_of aug_f') s t (cf.min_dist s t)"
     using st_layered_flow.cleaning_maintains_bounded_union INDUCED_EQ BOUND_EQ
     unfolding g'.subtract_path_alt f'.augmentingFlow_alt aug_f'_def stl'_def by simp
@@ -446,7 +464,7 @@ proof (intro conjI)
     by (metis Graph.isPath.simps(1) Nonnegative_Graph.nonempty_path_cap_positive PATH calculation f'.augmentingFlow_def f'.resCap_alt f_arg_min_list_f g'.Nonnegative_Graph_axioms g'.isPath_alt g'.pathCap_alt t_not_s)
   ultimately show "Graph.E stl' \<subset> E'"
     unfolding stl'_def g'.subtract_path_alt INDUCED_EQ[symmetric] f'.augmentingFlow_alt[symmetric]
-    using st_layered_flow.E_pss_if_saturated_edge by (metis surj_pair)
+    using st_layered_flow.E_pss_if_saturated_edge by blast
 
   show "finite E'" using E_ss finite_subset by auto
 qed
@@ -455,6 +473,8 @@ qed
 definition res_dist_increasing_flow
   where "res_dist_increasing_flow f' \<equiv>
     NFlow c s t f' \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t < Graph.min_dist (cf_of f') s t)"
+
+(*definition blocking_flow*)
 
 lemma dinitzPhase_final:
   fixes f' stl
@@ -473,7 +493,7 @@ proof
 qed
 
 lemma dinitzPhase_correct:
-  "dinitzPhase \<le> SPEC (\<lambda>f'. res_dist_increasing_flow f')"
+  "dinitzPhase \<le> (spec f'. res_dist_increasing_flow f')"
   unfolding dinitzPhase_def
   apply (refine_vcg WHILET_rule[where I=dinitzPhaseInvar and R="inv_image finite_psubset (Graph.E \<circ> snd)"])
        apply (simp_all add: dinitzPhase_step dinitzPhase_final)
