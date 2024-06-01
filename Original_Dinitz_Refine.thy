@@ -255,85 +255,81 @@ definition ebfsPhaseInvar :: "node \<Rightarrow> nat \<Rightarrow> _ graph \<Rig
     Capacity_Compatible c' c
     \<and> Graph.E c' = Graph.E c\<^sub>i \<union> E \<inter> (exactDistNodes n s - Q) \<times> Q'
     \<and> Q' = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - Q)"
+end
 
-lemma ebfsPhase_initial:
-  assumes "Bounded_Source_Shortest_Path_Union c' c s n"
-  shows "ebfsPhaseInvar s n c' (exactDistNodes n s) (c', {})"
-  unfolding ebfsPhaseInvar_def
-proof (intro case_prodI conjI)
-  from assms interpret Bounded_Source_Shortest_Path_Union c' c s n .
-  show "Capacity_Compatible c' c" by intro_locales
-qed (simp_all)
+context Bounded_Source_Shortest_Path_Union
+begin
+lemma ebfsPhase_initial: "ebfsPhaseInvar s n c' (exactDistNodes n s) (c', {})"
+  unfolding ebfsPhaseInvar_def by simp intro_locales
 
 lemma ebfs_phase_final:
-  assumes BSPU: "Bounded_Source_Shortest_Path_Union c\<^sub>i c s n"
-    and INVAR: "ebfsPhaseInvar s n c\<^sub>i {} (c', Q')"
-  shows "Bounded_Source_Shortest_Path_Union c' c s (Suc n) \<and> Q' = exactDistNodes (Suc n) s"
+  assumes INVAR: "ebfsPhaseInvar s b c' {} (c'', Q')"
+  shows "Bounded_Source_Shortest_Path_Union c'' c s (Suc b) \<and> Q' = exactDistNodes (Suc b) s"
 proof
-  from INVAR have "Capacity_Compatible c' c"
-    and E'_EQ: "Graph.E c' = Graph.E c\<^sub>i \<union> E \<inter> exactDistNodes n s \<times> Q'"
-    and Q'_EQ: "Q' = exactDistNodes (Suc n) s \<inter> E `` exactDistNodes n s"
+  interpret g'': Graph c'' .
+  from INVAR have "Capacity_Compatible c'' c"
+    and E'_EQ: "Graph.E c'' = Graph.E c' \<union> E \<inter> exactDistNodes b s \<times> Q'"
+    and Q'_EQ: "Q' = exactDistNodes (Suc b) s \<inter> E `` exactDistNodes b s"
     unfolding ebfsPhaseInvar_def by auto
-  then interpret Capacity_Compatible c' c by simp
-  from BSPU interpret g\<^sub>i: Bounded_Source_Shortest_Path_Union c\<^sub>i c s n .
+  then interpret cap_comp: Capacity_Compatible c'' c by simp
 
-  have "exactDistNodes (Suc n) s \<subseteq> E `` exactDistNodes n s"
+  have "exactDistNodes (Suc b) s \<subseteq> E `` exactDistNodes b s"
   proof
     fix v
-    assume "v \<in> exactDistNodes (Suc n) s"
-    then obtain p where "isShortestPath s p v" "length p = Suc n" unfolding exactDistNodes_def
+    assume "v \<in> exactDistNodes (Suc b) s"
+    then obtain p where "isShortestPath s p v" "length p = Suc b" unfolding exactDistNodes_def
       by (fastforce elim: obtain_shortest_path simp: isShortestPath_min_dist_def)
-    then obtain u p\<^sub>u where "isShortestPath s p\<^sub>u u" "length p\<^sub>u = n" "(u, v) \<in> E"
+    then obtain u p\<^sub>u where "isShortestPath s p\<^sub>u u" "length p\<^sub>u = b" "(u, v) \<in> E"
       by (metis isShortestPath_min_dist_def min_dist_suc obtain_shortest_path connected_def)
-    then show "v \<in> E `` exactDistNodes n s" unfolding exactDistNodes_def isShortestPath_min_dist_def
+    then show "v \<in> E `` exactDistNodes b s" unfolding exactDistNodes_def isShortestPath_min_dist_def
       using isPath_rtc connected_edgeRtc by fastforce
   qed
-  with Q'_EQ show "Q' = exactDistNodes (Suc n) s" by blast
-  with E'_EQ have E'_EQ: "E' = g\<^sub>i.E' \<union> E \<inter> exactDistNodes n s \<times> exactDistNodes (Suc n) s"
+  with Q'_EQ show "Q' = exactDistNodes (Suc b) s" by blast
+  with E'_EQ have E'_EQ: "g''.E = E' \<union> E \<inter> exactDistNodes b s \<times> exactDistNodes (Suc b) s"
     by simp
 
-  show "Bounded_Source_Shortest_Path_Union c' c s (Suc n)"
+  show "Bounded_Source_Shortest_Path_Union c'' c s (Suc b)"
   proof (unfold_locales, intro pair_set_eqI)
     fix u v
-    assume "(u, v) \<in> E'"
-    then consider (OLD) "(u, v) \<in> g\<^sub>i.E'"
-      | (NEW) "(u, v) \<in> E \<inter> exactDistNodes n s \<times> exactDistNodes (Suc n) s"
+    assume "(u, v) \<in> g''.E"
+    then consider (OLD) "(u, v) \<in> E'"
+      | (NEW) "(u, v) \<in> E \<inter> exactDistNodes b s \<times> exactDistNodes (Suc b) s"
       using E'_EQ by blast
-    then show "(u, v) \<in> \<Union> {set p |p. \<exists>t\<in>V. isBoundedShortestPath (Suc n) c s p t}"
+    then show "(u, v) \<in> \<Union> {set p |p. \<exists>t\<in>V. isBoundedShortestPath (Suc b) c s p t}"
     proof cases
       case OLD
       then show ?thesis
-        using g\<^sub>i.source_path_union unfolding isBoundedShortestPath_def by fastforce
+        using source_path_union unfolding isBoundedShortestPath_def by fastforce
     next
       case NEW
-      then have "connected s u" "Suc (min_dist s u) = min_dist s v" "(u, v) \<in> E" "min_dist s v = Suc n"
+      then have "connected s u" "Suc (min_dist s u) = min_dist s v" "(u, v) \<in> E" "min_dist s v = Suc b"
         unfolding exactDistNodes_def by auto
       then obtain p where SP: "isShortestPath s (p @ [(u, v)]) v"
         using obtain_shortest_path shortestPath_append_edge by meson
-      with \<open>min_dist s v = Suc n\<close> have "length p = n" unfolding isShortestPath_min_dist_def by simp
+      with \<open>min_dist s v = Suc b\<close> have "length p = b" unfolding isShortestPath_min_dist_def by simp
       moreover note SP \<open>(u, v) \<in> E\<close>
       ultimately show ?thesis unfolding V_def isBoundedShortestPath_def by fastforce
     qed
   next
     fix u v
-    assume "(u, v) \<in> \<Union> {set p |p. \<exists>t\<in>V. isBoundedShortestPath (Suc n) c s p t}"
-    then obtain t p where "(u, v) \<in> set p" "isShortestPath s p t" "length p \<le> Suc n"
+    assume "(u, v) \<in> \<Union> {set p |p. \<exists>t\<in>V. isBoundedShortestPath (Suc b) c s p t}"
+    then obtain t p where "(u, v) \<in> set p" "isShortestPath s p t" "length p \<le> Suc b"
       unfolding isBoundedShortestPath_def by blast
-    then obtain p' where SP: "isShortestPath s (p' @ [(u, v)]) v" and LEN: "length p' \<le> n"
+    then obtain p' where SP: "isShortestPath s (p' @ [(u, v)]) v" and LEN: "length p' \<le> b"
       by (fastforce dest: split_list split_shortest_path_around_edge)
     then have "(u, v) \<in> E" by (simp add: isPath_append isShortestPath_def)
-    from LEN consider (LEN_LE) "length p' < n" | (LEN_EQ) "length p' = n" by linarith
-    then show "(u, v) \<in> E'"
+    from LEN consider (LEN_LE) "length p' < b" | (LEN_EQ) "length p' = b" by linarith
+    then show "(u, v) \<in> g''.E"
     proof cases
       case LEN_LE
-      with \<open>(u, v) \<in> E\<close> have "length (p' @ [(u, v)]) \<le> n" "v \<in> V"
+      with \<open>(u, v) \<in> E\<close> have "length (p' @ [(u, v)]) \<le> b" "v \<in> V"
         unfolding V_def by auto
-      with SP show ?thesis using E'_EQ unfolding g\<^sub>i.source_path_union isBoundedShortestPath_def by fastforce
+      with SP show ?thesis using E'_EQ unfolding source_path_union isBoundedShortestPath_def by fastforce
     next
       case LEN_EQ
-      with SP have "v \<in> exactDistNodes (Suc n) s"
+      with SP have "v \<in> exactDistNodes (Suc b) s"
         unfolding exactDistNodes_def isShortestPath_min_dist_def connected_def by auto
-      moreover from SP LEN_EQ have "u \<in> exactDistNodes n s"
+      moreover from SP LEN_EQ have "u \<in> exactDistNodes b s"
         using split_shortest_path unfolding exactDistNodes_def isShortestPath_min_dist_def connected_def
         by fastforce
       moreover note \<open>(u, v) \<in> E\<close>
@@ -342,10 +338,37 @@ proof
   qed
 qed
 
+
+(*
+lemma ebfs_phase_step:
+  assumes Q: "u \<in> Q" "Q \<subseteq> exactDistNodes b s"
+    and INVAR: "ebfsPhaseInvar s b c' Q (c'', Q')"
+  defines "S \<equiv> E `` {u} - (Graph.V c' \<union> {s})"
+  shows "transferEdgesRefine ({u} \<times> S) c'' \<le> (spec c'''. ebfsPhaseInvar s b c' (Q - {u}) (c''', Q' \<union> S))"
+proof -
+  from Q have "connected s u" unfolding exactDistNodes_def by blast
+  then have "E `` {u} \<subseteq> reachableNodes s"
+    unfolding reachableNodes_def using connected_append_edge by blast
+  with FINITE_REACHABLE have "finite S" unfolding S_def using finite_subset by blast
+  then have "transferEdgesRefine ({u} \<times> S) c' \<le> return (transferEdges ({u} \<times> S) c')"
+    using transferEdgesRefine_correct by simp
+  also have "... \<le> (spec c'''. ebfsPhaseInvar s b c' (Q - {u}) (c''', Q' \<union> S))"
+    unfolding ebfsPhaseInvar_def
+  proof (clarify, refine_vcg)
+    interpret g'': Graph c'' .
+    from INVAR have "Capacity_Compatible c'' c"
+      and E'_EQ: "Graph.E c'' = Graph.E c' \<union> E \<inter> (exactDistNodes b s - Q) \<times> Q'"
+      and Q'_EQ: "Q' = exactDistNodes (Suc b) s \<inter> E `` (exactDistNodes b s - Q)"
+      unfolding ebfsPhaseInvar_def by auto
+    then interpret cap_comp: Capacity_Compatible c'' c by simp
+
+    show "Capacity_Compatible (transferEdges ({u} \<times> S) c') c"
+      using \<open>Capacity_Compatible c'' c\<close> transferEdges_capcomp oops by blast
+*)
 context
-  fixes s
   assumes FINITE_REACHABLE: "finite (reachableNodes s)"
 begin
+(*
 lemma ebfs_phase_step:
   assumes BSPU: "Bounded_Source_Shortest_Path_Union c\<^sub>i c s n"
     and Q: "u \<in> Q" "Q \<subseteq> exactDistNodes n s"
@@ -369,36 +392,56 @@ proof -
     then interpret Capacity_Compatible c' c by simp
 
     show "Capacity_Compatible (transferEdges ({u} \<times> S) c') c"
-      using \<open>Capacity_Compatible c' c\<close> transferEdges_capcomp by blast
+      using \<open>Capacity_Compatible c' c\<close> transferEdges_capcomp by blast*)
+lemma ebfs_phase_step:
+  assumes Q: "u \<in> Q" "Q \<subseteq> exactDistNodes b s"
+    and INVAR: "ebfsPhaseInvar s b c' Q (c'', Q')"
+  defines "S \<equiv> E `` {u} - (Graph.V c' \<union> {s})"
+  shows "transferEdgesRefine ({u} \<times> S) c'' \<le> (spec c'''. ebfsPhaseInvar s b c' (Q - {u}) (c''', Q' \<union> S))"
+proof -
+  from Q have "connected s u" unfolding exactDistNodes_def by blast
+  then have "E `` {u} \<subseteq> reachableNodes s"
+    unfolding reachableNodes_def using connected_append_edge by blast
+  with FINITE_REACHABLE have "finite S" unfolding S_def using finite_subset by blast
+  then have "transferEdgesRefine ({u} \<times> S) c'' \<le> return (transferEdges ({u} \<times> S) c'')"
+    using transferEdgesRefine_correct by simp
+  also have "... \<le> (spec c'''. ebfsPhaseInvar s b c' (Q - {u}) (c''', Q' \<union> S))"
+    unfolding ebfsPhaseInvar_def
+  proof (clarify, refine_vcg)
+    interpret g'': Graph c'' .
+    from INVAR have "Capacity_Compatible c'' c"
+      and E'_EQ: "Graph.E c'' = Graph.E c' \<union> E \<inter> (exactDistNodes b s - Q) \<times> Q'"
+      and Q'_EQ: "Q' = exactDistNodes (Suc b) s \<inter> E `` (exactDistNodes b s - Q)"
+      unfolding ebfsPhaseInvar_def by auto
+    then interpret cap_comp: Capacity_Compatible c'' c by simp
 
-    interpret g\<^sub>i: Graph c\<^sub>i .
-    from Q have "E `` {u} \<subseteq> boundedReachableNodes (Suc n) s"
+    show "Capacity_Compatible (transferEdges ({u} \<times> S) c'') c"
+      using \<open>Capacity_Compatible c'' c\<close> transferEdges_capcomp by blast
+    from Q have "E `` {u} \<subseteq> boundedReachableNodes (Suc b) s"
       unfolding boundedReachableNodes_alt using exactDistNodes_reachable_ss by blast
-    with BSPU have S_alt: "S = exactDistNodes (Suc n) s \<inter> E `` {u}"
-      unfolding S_def exactDistNodes_alt using Bounded_Source_Shortest_Path_Union.V'_boundedReachable by blast
-    with Q Q'_EQ show "Q' \<union> S = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - (Q - {u}))"
+    then have S_alt: "S = exactDistNodes (Suc b) s \<inter> E `` {u}"
+      unfolding S_def exactDistNodes_alt using V'_boundedReachable by blast
+    with Q Q'_EQ show "Q' \<union> S = exactDistNodes (Suc b) s \<inter> E `` (exactDistNodes b s - (Q - {u}))"
       by blast
 
     have "{u} \<times> S \<subseteq> E" unfolding S_def by blast
-    then have "Graph.E (transferEdges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> ((exactDistNodes n s - Q) \<times> Q' \<union> {u} \<times> S)"
+    then have "Graph.E (transferEdges ({u} \<times> S) c'') = E' \<union> E \<inter> ((exactDistNodes b s - Q) \<times> Q' \<union> {u} \<times> S)"
       using transferEdges_ss_E E'_EQ by blast
-    also have "... = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)"
+    also have "... = E' \<union> E \<inter> (exactDistNodes b s - (Q - {u})) \<times> (Q' \<union> S)"
       unfolding S_alt Q'_EQ using Q by blast
-    finally show "Graph.E (transferEdges ({u} \<times> S) c') = g\<^sub>i.E \<union> E \<inter> (exactDistNodes n s - (Q - {u})) \<times> (Q' \<union> S)" .
+    finally show "Graph.E (transferEdges ({u} \<times> S) c'') = E' \<union> E \<inter> (exactDistNodes b s - (Q - {u})) \<times> (Q' \<union> S)" .
   qed
   finally show ?thesis .
 qed
 
 lemma ebfs_phase_correct:
-  assumes BSPU: "Bounded_Source_Shortest_Path_Union c' c s n"
-  shows "ebfsPhase (Graph.V c' \<union> {s}) c' (exactDistNodes n s) \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
+  "ebfsPhase (Graph.V c' \<union> {s}) c' (exactDistNodes b s) \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s (Suc b) \<and> Q' = exactDistNodes (Suc b) s)"
   unfolding ebfsPhase_def
-  apply (refine_vcg FOREACH_rule[where I="ebfsPhaseInvar s n c'"])
+  apply (refine_vcg FOREACH_rule[where I="ebfsPhaseInvar s b c'"])
   using FINITE_REACHABLE finite_subset exactDistNodes_reachable_ss boundedReachableNodes_ss apply meson
-  using BSPU ebfsPhase_initial ebfs_phase_step ebfs_phase_final by simp_all
+  using ebfsPhase_initial ebfs_phase_step ebfs_phase_final by simp_all
 end
 end
-
 \<comment> \<open>Extended Breadth First Search phase\<close>
 
 subsubsection \<open>Extended Breadth First Search Outer Loop\<close>
