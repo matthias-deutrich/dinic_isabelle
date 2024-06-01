@@ -105,7 +105,8 @@ interpretation g': Irreducible_Graph stl
 abbreviation "stl' \<equiv> Graph.cleaning (g'.subtract_graph f') s t"
 interpretation stl': Graph stl' .
 
-interpretation aug_cf: Graph_Comparison stl' "cf_of (augment f')" .
+abbreviation "aug_cf \<equiv> cf_of (augment f')"
+interpretation aug_cf: Graph_Comparison stl' aug_cf .
 
 interpretation f'_stl: Pos_Contained_Graph f' stl
   by (meson Pos_Contained_Graph_leI f'_stl.cap_abs_le g'.cap_non_negative order_trans)
@@ -120,7 +121,7 @@ find_theorems name:augment_alt
 find_theorems "residualGraph ?c (NFlow.augment ?c ?f ?f') = Graph.subtract_skew_graph (residualGraph ?c ?f) ?f'"
 find_theorems "Contained_Graph ?f' cf \<Longrightarrow> cf_of (augment ?f') = cf.subtract_skew_graph ?f'"
 
-lemma aug_cf_alt: "cf_of (augment f') = cf.subtract_skew_graph f'"
+lemma aug_cf_alt: "aug_cf = cf.subtract_skew_graph f'"
   using augment_alt' f'_cf.Contained_Graph_axioms .
 
 definition new_edge_count :: "path \<Rightarrow> nat"
@@ -169,6 +170,12 @@ proof (induction "new_edge_count p" arbitrary: u p v rule: less_induct)
   qed
 qed
 
+(*
+find_theorems layer
+corollary "\<lbrakk>u \<in> V'; v \<in> V'; aug_cf.isPath u p v\<rbrakk> \<Longrightarrow> g'.min_dist s v + 2 * new_edge_count p \<le> g'.min_dist s u + length p"
+  using aug_cf_new_edge_prelayered try0
+*)
+
 lemma st_min_dist_non_decreasing: "aug_cf.connected s t \<Longrightarrow> cf.min_dist s t \<le> aug_cf.min_dist s t"
 proof (cases "Graph.isEmpty f'")
   case True
@@ -202,14 +209,14 @@ proof (unfold Graph.isPath_alt, clarify)
 qed
 
 lemma cleaning_maintains_bounded_union:
-  "Bounded_Dual_Shortest_Path_Union stl' (cf_of (augment f')) s t (cf.min_dist s t)"
+  "Bounded_Dual_Shortest_Path_Union stl' aug_cf s t (cf.min_dist s t)"
 proof (cases "Graph.isEmpty f'")
   case True
   then have "(g'.subtract_graph f') = stl"
     unfolding Graph.isEmpty_def g'.subtract_graph_def by auto
   then have "stl' = stl"
     unfolding Graph.cleaning_def using g'.V_def g'.zero_cap_simp by fastforce
-  moreover from True have "cf_of (augment f') = cf"
+  moreover from True have "aug_cf = cf"
     unfolding Graph.isEmpty_def aug_cf_alt cf.subtract_skew_graph_def by simp
   moreover note Dual_Shortest_Path_Union_axioms
   ultimately show ?thesis  by (simp add: min_st_dist_bound)
@@ -223,9 +230,9 @@ next
 
 
   have "Subgraph stl' (g'.subtract_graph f')" by intro_locales
-  also have SUB: "Subgraph ... (cf_of (augment f'))" unfolding aug_cf_alt
+  also have SUB: "Subgraph ... aug_cf" unfolding aug_cf_alt
     using irreducible_contained_skew_subtract f'_stl.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
-  finally interpret Capacity_Compatible stl' "cf_of (augment f')"
+  finally interpret Capacity_Compatible stl' aug_cf
     unfolding Subgraph_def by blast
   show ?thesis
   proof (unfold_locales, intro pair_set_eqI)
@@ -248,12 +255,12 @@ next
     moreover from \<open>aug_cf.isPath s p t\<close> have "cf.min_dist s t \<le> aug_cf.min_dist s t"
       using st_min_dist_non_decreasing aug_cf.connected_def by blast
     moreover note \<open>(u, v) \<in> set p\<close>
-    ultimately show "(u, v) \<in> \<Union> {set p |p. isBoundedShortestPath (cf.min_dist s t) (cf_of (augment f')) s p t}"
+    ultimately show "(u, v) \<in> \<Union> {set p |p. isBoundedShortestPath (cf.min_dist s t) aug_cf s p t}"
       unfolding isBoundedShortestPath_def aug_cf.isShortestPath_min_dist_def
       using aug_cf.isPath_distD aug_cf.min_dist_minD by fastforce
   next
     fix u v
-    assume "(u, v) \<in> \<Union> {set p |p. isBoundedShortestPath (cf.min_dist s t) (cf_of (augment f')) s p t}"
+    assume "(u, v) \<in> \<Union> {set p |p. isBoundedShortestPath (cf.min_dist s t) aug_cf s p t}"
     then obtain p where SP': "aug_cf.isShortestPath s p t" "length p \<le> cf.min_dist s t"
       and UV_IN_P: "(u, v) \<in> set p" unfolding isBoundedShortestPath_def by blast
     with ST_IN_V' have "layer t + 2 * new_edge_count p \<le> layer s + cf.min_dist s t"
@@ -283,7 +290,7 @@ qed
 *)
 
 lemma E_pss_if_saturated_edge:
-  "\<exists>e. stl e = f' e \<and> f' e > 0 \<Longrightarrow> aug_cf.E' \<subset> E'"
+  "\<exists>e. stl e = f' e \<and> f' e > 0 \<Longrightarrow> cleaning.E' \<subset> E'"
 proof
   assume "\<exists>e. stl e = f' e \<and> f' e > 0"
   then obtain e where "stl e = f' e" "f' e > 0" by blast
@@ -536,7 +543,7 @@ proof (rule wf_subset)
     by (fastforce simp: res_dist_rel_def greater_bounded_def)
 qed
 
-theorem dinitz_correct: "dinitz \<le> SPEC (\<lambda>f. isMaxFlow f)"
+theorem dinitz_correct: "dinitz \<le> (spec f. isMaxFlow f)"
   unfolding dinitz_def
   apply (refine_vcg WHILET_rule[where I="NFlow c s t" and R=res_dist_rel])
      apply (rule res_dist_wf)

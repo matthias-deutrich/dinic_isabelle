@@ -124,7 +124,7 @@ definition dinitzRestructured :: "_ flow nres" where
     (f, _) \<leftarrow> WHILE\<^sub>T snd (NFlow.dinitzPhaseRestructured c s t \<circ> fst) (\<lambda>_. 0, True);
     return f}"
 
-theorem dinitzRestructured_correct: "dinitzRestructured \<le> SPEC (\<lambda>f. isMaxFlow f)"
+theorem dinitzRestructured_correct: "dinitzRestructured \<le> (spec f. isMaxFlow f)"
   unfolding dinitzRestructured_def
   apply (refine_vcg WHILET_rule[where I="\<lambda>(f', m). NFlow c s t f' \<and> (m \<or> isMaxFlow f')"
           and R="inv_image (less_than_bool <*lex*> res_dist_rel) prod.swap"])
@@ -148,7 +148,7 @@ proof -
     with CON_IF_NEQ show "f' = f \<or> f' \<noteq> f \<and> (f', f) \<in> res_dist_rel" unfolding res_dist_rel_def by blast
     from CON_IF_NEQ show "f' = f \<longrightarrow> isMaxFlow f"
       using Graph.connected_def Graph.isSimplePath_fwd n'.fofu_III_I n'.fofu_II_III n'.isAugmentingPath_def DIST by blast
-  qed 
+  qed
   finally show "dinitzPhaseRestructured \<le> (spec s'. (case s' of (f', m) \<Rightarrow> NFlow c s t f' \<and> (m \<or> isMaxFlow f')) \<and> (prod.swap s', True, f) \<in> less_than_bool <*lex*> res_dist_rel)" .
 qed
 end
@@ -404,11 +404,10 @@ end
 subsubsection \<open>Extended Breadth First Search Outer Loop\<close>
 context Graph
 begin
-(* TODO the n exists only for analysis purposes, can we remove it? *)
 (* TODO curry *)
 (* TODO update V\<^sub>i by adding Q instead of recomputing it *)
-definition ebfs :: "node \<Rightarrow> _ graph nres" where
-  "ebfs s \<equiv> do {
+definition ebfs' :: "node \<Rightarrow> _ graph nres" where
+  "ebfs' s \<equiv> do {
     (c', _, _) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, Q, _). Q \<noteq> {})
       (\<lambda>(c', Q, n). do {
@@ -420,16 +419,16 @@ definition ebfs :: "node \<Rightarrow> _ graph nres" where
     return c'
   }"
 
-definition ebfsInvar :: "node \<Rightarrow> (_ graph \<times> node set \<times> nat) \<Rightarrow> bool" where
-  "ebfsInvar s \<equiv> \<lambda>(c', Q, n).
+definition ebfs'Invar :: "node \<Rightarrow> (_ graph \<times> node set \<times> nat) \<Rightarrow> bool" where
+  "ebfs'Invar s \<equiv> \<lambda>(c', Q, n).
     Bounded_Source_Shortest_Path_Union c' c s n
     \<and> Q = exactDistNodes n s"
 
-lemma ebfs_final:
-  assumes INVAR: "ebfsInvar s (c', {}, n)"
+lemma ebfs'_final:
+  assumes INVAR: "ebfs'Invar s (c', {}, n)"
   shows "Source_Shortest_Path_Union c' c s"
 proof -
-  from INVAR interpret Bounded_Source_Shortest_Path_Union c' c s n unfolding ebfsInvar_def by blast
+  from INVAR interpret Bounded_Source_Shortest_Path_Union c' c s n unfolding ebfs'Invar_def by blast
 
   show ?thesis
   proof (unfold_locales, intro equalityI subsetI)
@@ -443,7 +442,7 @@ proof -
         using split_list_min_len split_shortest_path by (metis not_le)
       then have "u \<in> exactDistNodes n s"
         unfolding exactDistNodes_def isShortestPath_min_dist_def connected_def by auto
-      with INVAR show False unfolding ebfsInvar_def by simp
+      with INVAR show False unfolding ebfs'Invar_def by simp
     qed
     with P show "e \<in> E'" using source_path_union unfolding isBoundedShortestPath_def by fastforce
   qed (auto simp: source_path_union isBoundedShortestPath_def)
@@ -471,16 +470,16 @@ thm distinct_card
 find_theorems pathVertices length
 
 (* TODO fix this hot mess *)
-lemma ebfs_step:
-  assumes INVAR: "ebfsInvar s (c', Q, n)" and Q: "Q \<noteq> {}"
-  shows "ebfsPhase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). ebfsInvar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
+lemma ebfs'_step:
+  assumes INVAR: "ebfs'Invar s (c', Q, n)" and Q: "Q \<noteq> {}"
+  shows "ebfsPhase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). ebfs'Invar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
 proof -
   from INVAR have "ebfsPhase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
-    using ebfs_phase_correct[OF FINITE_REACHABLE] unfolding ebfsInvar_def by blast
-  also have "... \<le> SPEC (\<lambda>(c'', Q'). ebfsInvar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
-  proof (auto simp: ebfsInvar_def)
+    using ebfs_phase_correct[OF FINITE_REACHABLE] unfolding ebfs'Invar_def by blast
+  also have "... \<le> SPEC (\<lambda>(c'', Q'). ebfs'Invar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
+  proof (auto simp: ebfs'Invar_def)
     from INVAR Q obtain p u where "isShortestPath s p u" "length p = n"
-      unfolding ebfsInvar_def exactDistNodes_def
+      unfolding ebfs'Invar_def exactDistNodes_def
       using obtain_shortest_path isShortestPath_min_dist_def by simp metis
     then have "card (set (pathVertices s p)) = Suc n" apply (auto dest!: shortestPath_is_simple simp: isSimplePath_def)
       using length_pathVertices_eq distinct_card by fastforce (* TODO *)
@@ -490,22 +489,47 @@ proof -
   finally show ?thesis .
 qed
 
-theorem ebfs_correct: "ebfs s \<le> (spec c'. Source_Shortest_Path_Union c' c s)"
-  unfolding ebfs_def
-  apply (refine_vcg WHILET_rule[where I="ebfsInvar s"
+theorem ebfs'_correct: "ebfs' s \<le> (spec c'. Source_Shortest_Path_Union c' c s)"
+  unfolding ebfs'_def
+  apply (refine_vcg WHILET_rule[where I="ebfs'Invar s"
       and R="inv_image (greater_bounded (card (reachableNodes s))) (snd \<circ> snd)"])
 
   apply blast
 
   subgoal
-    unfolding ebfsInvar_def exactDistNodes_def
+    unfolding ebfs'Invar_def exactDistNodes_def
     apply auto
     apply unfold_locales
     unfolding Graph.E_def isBoundedShortestPath_def
     by auto
 
-  using ebfs_step ebfs_final by simp_all
+  using ebfs'_step ebfs'_final by simp_all
 end
+
+definition ebfs :: "node \<Rightarrow> _ graph nres" where
+  "ebfs s \<equiv> do {
+    (c', _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, Q). Q \<noteq> {})
+      (\<lambda>(c', Q). do {
+        let V\<^sub>i = Graph.V c' \<union> {s};
+        (c', Q') \<leftarrow> ebfsPhase V\<^sub>i c' Q;
+        return (c', Q')
+      })
+      ((\<lambda>_. 0), {s});
+    return c'
+  }"
+
+lemma ebfs_refine:
+  notes [refine_dref_RELATES] = RELATESI[of "{((a, b), a, b, c) |a b c. True}"]
+  shows "ebfs s \<le> \<Down> Id (ebfs' s)"
+  unfolding ebfs'_def ebfs_def
+  apply refine_rcg
+      apply refine_dref_type
+  by auto
+
+lemma ebfs_correct:
+  "finite (reachableNodes s) \<Longrightarrow> ebfs s \<le> (spec c'. Source_Shortest_Path_Union c' c s)"
+  using ebfs_refine ebfs'_correct conc_trans_additional(5) by blast
 end
 \<comment> \<open>Extended Breadth First Search Outer Loop\<close>
 
@@ -514,9 +538,9 @@ context Graph
 begin
 definition ebfsBackward :: "node \<Rightarrow> _ graph nres" where
   "ebfsBackward t \<equiv> do {
-    (c', _, _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, Q, _). Q \<noteq> {})
-      (\<lambda>(c', Q, n). do {
+    (c', _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, Q). Q \<noteq> {})
+      (\<lambda>(c', Q). do {
         let V\<^sub>i = (Graph.V c' \<union> {t});
         (c', Q') \<leftarrow> foreach Q
           (\<lambda>u (c', Q'). do {
@@ -526,9 +550,9 @@ definition ebfsBackward :: "node \<Rightarrow> _ graph nres" where
             return (c', Q')
           })
           (c', {});
-        return (c', Q', Suc n)
+        return (c', Q')
       })
-      ((\<lambda>_. 0), {t}, 0);
+      ((\<lambda>_. 0), {t});
     return c'
   }"
 
@@ -970,7 +994,6 @@ proof -
   qed
 qed
 
-(* TODO remove right_pass, instead use locale *)
 theorem (in Finite_Bounded_Graph) rightPassRefine'_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
