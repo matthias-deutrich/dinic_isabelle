@@ -217,7 +217,7 @@ lemma transferEdges_ss_E: "S \<subseteq> E \<Longrightarrow> Graph.E (transferEd
   using transferEdges_E by blast
 end
 
-interpretation transferEdges_dual:
+interpretation transferEdges_symmetric:
   Symmetric_Graph_Algorithms "Graph.transferEdgesRefine c S" "Graph.transferEdgesRefine (c\<^sup>T) (prod.swap ` S)" for c S
   unfolding Graph.transferEdgesRefine_def
   apply (intro Symmetric_Graph_AlgorithmsI)
@@ -338,61 +338,9 @@ proof
   qed
 qed
 
-
-(*
-lemma ebfs_phase_step:
-  assumes Q: "u \<in> Q" "Q \<subseteq> exactDistNodes b s"
-    and INVAR: "ebfsPhaseInvar s b c' Q (c'', Q')"
-  defines "S \<equiv> E `` {u} - (Graph.V c' \<union> {s})"
-  shows "transferEdgesRefine ({u} \<times> S) c'' \<le> (spec c'''. ebfsPhaseInvar s b c' (Q - {u}) (c''', Q' \<union> S))"
-proof -
-  from Q have "connected s u" unfolding exactDistNodes_def by blast
-  then have "E `` {u} \<subseteq> reachableNodes s"
-    unfolding reachableNodes_def using connected_append_edge by blast
-  with FINITE_REACHABLE have "finite S" unfolding S_def using finite_subset by blast
-  then have "transferEdgesRefine ({u} \<times> S) c' \<le> return (transferEdges ({u} \<times> S) c')"
-    using transferEdgesRefine_correct by simp
-  also have "... \<le> (spec c'''. ebfsPhaseInvar s b c' (Q - {u}) (c''', Q' \<union> S))"
-    unfolding ebfsPhaseInvar_def
-  proof (clarify, refine_vcg)
-    interpret g'': Graph c'' .
-    from INVAR have "Capacity_Compatible c'' c"
-      and E'_EQ: "Graph.E c'' = Graph.E c' \<union> E \<inter> (exactDistNodes b s - Q) \<times> Q'"
-      and Q'_EQ: "Q' = exactDistNodes (Suc b) s \<inter> E `` (exactDistNodes b s - Q)"
-      unfolding ebfsPhaseInvar_def by auto
-    then interpret cap_comp: Capacity_Compatible c'' c by simp
-
-    show "Capacity_Compatible (transferEdges ({u} \<times> S) c') c"
-      using \<open>Capacity_Compatible c'' c\<close> transferEdges_capcomp oops by blast
-*)
 context
   assumes FINITE_REACHABLE: "finite (reachableNodes s)"
 begin
-(*
-lemma ebfs_phase_step:
-  assumes BSPU: "Bounded_Source_Shortest_Path_Union c\<^sub>i c s n"
-    and Q: "u \<in> Q" "Q \<subseteq> exactDistNodes n s"
-    and INVAR: "ebfsPhaseInvar s n c\<^sub>i Q (c', Q')"
-  defines "S \<equiv> E `` {u} - (Graph.V c\<^sub>i \<union> {s})"
-  shows "transferEdgesRefine ({u} \<times> S) c' \<le> (spec c''. ebfsPhaseInvar s n c\<^sub>i (Q - {u}) (c'', Q' \<union> S))"
-proof -
-  from Q have "connected s u" unfolding exactDistNodes_def by blast
-  then have "E `` {u} \<subseteq> reachableNodes s"
-    unfolding reachableNodes_def using connected_append_edge by blast
-  with FINITE_REACHABLE have "finite S" unfolding S_def using finite_subset by blast
-  then have "transferEdgesRefine ({u} \<times> S) c' \<le> return (transferEdges ({u} \<times> S) c')"
-    using transferEdgesRefine_correct by simp
-  also have "... \<le> (spec c''. ebfsPhaseInvar s n c\<^sub>i (Q - {u}) (c'', Q' \<union> S))"
-    unfolding ebfsPhaseInvar_def
-  proof (clarify, refine_vcg)
-    from INVAR have "Capacity_Compatible c' c"
-      and E'_EQ: "Graph.E c' = Graph.E c\<^sub>i \<union> E \<inter> (exactDistNodes n s - Q) \<times> Q'"
-      and Q'_EQ: "Q' = exactDistNodes (Suc n) s \<inter> E `` (exactDistNodes n s - Q)"
-      unfolding ebfsPhaseInvar_def by auto
-    then interpret Capacity_Compatible c' c by simp
-
-    show "Capacity_Compatible (transferEdges ({u} \<times> S) c') c"
-      using \<open>Capacity_Compatible c' c\<close> transferEdges_capcomp by blast*)
 lemma ebfs_phase_step:
   assumes Q: "u \<in> Q" "Q \<subseteq> exactDistNodes b s"
     and INVAR: "ebfsPhaseInvar s b c' Q (c'', Q')"
@@ -448,26 +396,6 @@ subsubsection \<open>Extended Breadth First Search Outer Loop\<close>
 context Graph
 begin
 (* TODO curry *)
-(* TODO update V\<^sub>i by adding Q instead of recomputing it *)
-(*
-definition ebfs' :: "node \<Rightarrow> _ graph nres" where
-  "ebfs' s \<equiv> do {
-    (c', _, _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, Q, _). Q \<noteq> {})
-      (\<lambda>(c', Q, n). do {
-        let V\<^sub>i = Graph.V c' \<union> {s};
-        (c', Q') \<leftarrow> ebfsPhase V\<^sub>i c' Q;
-        return (c', Q', Suc n)
-      })
-      ((\<lambda>_. 0), {s}, 0);
-    return c'
-  }"
-
-definition ebfs'Invar :: "node \<Rightarrow> (_ graph \<times> node set \<times> nat) \<Rightarrow> bool" where
-  "ebfs'Invar s \<equiv> \<lambda>(c', Q, n).
-    Bounded_Source_Shortest_Path_Union c' c s n
-    \<and> Q = exactDistNodes n s"
-*)
 
 definition ebfs' :: "node \<Rightarrow> _ graph nres" where
   "ebfs' s \<equiv> do {
@@ -612,7 +540,7 @@ definition ebfsBackward :: "node \<Rightarrow> _ graph nres" where
 
 
 (* TODO improve *)
-lemma dual_ebfs: "Symmetric_Graph_Algorithms (swap_args2 Graph.ebfsBackward u) (swap_args2 Graph.ebfs u)"
+lemma symmetric_ebfs: "Symmetric_Graph_Algorithms (swap_args2 Graph.ebfsBackward u) (swap_args2 Graph.ebfs u)"
 proof (intro Symmetric_Graph_AlgorithmsI, unfold swap_args2_def)
   fix c' :: "('capacity'::linordered_idom) graph"
   note[refine_dref_RELATES] = RELATESI[of transpose_graph_rel]
@@ -620,7 +548,7 @@ proof (intro Symmetric_Graph_AlgorithmsI, unfold swap_args2_def)
     unfolding Graph.ebfsBackward_def Graph.ebfs_def Graph.ebfsPhase_def
     apply (refine_rcg FOREACH_refine_rcg[where \<alpha>=id], refine_dref_type)
             apply (all \<open>(auto simp: transpose_graph_rel_def; fail)?\<close>)
-    apply (simp add: transferEdges_dual.conc_simp)
+    apply (simp add: transferEdges_symmetric.conc_simp)
     by (simp add: transpose_graph_rel_def product_swap)
 
   show "Graph.ebfs c' u \<le> \<Down> transpose_graph_rel (Graph.ebfsBackward (c'\<^sup>T) u)"
@@ -628,12 +556,12 @@ proof (intro Symmetric_Graph_AlgorithmsI, unfold swap_args2_def)
     apply (refine_rcg FOREACH_refine_rcg[where \<alpha>=id])
             apply refine_dref_type
             apply (all \<open>(auto simp: transpose_graph_rel_def; fail)?\<close>)
-    apply (simp add: transferEdges_dual.conc_simp)
+    apply (simp add: transferEdges_symmetric.conc_simp)
     by (simp add: transpose_graph_rel_def product_swap)
 qed
 
 (* TODO simplify and extract *)
-lemma dual_spu: "Target_Shortest_Path_Union c' c t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
+lemma symmetric_spu: "Target_Shortest_Path_Union c' c t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
 proof
   assume "Target_Shortest_Path_Union c' c t"
   then interpret spu: Target_Shortest_Path_Union c' c t .
@@ -684,20 +612,19 @@ next
   qed
 qed
 
-theorem (in Graph) ebfsBackward_correct:
+lemma  ebfsBackward_correct:
   assumes FINITE_REACHED_FROM: "finite {u. connected u t}"
   shows "ebfsBackward t \<le> (spec c'. Target_Shortest_Path_Union c' c t)"
 proof -
   interpret Symmetric_Graph_Algorithms "swap_args2 Graph.ebfsBackward t" "swap_args2 Graph.ebfs t"
-    using dual_ebfs .
+    using symmetric_ebfs .
   have "swap_args2 Graph.ebfsBackward t c \<le> (spec c'. Target_Shortest_Path_Union c' c t)"
     (*using dual_spu apply (auto elim!: transfer_spec)*)
     (*thm dual_spu[THEN transfer_spec]*)
     (*thm transfer_spec[OF dual_spu]*)
   proof (intro transfer_spec[where abst'="\<lambda>c c'. Source_Shortest_Path_Union c' c t"])
     show "\<And>c c'. Target_Shortest_Path_Union c' c t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t "
-      using Graph.dual_spu .
-    thm Graph.ebfs_correct
+      using Graph.symmetric_spu .
     from FINITE_REACHED_FROM have "finite (Graph.reachableNodes (c\<^sup>T) t)"
       unfolding Graph.reachableNodes_def by simp
     then show "swap_args2 Graph.ebfs t (c\<^sup>T) \<le> (spec c'. Source_Shortest_Path_Union c' (c\<^sup>T) t)"
