@@ -406,6 +406,7 @@ context Graph
 begin
 (* TODO curry *)
 (* TODO update V\<^sub>i by adding Q instead of recomputing it *)
+(*
 definition ebfs' :: "node \<Rightarrow> _ graph nres" where
   "ebfs' s \<equiv> do {
     (c', _, _) \<leftarrow> WHILE\<^sub>T
@@ -423,9 +424,29 @@ definition ebfs'Invar :: "node \<Rightarrow> (_ graph \<times> node set \<times>
   "ebfs'Invar s \<equiv> \<lambda>(c', Q, n).
     Bounded_Source_Shortest_Path_Union c' c s n
     \<and> Q = exactDistNodes n s"
+*)
+
+definition ebfs' :: "node \<Rightarrow> _ graph nres" where
+  "ebfs' s \<equiv> do {
+    (c', _, _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, Q, _, _). Q \<noteq> {})
+      (\<lambda>(c', Q, V\<^sub>i, n). do {
+        (c', Q') \<leftarrow> ebfsPhase V\<^sub>i c' Q;
+        let V\<^sub>i = V\<^sub>i \<union> Q';
+        return (c', Q', V\<^sub>i, Suc n)
+      })
+      ((\<lambda>_. 0), {s}, {s}, 0);
+    return c'
+  }"
+
+definition ebfs'Invar :: "node \<Rightarrow> (_ graph \<times> node set \<times> node set \<times> nat) \<Rightarrow> bool" where
+  "ebfs'Invar s \<equiv> \<lambda>(c', Q, V\<^sub>i, n).
+    Bounded_Source_Shortest_Path_Union c' c s n
+    \<and> Q = exactDistNodes n s
+    \<and> V\<^sub>i = boundedReachableNodes n s"
 
 lemma ebfs'_final:
-  assumes INVAR: "ebfs'Invar s (c', {}, n)"
+  assumes INVAR: "ebfs'Invar s (c', {}, V\<^sub>i, n)"
   shows "Source_Shortest_Path_Union c' c s"
 proof -
   from INVAR interpret Bounded_Source_Shortest_Path_Union c' c s n unfolding ebfs'Invar_def by blast
@@ -452,32 +473,22 @@ context
   fixes s
   assumes FINITE_REACHABLE: "finite (reachableNodes s)"
 begin
-thm ebfs_phase_correct[OF FINITE_REACHABLE]
-thm greater_bounded_def
-term greater_bounded
-find_consts "('a \<times> 'b \<times> 'c) \<Rightarrow> 'c"
-value "(snd \<circ> snd) ((1::nat), (2::nat), (3::nat))"
-term inv_image
-term less_than_bool
-find_consts "(nat \<times> nat) set"
-thm greater_bounded_Suc_iff
-find_theorems "_ \<Longrightarrow> _ \<le> SPEC _"
-thm SPEC_rule
-find_theorems pathVertices reachableNodes
-find_theorems pathVertices isSimplePath
-thm pathVertices_fwd
-thm distinct_card
-find_theorems pathVertices length
 
 (* TODO fix this hot mess *)
 lemma ebfs'_step:
-  assumes INVAR: "ebfs'Invar s (c', Q, n)" and Q: "Q \<noteq> {}"
-  shows "ebfsPhase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). ebfs'Invar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
+  assumes INVAR: "ebfs'Invar s (c', Q, V\<^sub>i, n)" and Q: "Q \<noteq> {}"
+  shows "ebfsPhase V\<^sub>i c' Q \<le> SPEC (\<lambda>(c'', Q'). ebfs'Invar s (c'', Q', V\<^sub>i \<union> Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
 proof -
-  from INVAR have "ebfsPhase (Graph.V c' \<union> {s}) c' Q \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
+  from INVAR have "Bounded_Source_Shortest_Path_Union c' c s n" and VI: "V\<^sub>i = boundedReachableNodes n s"
+    unfolding ebfs'Invar_def by auto
+  then interpret Bounded_Source_Shortest_Path_Union c' c s n by blast
+
+  from VI have "ebfsPhase V\<^sub>i c' Q = ebfsPhase (Graph.V c' \<union> {s}) c' Q"
+    using V'_boundedReachable by simp
+  also from INVAR have "... \<le> SPEC (\<lambda>(c'', Q'). Bounded_Source_Shortest_Path_Union c'' c s (Suc n) \<and> Q' = exactDistNodes (Suc n) s)"
     using ebfs_phase_correct[OF FINITE_REACHABLE] unfolding ebfs'Invar_def by blast
-  also have "... \<le> SPEC (\<lambda>(c'', Q'). ebfs'Invar s (c'', Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
-  proof (auto simp: ebfs'Invar_def)
+  also have "... \<le> SPEC (\<lambda>(c'', Q'). ebfs'Invar s (c'', Q', V\<^sub>i \<union> Q', Suc n) \<and> Suc n \<le> card (reachableNodes s))"
+  proof (intro SPEC_rule, clarify, intro conjI)
     from INVAR Q obtain p u where "isShortestPath s p u" "length p = n"
       unfolding ebfs'Invar_def exactDistNodes_def
       using obtain_shortest_path isShortestPath_min_dist_def by simp metis
@@ -485,14 +496,14 @@ proof -
       using length_pathVertices_eq distinct_card by fastforce (* TODO *)
     with \<open>isShortestPath s p u\<close>[THEN shortestPath_is_path, THEN pathVertices_reachable] show "Suc n \<le> card (reachableNodes s)"
       by (metis FINITE_REACHABLE card_mono)
-  qed
+  qed (simp add: ebfs'Invar_def VI exactDistNodes_alt boundedReachableNodes_alt)
   finally show ?thesis .
 qed
 
 theorem ebfs'_correct: "ebfs' s \<le> (spec c'. Source_Shortest_Path_Union c' c s)"
   unfolding ebfs'_def
   apply (refine_vcg WHILET_rule[where I="ebfs'Invar s"
-      and R="inv_image (greater_bounded (card (reachableNodes s))) (snd \<circ> snd)"])
+      and R="inv_image (greater_bounded (card (reachableNodes s))) (snd \<circ> snd \<circ> snd)"])
 
   apply blast
 
@@ -501,26 +512,26 @@ theorem ebfs'_correct: "ebfs' s \<le> (spec c'. Source_Shortest_Path_Union c' c 
     apply auto
     apply unfold_locales
     unfolding Graph.E_def isBoundedShortestPath_def
-    by auto
+    by (auto simp: boundedReachableNodes_def)
 
   using ebfs'_step ebfs'_final by simp_all
 end
 
 definition ebfs :: "node \<Rightarrow> _ graph nres" where
   "ebfs s \<equiv> do {
-    (c', _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, Q). Q \<noteq> {})
-      (\<lambda>(c', Q). do {
-        let V\<^sub>i = Graph.V c' \<union> {s};
+    (c', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, Q, _). Q \<noteq> {})
+      (\<lambda>(c', Q, V\<^sub>i). do {
         (c', Q') \<leftarrow> ebfsPhase V\<^sub>i c' Q;
-        return (c', Q')
+        let V\<^sub>i = V\<^sub>i \<union> Q';
+        return (c', Q', V\<^sub>i)
       })
-      ((\<lambda>_. 0), {s});
+      ((\<lambda>_. 0), {s}, {s});
     return c'
   }"
 
 lemma ebfs_refine:
-  notes [refine_dref_RELATES] = RELATESI[of "{((a, b), a, b, c) |a b c. True}"]
+  notes [refine_dref_RELATES] = RELATESI[of "{((a, b, c), a, b, c, d) |a b c d. True}"]
   shows "ebfs s \<le> \<Down> Id (ebfs' s)"
   unfolding ebfs'_def ebfs_def
   apply refine_rcg
@@ -538,10 +549,9 @@ context Graph
 begin
 definition ebfsBackward :: "node \<Rightarrow> _ graph nres" where
   "ebfsBackward t \<equiv> do {
-    (c', _) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(_, Q). Q \<noteq> {})
-      (\<lambda>(c', Q). do {
-        let V\<^sub>i = (Graph.V c' \<union> {t});
+    (c', _, _) \<leftarrow> WHILE\<^sub>T
+      (\<lambda>(_, Q, _). Q \<noteq> {})
+      (\<lambda>(c', Q, V\<^sub>i). do {
         (c', Q') \<leftarrow> foreach Q
           (\<lambda>u (c', Q'). do {
             let S = E\<inverse> `` {u} - V\<^sub>i;
@@ -550,9 +560,10 @@ definition ebfsBackward :: "node \<Rightarrow> _ graph nres" where
             return (c', Q')
           })
           (c', {});
-        return (c', Q')
+        let V\<^sub>i = V\<^sub>i \<union> Q';
+        return (c', Q', V\<^sub>i)
       })
-      ((\<lambda>_. 0), {t});
+      ((\<lambda>_. 0), {t}, {t});
     return c'
   }"
 
