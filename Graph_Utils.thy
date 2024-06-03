@@ -515,6 +515,9 @@ corollary distinct_nodes_in_V_if_connected:
 lemma in_outgoingD[dest]: "(u', v) \<in> outgoing u \<Longrightarrow> (u, v) \<in> E \<and> u' = u"
   unfolding outgoing_def by blast
 
+lemma in_incomingD[dest]: "(u, v') \<in> incoming v \<Longrightarrow> (u, v) \<in> E \<and> v' = v"
+  unfolding incoming_def by blast
+
 
 section \<open>Set of nodes within a certain distance\<close>
 definition boundedReachableNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where

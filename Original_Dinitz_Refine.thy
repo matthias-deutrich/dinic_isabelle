@@ -684,11 +684,9 @@ subsection \<open>Pathfinding\<close>
 text \<open>Used primitives:
   - RES (outgoing u) / checking outgoing u for emptiness
   - checking whether s is a vertex
-  - list append\<close>
-(* TODO version using Cons rather than append *)
-(* TODO maybe redo this using recursion *)
-thm REC_def
-definition (in Graph) greedyPathFinding :: "node \<Rightarrow> node \<Rightarrow> (path option) nres" where
+  - list Cons\<close>
+(*
+definition (in Graph) greedyPathFinding :: "node \<Rightarrow> node \<Rightarrow> path option nres" where
   "greedyPathFinding s t \<equiv> do {
     if s = t
       then return (Some [])
@@ -700,26 +698,58 @@ definition (in Graph) greedyPathFinding :: "node \<Rightarrow> node \<Rightarrow
               then return (p, u, False, True)
             else do {
               e \<leftarrow> RES (outgoing u);
-              let p = p @ [e];
+              let p = e # p;
               let u = snd e;
               let found = (u = t);
               return (p, u, found, found)}})
           ([], s, False, s \<notin> V);
-        return (if found then Some p else None)}}"
+        return (if found then Some (rev p) else None)}}"
 
 (* TODO prettify *)
 lemma (in Dual_Layer_Graph) greedyPathFinding_correct:
   "greedyPathFinding s t \<le> SELECT (\<lambda>p. isPath s p t)"
   unfolding greedyPathFinding_def SELECT_as_SPEC
   apply (refine_vcg WHILET_rule[where R="inv_image (greater_bounded (min_dist s t)) (length \<circ> fst)"
-          and I="\<lambda>(p, u, found, brk). isPath s p u \<and> found = (u = t) \<and> (brk = (outgoing u = {}))"])
+          and I="\<lambda>(p, u, found, brk). isPath s (rev p) u \<and> found = (u = t) \<and> (brk = (outgoing u = {}))"])
                apply clarsimp_all
   using isEmpty_def no_outgoingD outgoing_edges s_in_V_if_nonempty apply blast
      apply (fastforce intro: isPath_append_edge)
     apply (metis Graph.connected_append_edge Graph.connected_refl Graph.distinct_nodes_in_V_if_connected(2) Graph.in_outgoingD no_outgoingD obtain_back_terminal_connected)
-  using b_length_paths_are_terminal(2) le_antisym path_length_bounded apply fastforce
+  using b_length_paths_are_terminal(2) le_antisym path_length_bounded length_rev not_less_eq_eq apply metis
   by (metis Graph.connected_def Graph.distinct_nodes_in_V_if_connected(2) Graph.empty_connected no_outgoingD s_in_V_if_nonempty)
+*)
 
+definition (in Graph) greedyPathFinding :: "node \<Rightarrow> node \<Rightarrow> path option nres" where
+  "greedyPathFinding s t \<equiv> do {
+    if s = t
+      then return (Some [])
+      else do {
+        (p, _, found, _) \<leftarrow> WHILE\<^sub>T
+          (\<lambda>(_, _, _, brk). \<not> brk)
+          (\<lambda>(p, u, _, _). do {
+            if (incoming u = {})
+              then return (p, u, False, True)
+            else do {
+              e \<leftarrow> RES (incoming u);
+              let p = e # p;
+              let u = fst e;
+              let found = (u = s);
+              return (p, u, found, found)}})
+          ([], t, False, t \<notin> V);
+        return (if found then Some p else None)}}"
+
+(* TODO prettify *)
+lemma (in Dual_Layer_Graph) greedyPathFinding_correct:
+  "greedyPathFinding s t \<le> (select p. isPath s p t)"
+  unfolding greedyPathFinding_def SELECT_as_SPEC
+  apply (refine_vcg WHILET_rule[where R="inv_image (greater_bounded (min_dist s t)) (length \<circ> fst)"
+          and I="\<lambda>(p, u, found, brk). isPath u p t \<and> found = (u = s) \<and> (brk = (incoming u = {}))"])
+               apply clarsimp_all
+  using isEmpty_def no_incomingD incoming_edges t_in_V_if_nonempty apply blast
+     apply (simp add: incoming_def)
+    apply (metis connected_inV_iff connected_prepend_edge ex_front_terminal_path in_incomingD isEmpty_def isPath.connected no_incomingD t_in_V_if_nonempty)
+   apply (metis b_length_paths_are_terminal(1) le_antisym not_less_eq_eq path_length_bounded)
+  by (metis Graph.distinct_nodes_have_in_out_if_connected(2) Graph.distinct_nodes_in_V_if_connected(1) isPath.connected no_incomingD)
 \<comment> \<open>Pathfinding\<close>
 
 subsection \<open>Subtracting a path\<close>
@@ -758,7 +788,7 @@ lemma subtractPathRefine_correct_aux:
 
 lemma subtractPathRefine_correct:
   assumes "distinct p"
-  shows "subtractPathRefine p \<le> return (subtract_path p)"
+  shows "subtractPathRefine p = return (subtract_path p)"
   unfolding subtractPathRefine_def subtract_path_def
   apply (simp split: list.splits add: nfoldli_to_fold pathCapRefine_correct)
   using assms subtractPathRefine_correct_aux by simp
@@ -772,7 +802,7 @@ definition deleteEdges :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph"
   "deleteEdges R c \<equiv> \<lambda>e. if e \<in> R then 0 else c e"
 
 definition deleteEdgesRefine :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
-  "deleteEdgesRefine R c \<equiv> FOREACH R (return \<circ>\<circ> deleteEdge) c"
+  "deleteEdgesRefine R c \<equiv> foreach R (return \<circ>\<circ> deleteEdge) c"
 
 lemma deleteEdgesRefine_correct: "finite R \<Longrightarrow> deleteEdgesRefine R c \<le> return (deleteEdges R c)"
   unfolding deleteEdgesRefine_def
@@ -796,15 +826,13 @@ end
 subsubsection \<open>Right Pass\<close>
 
 text \<open>This definition slightly deviates from the one presented in Dinitz's original paper, in that
-      it works on the set of edge tails, instead of on the edges themselves. Also note that we refer
-      to this intermediate version with an uptick, as we will later use a more concrete version.\<close>
+      it works on the set of edge tails, instead of on the edges themselves.\<close>
 
 text \<open>Used primitives:
   - working set operation: adding elements, removing element, checking for emptiness
-  - graph operations: checking incoming for emptiness, getting set of outgoing edges
-  - delete_edges\<close>
-definition rightPassRefine' :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine' Q c \<equiv> do {
+  - graph operations: checking incoming for emptiness, getting set of outgoing edges, deleting an edge\<close>
+definition rightPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
+  "rightPassRefine Q c \<equiv> do {
     (_, c) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(Q, _). Q \<noteq> {})
       (\<lambda>(Q, c). do {
@@ -813,17 +841,17 @@ definition rightPassRefine' :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ 
         if Graph.incoming c u = {}
           then do {
             let R = Graph.outgoing c u;
-            ASSERT (finite R);
             let Q = Q \<union> (snd ` R);
-            let c = deleteEdges R c;
+            c \<leftarrow> deleteEdgesRefine R c;
             return (Q, c)}
           else return (Q, c)})
       (Q, c);
     return c
   }"
 
-definition rightPassInvar :: "_ graph \<Rightarrow> node \<Rightarrow> (node set \<times>_ graph) \<Rightarrow> bool"
-  where "rightPassInvar c s \<equiv> \<lambda>(Q, c'). Subgraph c' c
+(* TODO should be able to change the invariant to \<forall>u v. connected s u \<and> (u, v) \<in> E \<longrightarrow> (u, v) \<in> E'*)
+definition rightPassInvar :: "_ graph \<Rightarrow> node \<Rightarrow> (node set \<times>_ graph) \<Rightarrow> bool" where
+  "rightPassInvar c s \<equiv> \<lambda>(Q, c'). Subgraph c' c
                                 \<and> s \<notin> Q
                                 \<and> (\<forall>u v. Graph.connected c s u \<longrightarrow> Graph.connected c' s u \<and> c' (u, v) = c (u, v))
                                 \<and> (\<forall>u \<in> Graph.V c' - Q - {s}. Graph.incoming c' u \<noteq> {})
@@ -874,7 +902,7 @@ proof (clarify, intro conjI)
     from S_NO_IN have "g'.incoming s = {}" unfolding Graph.incoming_def
       using E_ss by fast
     then have "s \<notin> snd ` g'.outgoing u" unfolding g'.incoming_def g'.outgoing_def by fastforce
-    with \<open>s \<notin> Q\<close> show "?thesis" unfolding Q'_def by blast
+    with \<open>s \<notin> Q\<close> show ?thesis unfolding Q'_def by blast
   qed
 
   show "\<forall>v w. connected s v \<longrightarrow> g''.connected s v \<and> c'' (v, w) = c (v, w)"
@@ -975,11 +1003,11 @@ proof -
   qed
 qed
 
-theorem (in Finite_Bounded_Graph) rightPassRefine'_correct:
+lemma (in Finite_Bounded_Graph) rightPassRefine_correct:
   assumes S_NO_IN: "incoming s = {}"
     and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine' Q c \<le> (spec c'. Source_Path_Union c' c s)"
-  unfolding rightPassRefine'_def
+  shows "rightPassRefine Q c \<le> (spec c'. Source_Path_Union c' c s)"
+  unfolding rightPassRefine_def
 proof (refine_vcg WHILET_rule[where I="rightPassInvar c s" and R=graphWorkingSetRel], clarsimp_all)
   show "wf graphWorkingSetRel" by (rule wf_graphWorkingSetRel)
 next
@@ -993,63 +1021,29 @@ next
       by (auto simp: rightPassInvar_def graphWorkingSetRel_def)
   }
 
-  let ?c'' = "deleteEdges (Graph.outgoing c' u) c'"
   let ?Q' = "Q - {u} \<union> snd ` Graph.outgoing c' u"
-  assume "Graph.incoming c' u = {}"
-  with S_NO_IN step_assms show "rightPassInvar c s (?Q', ?c'')" "((?Q', ?c''), (Q, c')) \<in> graphWorkingSetRel" "finite (Graph.outgoing c' u)"
-    using rightPassRefine_step by auto
+  assume U_NO_IN: "Graph.incoming c' u = {}"
+
+  (* TODO prettify using the right transitivity lemma *)
+  have "deleteEdgesRefine (Graph.outgoing c' u) c' \<le> return (deleteEdges (Graph.outgoing c' u) c')"
+    using S_NO_IN U_NO_IN rightPassRefine_step step_assms
+    by (blast intro: deleteEdgesRefine_correct)
+  also have "... \<le> (spec c''. rightPassInvar c s (?Q', c'') \<and> ((?Q', c''), Q, c') \<in> graphWorkingSetRel)"
+    using S_NO_IN U_NO_IN rightPassRefine_step step_assms by simp
+  finally show "deleteEdgesRefine (Graph.outgoing c' u) c' \<le> (spec c''. rightPassInvar c s (?Q', c'') \<and> ((?Q', c''), Q, c') \<in> graphWorkingSetRel)" .
 next
   fix c'
   assume "rightPassInvar c s ({}, c')"
   then show "Source_Path_Union c' c s" unfolding rightPassInvar_def
     using rightPassRefine_final by simp
 qed
-
-text \<open>We introduce a further refinement that replaces the abstract deletion of edges with the
-      algorithmic version that only requires the primitive operation of deleting a single edge.\<close>
-
-text \<open>Used primitives:
-  - working set operation: adding elements, removing element, checking for emptiness
-  - graph operations: checking incoming for emptiness, getting set of outgoing edges, deleting an edge\<close>
-definition rightPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
-  "rightPassRefine Q c \<equiv> do {
-    (_, c) \<leftarrow> WHILE\<^sub>T
-      (\<lambda>(Q, _). Q \<noteq> {})
-      (\<lambda>(Q, c). do {
-        u \<leftarrow> RES Q;
-        let Q = Q - {u};
-        if Graph.incoming c u = {}
-          then do {
-            let R = Graph.outgoing c u;
-            let Q = Q \<union> (snd ` R);
-            c \<leftarrow> deleteEdgesRefine R c;
-            return (Q, c)}
-          else return (Q, c)})
-      (Q, c);
-    return c
-  }"
-
-lemma (in Finite_Graph) rightPassRefine'_refine:
-  notes [refine_dref_pattern] = RELATESI_in_spec
-  shows "rightPassRefine Q c \<le> \<Down> Id (rightPassRefine' Q c)"
-  unfolding rightPassRefine_def rightPassRefine'_def
-  apply refine_rcg
-         apply refine_dref_type
-  by (auto simp: RES_sng_eq_RETURN intro: deleteEdgesRefine_correct)
-
-theorem (in Finite_Bounded_Graph) rightPassRefine_correct:
-  assumes S_NO_IN: "incoming s = {}"
-    and Q_START: "s \<notin> Q" "\<forall>u \<in> V - Q - {s}. incoming u \<noteq> {}" "finite Q"
-  shows "rightPassRefine Q c \<le> (spec c'. Source_Path_Union c' c s)"
-  using rightPassRefine'_correct rightPassRefine'_refine assms
-  by (meson conc_trans_additional(5))
 \<comment> \<open>Right Pass\<close>
 
 subsubsection \<open>Left Pass\<close>
 text \<open>Used primitives:
   - working set operation: adding elements, removing element, checking for emptiness
   - graph operations: checking outgoing for emptiness, getting set of incoming edges, deleting an edge\<close>
-definition leftPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> (_ graph) nres" where
+definition leftPassRefine :: "node set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
   "leftPassRefine Q c \<equiv> do {
     (_, c) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(Q, _). Q \<noteq> {})
@@ -1247,7 +1241,7 @@ fun innerPathVertices :: "path \<Rightarrow> node list" where
     [] \<Rightarrow> []
   | (_ # p') \<Rightarrow> map fst p')"
 
-lemma innerPathVertices_correct: "innerPathVertices p = tl (butlast (Graph.pathVertices u p))"
+lemma innerPathVertices_alt: "innerPathVertices p = tl (butlast (Graph.pathVertices u p))"
   by (auto split: list.split simp: Graph.pathVertices.simps(1) Graph.pathVertices_alt)
 \<comment> \<open>Inner vertices of a path\<close>
 
@@ -1280,7 +1274,7 @@ proof (unfold cleaningRefine_def, intro Finite_Bounded_Graph.cleaningSetRefine_c
   proof (cases "s = t")
     case True
     with PATH show ?thesis
-      by (metis Diff_cancel Graph.pathVertices.simps(1) acyclic butlast.simps(1) butlast_tl empty_set innerPathVertices_correct insert_absorb2 isCycle_def list.sel(3) list.simps(15))
+      by (metis Diff_cancel Graph.pathVertices.simps(1) acyclic butlast.simps(1) butlast_tl empty_set innerPathVertices_alt insert_absorb2 isCycle_def list.sel(3) list.simps(15))
   next
     case False
     from PATH have "pathVertices s p = s # (tl (pathVertices s p))"
@@ -1290,7 +1284,7 @@ proof (unfold cleaningRefine_def, intro Finite_Bounded_Graph.cleaningSetRefine_c
     ultimately have "pathVertices s p = s # (tl (butlast (pathVertices s p))) @ [t]"
       by (metis butlast_tl empty_append_eq_id snoc_eq_iff_butlast' False tl_last)
       (* TODO simplify, probably need to show s, t \<notin> tl (butlast (pathVertices s p)) *)
-    then show ?thesis using innerPathVertices_correct
+    then show ?thesis using innerPathVertices_alt
       by (smt (verit, ccfv_threshold) Diff_insert0 Graph.isSimplePath_fwd Graph.pathVertices_fwd PATH Un_Diff_Int Un_insert_right distinct.simps(2) distinct_append empty_set insertCI insert_Diff1 list.simps(15) paths_are_simple set_append sup_bot.right_neutral)
   qed
 
@@ -1452,9 +1446,9 @@ next
   then interpret dspu: Dual_Shortest_Path_Union stl' "cf_of f'" s t .
 
   assume PATH: "dspu.g'.isPath s p t"
-  then show "dspu.g'.subtractPathRefine p \<le> RES {dspu.g'.subtract_path p}"
-    using dspu.g'.isSPath_distinct dspu.paths_are_simple dspu.g'.subtractPathRefine_correct
-    by (metis RES_sng_eq_RETURN)
+  then have "dspu.g'.subtractPathRefine p = return (dspu.g'.subtract_path p)"
+    using dspu.g'.isSPath_distinct dspu.paths_are_simple dspu.g'.subtractPathRefine_correct by blast
+  then show "dspu.g'.subtractPathRefine p \<le> RES {dspu.g'.subtract_path p}" by simp
 
   fix stl''
   assume "Contained_Graph stl'' stl'" "dspu.E' \<subseteq> Graph.E stl'' \<union> set p"
