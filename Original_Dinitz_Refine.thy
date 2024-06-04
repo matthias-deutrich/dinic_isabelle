@@ -1337,7 +1337,8 @@ definition dinitzPhaseAssert :: "(_ flow \<times> bool) nres" where
             assert (Graph.isPath stl' s p t);
             assert (Dual_Shortest_Path_Union stl' (cf_of f') s t);
             stl'' \<leftarrow> return (Graph.subtract_path stl' p);
-            assert (Contained_Graph stl'' stl' \<and> Graph.E stl' \<subseteq> Graph.E stl'' \<union> set p);
+            assert (Contained_Graph stl'' stl');
+            assert (Graph.E stl' \<subseteq> Graph.E stl'' \<union> set p);
             stl'' \<leftarrow> spec c'. Dual_Path_Union c' stl'' s t;
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             return (f', stl'', False, True)
@@ -1357,6 +1358,8 @@ thm WHILET_def
 
 find_theorems "(\<rightarrow>)" name:refine
 thm fun_relI
+thm WHILEIT_rule
+thm WHILET_rule
 
 lemma dinitzPhaseAssert_correct:
   "dinitzPhaseAssert \<le> SPEC (\<lambda>(f', changed). res_dist_increasing_flow f' \<and> changed = (f' \<noteq> f) \<and> (changed \<longrightarrow> cf.connected s t))"
@@ -1408,17 +1411,14 @@ begin
 definition dinitzPhaseRefine :: "(_ flow \<times> bool) nres" where
   "dinitzPhaseRefine \<equiv> do {
     stl \<leftarrow> cf.buildDualLayering s t;
-    (f', _, _, changed) \<leftarrow> WHILE\<^sub>T\<^bsup>dinitzPhaseRestructuredInvar\<^esup>
+    (f', _, _, changed) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, _, brk, _). \<not> brk)
       (\<lambda>(f', stl', _, changed). do {
         p_opt \<leftarrow> Graph.greedyPathFinding stl' s t;
         case p_opt of
           None \<Rightarrow> return (f', stl', True, changed)
         | Some p \<Rightarrow> do {
-            assert (Graph.isPath stl' s p t);
-            assert (Dual_Shortest_Path_Union stl' (cf_of f') s t);
             stl'' \<leftarrow> Graph.subtractPathRefine stl' p;
-            assert (Contained_Graph stl'' stl' \<and> Graph.E stl' \<subseteq> Graph.E stl'' \<union> set p);
             stl'' \<leftarrow> cleaningRefine p stl'';
             let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
             return (f', stl'', False, True)
