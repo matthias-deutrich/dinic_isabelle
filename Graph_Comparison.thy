@@ -67,6 +67,23 @@ interpretation subset_graph: preorder Subset_Graph Proper_Subset_Graph
   unfolding Subset_Graph_def Proper_Subset_Graph_def
   by unfold_locales auto
 
+locale Subgraph_Path_Kind = Path_Kind +
+  assumes transfer_path: "\<And>c' c u p v. \<lbrakk>Subset_Graph c' c; set p \<subseteq> Graph.E c'; isKindPath c u p v\<rbrakk> \<Longrightarrow> isKindPath c' u p v"
+
+locale Regular_Path_Kind = Splittable_Path_Kind + Connecting_Path_Kind + Subgraph_Path_Kind
+
+interpretation isPath: Regular_Path_Kind Graph.isPath
+  by unfold_locales (simp add: Graph.isPath_alt)
+
+interpretation isSimplePath: Regular_Path_Kind Graph.isSimplePath
+  by unfold_locales (simp add: Graph.isPath_alt Graph.isSimplePath_def)
+
+interpretation isShortestPath: Regular_Path_Kind Graph.isShortestPath
+  by unfold_locales (meson Graph.shortestPath_is_path Subset_Graph_def Subset_Graph.sub_shortest_path_if_contained isPath.transfer_path)
+
+interpretation isBoundedShortestPath: Subgraph_Path_Kind "isBoundedShortestPath b" for b
+  by unfold_locales (simp add: isBoundedShortestPath_def isShortestPath.transfer_path)
+
 subsection \<open>Graphs with the same underlying capacity function\<close>
 
 text \<open>We often want to compare graphs on the basis of their edge sets, ignoring the fact that they
@@ -183,21 +200,7 @@ interpretation graph_cap_ord: order le_graph less_graph
 
 text \<open>Sometimes merely comparing two graphs based on their edge sets is insufficient, since we need
       to show properties that directly relate to their capacities.\<close>
-context Graph
-begin
-(* TODO is there a more natural way to define this, as it is merely subtraction of functions? *)
-definition subtract_graph :: "_ graph \<Rightarrow> _ graph"
-  where "subtract_graph c' \<equiv> \<lambda>e. c e - c' e"
 
-lemma subtract_graph_untouched_cap: "e \<notin> Graph.E c' \<Longrightarrow> subtract_graph c' e = c e"
-  unfolding Graph.E_def subtract_graph_def by simp
-
-lemma subtract_graph_untouched_edges: "Graph.E (subtract_graph c') - Graph.E c' = E - Graph.E c'"
-  unfolding Graph.E_def subtract_graph_def by auto
-
-definition subtract_skew_graph :: "_ graph \<Rightarrow> _ graph"
-  where "subtract_skew_graph c' \<equiv> \<lambda>(u, v). c (u, v) - c' (u, v) + c' (v, u)"
-end
 
 
 (*
@@ -206,20 +209,20 @@ locale Contained_Graph = Graph_Comparison c' c for c' c :: "'capacity:: linorder
     "(0 \<le> c' (u, v) \<and> c' (u, v) \<le> c (u, v)) \<or> (c (u, v) \<le> c' (u, v) \<and> c' (u, v) \<le> 0)"
 *)
 locale Contained_Graph = Graph_Comparison +
-  assumes cap_abs_le:
+  assumes cap_abs_bounded:
     "\<And>e. (0 \<le> c' e \<and> c' e \<le> c e) \<or> (c e \<le> c' e \<and> c' e \<le> 0)"
 begin
 sublocale Subset_Graph
   apply unfold_locales
   unfolding Graph.E_def
-  by clarify (metis nle_le cap_abs_le)
+  by clarify (metis nle_le cap_abs_bounded)
 
 lemma contained_irreducible: "Irreducible_Graph c \<Longrightarrow> Irreducible_Graph c'"
   unfolding Irreducible_Graph_def
-  by (metis (mono_tags, lifting) Irreducible_Graph_axioms_def Nonnegative_Graph_def cap_abs_le dual_order.antisym g'.E_def' mem_Collect_eq order_trans zero_cap_simp)
+  by (metis (mono_tags, lifting) Irreducible_Graph_axioms_def Nonnegative_Graph_def cap_abs_bounded dual_order.antisym g'.E_def' mem_Collect_eq order_trans zero_cap_simp)
 
 lemma subtract_contained: "Contained_Graph (subtract_graph c') c"
-  unfolding subtract_graph_def using cap_abs_le by unfold_locales auto
+  unfolding subtract_graph_def using cap_abs_bounded by unfold_locales auto
 end
 lemma contained_trans[trans]: "\<lbrakk>Contained_Graph c'' c'; Contained_Graph c' c\<rbrakk> \<Longrightarrow> Contained_Graph c'' c"
   unfolding Contained_Graph_def by (meson order_trans)
@@ -232,6 +235,9 @@ locale Le_Graph = Graph_Comparison +
 
 locale Pos_Contained_Graph = Le_Graph c' c + g': Nonnegative_Graph c' for c' c
 begin
+lemma cap_bounded: "\<And>e. 0 \<le> c' e \<and> c' e \<le> c e"
+  using cap_le g'.cap_non_negative by blast
+
 sublocale Nonnegative_Graph c using cap_le g'.cap_non_negative by unfold_locales (metis order_trans)
 
 sublocale Contained_Graph using cap_le g'.cap_non_negative by unfold_locales blast
@@ -311,7 +317,7 @@ lemma (in Subgraph) irreducible_contained_skew_subtract:
   unfolding g'.subtract_graph_def subtract_skew_graph_def
   (*by (smt (verit, best) Contained_Graph.edges_ss Graph.E_def' Irreducible_Graph.no_parallel_capacity c'_sg_c_old case_prod_conv diff_0_right diff_diff_eq2 in_mono mem_Collect_eq) *)
   apply auto
-  by (metis (no_types, opaque_lifting) Contained_Graph.cap_abs_le Irreducible_Graph.no_parallel_edge add_cancel_left_right cap_compatible cap_nonzero g'.zero_cap_simp nle_le)
+  by (metis (no_types, opaque_lifting) Contained_Graph.cap_abs_bounded Irreducible_Graph.no_parallel_edge add_cancel_left_right cap_compatible cap_nonzero g'.zero_cap_simp nle_le)
 
 
 

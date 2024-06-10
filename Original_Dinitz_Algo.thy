@@ -109,7 +109,7 @@ abbreviation "aug_cf \<equiv> cf_of (augment f')"
 interpretation aug_cf: Graph_Comparison stl' aug_cf .
 
 interpretation f'_stl: Pos_Contained_Graph f' stl
-  by (meson Pos_Contained_Graph_leI f'_stl.cap_abs_le g'.cap_non_negative order_trans)
+  by (meson Pos_Contained_Graph_leI f'_stl.cap_abs_bounded g'.cap_non_negative order_trans)
 
 interpretation f'_cf: Pos_Contained_Graph f' cf
   by unfold_locales (metis c'_sg_c_old f'_stl.cap_le f'_stl.cap_nonzero resE_nonNegative)
@@ -551,6 +551,5 @@ theorem dinitz_correct: "dinitz \<le> (spec f. isMaxFlow f)"
    apply (fastforce intro: NFlow.dinitzPhase_correct[THEN SPEC_cons_rule] simp: NFlow.res_dist_increasing_flow_def res_dist_rel_def)
   by (simp add: Graph.connected_def Graph.isSimplePath_def NFlow.axioms(1) NFlow.ford_fulkerson(1) NPreflow.isAugmentingPath_def)
 end
-
 
 end

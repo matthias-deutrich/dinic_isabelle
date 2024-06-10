@@ -24,15 +24,59 @@ proof (induction n arbitrary: xs)
   with XS show ?case by (metis append_Cons length_Cons)
 qed simp
 
-section \<open>Optional Distance\<close>
+section \<open>Misc convenience lemmas\<close>
 context Graph
 begin
-(* TODO use *)
-definition opt_dist :: "node \<Rightarrow> node \<Rightarrow> nat option" where
-  "opt_dist u v \<equiv> if connected u v then Some (min_dist u v) else None"
+lemma connected_trans[trans]: "\<lbrakk>connected u v; connected v w\<rbrakk> \<Longrightarrow> connected u w"
+  using dist_trans min_dist_is_dist by blast
 
-(* TODO option ordering with None as top element *)
+text \<open>Dual to connected_append_edge\<close>
+lemma connected_prepend_edge: "(u, v) \<in> E \<Longrightarrow> connected v w \<Longrightarrow> connected u w"
+  unfolding connected_def using isPath.simps by blast
+
+lemma vertex_cases[consumes 1]:
+  assumes "u \<in> V"
+  obtains (outgoing) v where "(u, v) \<in> E"
+    | (incoming) v where "(v, u) \<in> E"
+  using V_def assms by auto
+
+lemma distinct_nodes_have_in_out_if_connected:
+  assumes "connected u v" "u \<noteq> v"
+  shows "outgoing u \<noteq> {}" "incoming v \<noteq> {}"
+proof -
+  from assms obtain p where PATH: "isPath u p v" "p \<noteq> []" unfolding connected_def by fastforce
+  then obtain w where "(u, w) \<in> E" using isPath_fwd_cases by blast
+  then show "outgoing u \<noteq> {}" unfolding outgoing_def by blast
+  from PATH obtain w' where "(w', v) \<in> E" using isPath_bwd_cases by blast
+  then show "incoming v \<noteq> {}" unfolding incoming_def by blast
+qed
+
+corollary distinct_nodes_in_V_if_connected:
+  assumes "connected u v" "u \<noteq> v"
+  shows "u \<in> V" "v \<in> V"
+  using assms distinct_nodes_have_in_out_if_connected
+  unfolding V_def outgoing_def incoming_def by fastforce+
+
+lemma in_outgoingD[dest]: "(u', v) \<in> outgoing u \<Longrightarrow> (u, v) \<in> E \<and> u' = u"
+  unfolding outgoing_def by blast
+
+lemma in_incomingD[dest]: "(u, v') \<in> incoming v \<Longrightarrow> (u, v) \<in> E \<and> v' = v"
+  unfolding incoming_def by blast
+
+lemma pathVertices_reachable: "isPath u p v \<Longrightarrow> set (pathVertices u p) \<subseteq> reachableNodes u"
+proof (induction p arbitrary: u)
+  case Nil
+  then show ?case unfolding reachableNodes_def by auto
+next
+  case (Cons a p)
+  then show ?case unfolding reachableNodes_def
+    by (metis connected_def mem_Collect_eq pathVertices_fwd split_path_at_vertex subsetI)
+qed
 end
+
+lemma min_dist_eqI: (* TODO use this wherever applicable *)
+  "\<lbrakk>Graph.isShortestPath c u p v; Graph.isShortestPath c' u p v\<rbrakk> \<Longrightarrow> Graph.min_dist c u v = Graph.min_dist c' u v"
+  unfolding Graph.isShortestPath_min_dist_def by simp
 
 section \<open>Empty graph\<close>
 context Graph
@@ -50,7 +94,6 @@ end
 (*interpretation empty: Graph empty_graph .*)
 
 section \<open>Custom induction rules\<close>
-(* TODO check which of these are useful and prettify proofs *)
 context Graph
 begin
 text \<open>This rule allows us to use isPath as if it were an inductive predicate,
@@ -125,60 +168,80 @@ lemma isPath_endpoints_eq:
   "\<lbrakk>Graph.isPath c u p v; Graph.isPath c' u' p v'; p \<noteq> []\<rbrakk> \<Longrightarrow> v' = v"
   by (metis Graph.isPath_head neq_Nil_conv) (metis Graph.isPath_tail rev_exhaust)
 
-(*
-section \<open>Path Union\<close>
-definition isPathUnion :: "_ graph \<Rightarrow> path set \<Rightarrow> bool"
-  where "isPathUnion c p_set \<equiv> Graph.E c = \<Union>(set ` p_set)"
 
-context Graph
+
+section \<open>Unifying different kinds of paths\<close>
+locale Path_Kind =
+  fixes isKindPath :: "_ graph \<Rightarrow> node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool"
+  assumes path_kind: "\<And>c u p v. isKindPath c u p v \<Longrightarrow> Graph.isPath c u p v"
 begin
-(* TODO remove those *)
-definition allShortestPaths :: "node set \<Rightarrow> node set \<Rightarrow> path set"
-  where "allShortestPaths s_set t_set \<equiv> {p. \<exists>s \<in> s_set. \<exists>t \<in> t_set. isShortestPath s p t}"
+lemma connected: "isKindPath c u p v \<Longrightarrow> Graph.connected c u v"
+  using Graph.connected_def path_kind by blast
+end
 
-definition shortestSPaths :: "node \<Rightarrow> node set \<Rightarrow> path set"
-  where "shortestSPaths s t_set \<equiv> {p. \<exists>t \<in> t_set. isShortestPath s p t}"
-
-definition shortestSTPaths :: "node \<Rightarrow> node \<Rightarrow> path set"
-  where "shortestSTPaths s t \<equiv> {p. isShortestPath s p t}"
-
-lemma allShortestPaths_singleton_simps[simp]:
-  "allShortestPaths {s} t_set = shortestSPaths s t_set"
-  "shortestSPaths s {t} = shortestSTPaths s t"
-  unfolding allShortestPaths_def shortestSPaths_def shortestSTPaths_def
-  by simp_all
-end*)
-
-(*
-lemma graph_is_all_shortest_paths_union:
-  assumes no_self_loop: "\<forall>u. (u, u) \<notin> E"
-  shows "isPathUnion c (allShortestPaths V V)" unfolding isPathUnion_def
-proof (rule pair_set_eqI)
-  fix u v
-  assume "(u, v) \<in> E"
-  then have "u \<in> V" "v \<in> V" unfolding V_def by blast+
-  moreover have "isShortestPath u [(u, v)] v"
-  proof -
-    from \<open>(u, v) \<in> E\<close> no_self_loop have "u \<noteq> v" by blast
-    then have "\<forall>p'. isPath u p' v \<longrightarrow> length [(u, v)] \<le> length p'"
-      using not_less_eq_eq by fastforce
-    moreover from \<open>(u, v) \<in> E\<close> have "isPath u [(u, v)] v" by simp
-    ultimately show ?thesis unfolding isShortestPath_def by simp
-  qed
-  ultimately show "(u, v) \<in> \<Union> (set ` allShortestPaths V V)" unfolding allShortestPaths_def by fastforce
+locale Splittable_Path_Kind = Path_Kind +
+  assumes split_path: "\<And>c u p\<^sub>1 p\<^sub>2 v. isKindPath c u (p\<^sub>1 @ p\<^sub>2) v \<Longrightarrow> \<exists>w. isKindPath c u p\<^sub>1 w \<and> isKindPath c w p\<^sub>2 v"
+begin
+lemma split_around_edge:
+  assumes "isKindPath c s (p @ (u, v) # p') t"
+  shows "(u, v) \<in> Graph.E c
+        \<and> isKindPath c s p u \<and> isKindPath c u ((u, v) # p') t
+        \<and> isKindPath c s (p @ [(u, v)]) v \<and> isKindPath c v p' t"
+proof (intro conjI)
+  from assms show "(u, v) \<in> Graph.E c"
+    by (meson Graph.isPath_edgeset in_set_conv_decomp path_kind)
 next
-  fix u v
-  assume "(u, v) \<in> \<Union> (set ` allShortestPaths V V)"
-  then obtain p u' v' where "isShortestPath u' p v'" and "(u, v) \<in> set p"
-    using allShortestPaths_def by auto
-  then show "(u, v) \<in> E" using isPath_edgeset shortestPath_is_path by blast
+  from assms obtain w where "isKindPath c s p w" "isKindPath c w ((u, v) # p') t"
+    using split_path by blast
+  moreover from this have "w = u" by (meson Graph.isPath.simps(2) path_kind)
+  ultimately show "isKindPath c s p u" "isKindPath c u ((u, v) # p') t" by auto
+next
+  from assms obtain w where "isKindPath c s (p @ [(u, v)]) w" "isKindPath c w p' t"
+    using split_path by (metis append.assoc append_Cons append_Nil)
+  moreover from this have "w = v" by (metis Graph.isPath_tail path_kind snd_conv)
+  ultimately show "isKindPath c s (p @ [(u, v)]) v" "isKindPath c v p' t" by auto
 qed
 end
-*)
+
+(* TODO is this useful? *)
+locale Connecting_Path_Kind = Path_Kind +
+  assumes connecting: "\<And>c u v. Graph.connected c u v \<Longrightarrow> \<exists>p. isKindPath c u p v"
+begin
+lemma obtain_path:
+  assumes "Graph.connected c u v"
+  obtains p where "isKindPath c u p v"
+  using assms connecting by blast
+end
+
+locale Shortest_Path_Kind = Path_Kind +
+  assumes shortest_path_kind: "\<And>c u p v. isKindPath c u p v \<Longrightarrow> Graph.isShortestPath c u p v"
+
+(* TODO manually prove the interpretations, then replace the corresponding theorems in Graph.thy *)
+interpretation isPath: Splittable_Path_Kind Graph.isPath +
+    isPath: Connecting_Path_Kind Graph.isPath
+  by unfold_locales (auto simp: Graph.isPath_append Graph.connected_def)
+
+interpretation isSimplePath: Splittable_Path_Kind Graph.isSimplePath +
+    Connecting_Path_Kind Graph.isSimplePath
+  apply unfold_locales
+     apply (simp add: Graph.isSimplePath_def)
+    apply (simp add: Graph.split_simple_path)
+  apply (simp add: Graph.isSimplePath_def)
+  using Graph.connected_def Graph.isSPath_pathLE by blast
+
+interpretation isShortestPath: Splittable_Path_Kind Graph.isShortestPath +
+    isShortestPath: Connecting_Path_Kind Graph.isShortestPath
+  by unfold_locales (auto simp: Graph.shortestPath_is_path Graph.split_shortest_path elim: Graph.obtain_shortest_path)
+
+definition isBoundedShortestPath :: "nat \<Rightarrow> _ graph \<Rightarrow> node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool" where
+  "isBoundedShortestPath b c u p v \<equiv> Graph.isShortestPath c u p v \<and> length p \<le> b"
+
+interpretation isBoundedShortestPath: Splittable_Path_Kind "isBoundedShortestPath b" +
+    isBoundedShortestPath: Shortest_Path_Kind "isBoundedShortestPath b" for b
+  unfolding isBoundedShortestPath_def
+  by unfold_locales (auto simp: isShortestPath.path_kind isShortestPath.split_path)
 
 section \<open>Acyclic and distance-bounded graphs\<close>
-(* TODO what here is really necessary? *)
-
 context Graph
 begin
 definition isCycle :: "node \<Rightarrow> path \<Rightarrow> bool" where
@@ -376,232 +439,35 @@ proof (intro ext, unfold split_paired_all)
   then show "reduce c (u, v) = c (u, v)" unfolding reduce_def
     by (smt (verit, best) cap_non_negative case_prod_conv diff_0_right leD no_parallel_edge zero_cap_simp)
 qed
-
-(*
-lemma no_parallel_edge_cases' [case_names EDGE REV_EDGE NO_EDGE, cases pred]: (* TODO fix *)
-  "\<lbrakk>\<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
-    \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v);
-    \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v)\<rbrakk>
-  \<Longrightarrow> P (u, v)" using no_parallel_edge by blast
-
-lemma no_parallel_edge_cases [case_names EDGE REV_EDGE NO_EDGE, cases pred]: (* TODO fix *)
-  "\<lbrakk>\<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P;
-    \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P;
-    \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P\<rbrakk>
-  \<Longrightarrow> P" using no_parallel_edge by blast
-*)
-
-(*
-(EDGE) "(u, v) \<in> E" "(v, u) \<notin> E"
-    | (REV_EDGE) "(u, v) \<notin> E" "(v, u) \<in> E"
-    | (NO_EDGE) "(u, v) \<notin> E" "(v, u) \<notin> E"
-*)
 end
 
 lemma irreducibleI[intro]: "reduce c = c \<Longrightarrow> Irreducible_Graph c"
   apply unfold_locales unfolding reduce_def Graph.E_def
    apply (smt (verit, ccfv_threshold) leI old.prod.case old.prod.exhaust order.asym)
   by (smt (verit) case_prod_conv mem_Collect_eq order.asym)
-(* TODO use *)
 
-
-(* TODO check and sort from here *)
+section \<open>Subtracting graphs\<close>
 context Graph
 begin
+(* TODO is there a more natural way to define this, as it is merely subtraction of functions? *)
+definition subtract_graph :: "_ graph \<Rightarrow> _ graph" where
+  "subtract_graph c' \<equiv> \<lambda>e. c e - c' e"
 
+lemma subtract_graph_untouched_cap: "e \<notin> Graph.E c' \<Longrightarrow> subtract_graph c' e = c e"
+  unfolding Graph.E_def subtract_graph_def by simp
 
-(* TODO check if useful *)
-text \<open>Dual to connected_append_edge\<close>
-lemma connected_prepend_edge: "(u, v) \<in> E \<Longrightarrow> connected v w \<Longrightarrow> connected u w"
-  unfolding connected_def using isPath.simps by blast
+lemma subtract_graph_untouched_edges: "Graph.E (subtract_graph c') - Graph.E c' = E - Graph.E c'"
+  unfolding Graph.E_def subtract_graph_def by auto
 
-
-(* TODO check whether this is useful *)
-lemma E_def': "E = {e. c e \<noteq> 0}" unfolding E_def by blast
-
-
-
-lemma connected_trans: "\<lbrakk>connected u v; connected v w\<rbrakk> \<Longrightarrow> connected u w"
-  using dist_trans min_dist_is_dist by blast
-
-
-
-(* TODO check if exists *)
-lemma vertex_cases[consumes 1]:
-  assumes "u \<in> V"
-  obtains (outgoing) v where "(u, v) \<in> E"
-    | (incoming) v where "(v, u) \<in> E"
-  using V_def assms by auto
-
-thm list.cases
-
-(* TODO improve, check if useful *)
-(*
-lemma parallel_edge_cases:
-  obtains (NO_EDGE) "(u, v) \<notin> E" "(v, u) \<notin> E"
-  | (EDGE) "(u, v) \<in> E" "(v, u) \<notin> E"
-  | (REV_EDGE) "(u, v) \<notin> E" "(v, u) \<in> E"
-  | (PARALLEL_EDGE) "(u, v) \<in> E" "(v, u) \<in> E"
-  by blast
-
-lemma parallel_edge_cases':
-  obtains (NO_EDGE) u v where "(u, v) \<notin> E" "(v, u) \<notin> E"
-  | (EDGE) u v where "(u, v) \<in> E" "(v, u) \<notin> E"
-  | (REV_EDGE) u v where "(u, v) \<notin> E" "(v, u) \<in> E"
-  | (PARALLEL_EDGE) u v where "(u, v) \<in> E" "(v, u) \<in> E"
-  by blast
-
-lemma parallel_edge_cases [case_names EDGE REV_EDGE NO_EDGE, cases pred]:
-  "\<lbrakk>\<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
-    \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v);
-    \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v)\<rbrakk>
-  \<Longrightarrow> P (u, v)" using no_parallel_edge by blast*)
-
-text \<open>This lemma makes it more convenient to work with split_shortest_path in a common use case.\<close>
-thm split_shortest_path
-(*lemma split_shortest_path_around_edge:
-  assumes "isShortestPath s (p @ (u, v) # p') t"
-  shows "isShortestPath s p u" "isShortestPath u ((u, v) # p') t"
-    and "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t"
-proof -
-  from assms obtain w where "isShortestPath s p w" "isShortestPath w ((u, v) # p') t" using split_shortest_path by blast
-  moreover from this have "w = u" unfolding isShortestPath_def by simp
-  ultimately show "isShortestPath s p u" "isShortestPath u ((u, v) # p') t" by auto
-next
-  from assms obtain w where "isShortestPath s (p @ [(u, v)]) w" "isShortestPath w p' t" using split_shortest_path
-    by (metis append.assoc append_Cons append_Nil)
-  moreover from this have "w = v" unfolding isShortestPath_def
-    using isPath_tail by simp
-  ultimately show "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t" by auto
-qed*)
-
-(* TODO unify with Path_Kind *)
-lemma split_shortest_path_around_edge:
-  assumes "isShortestPath s (p @ (u, v) # p') t"
-  shows "isShortestPath s p u \<and> isShortestPath u ((u, v) # p') t
-        \<and> isShortestPath s (p @ [(u, v)]) v \<and> isShortestPath v p' t"
-proof (intro conjI)
-  from assms obtain w where "isShortestPath s p w" "isShortestPath w ((u, v) # p') t" using split_shortest_path by blast
-  moreover from this have "w = u" unfolding isShortestPath_def by simp
-  ultimately show "isShortestPath s p u" "isShortestPath u ((u, v) # p') t" by auto
-next
-  from assms obtain w where "isShortestPath s (p @ [(u, v)]) w" "isShortestPath w p' t" using split_shortest_path
-    by (metis append.assoc append_Cons append_Nil)
-  moreover from this have "w = v" unfolding isShortestPath_def
-    using isPath_tail by simp
-  ultimately show "isShortestPath s (p @ [(u, v)]) v" "isShortestPath v p' t" by auto
-qed
-
-lemma distinct_nodes_have_in_out_if_connected:
-  assumes "connected u v" "u \<noteq> v"
-  shows "outgoing u \<noteq> {}" "incoming v \<noteq> {}"
-proof -
-  from assms obtain p where PATH: "isPath u p v" "p \<noteq> []" unfolding connected_def by fastforce
-  then obtain w where "(u, w) \<in> E" using isPath_fwd_cases by blast
-  then show "outgoing u \<noteq> {}" unfolding outgoing_def by blast
-  from PATH obtain w' where "(w', v) \<in> E" using isPath_bwd_cases by blast
-  then show "incoming v \<noteq> {}" unfolding incoming_def by blast
-qed
-
-corollary distinct_nodes_in_V_if_connected:
-  assumes "connected u v" "u \<noteq> v"
-  shows "u \<in> V" "v \<in> V"
-  using assms distinct_nodes_have_in_out_if_connected
-  unfolding V_def outgoing_def incoming_def by fastforce+
-
-
-
-(* TODO useful? *)
-lemma in_outgoingD[dest]: "(u', v) \<in> outgoing u \<Longrightarrow> (u, v) \<in> E \<and> u' = u"
-  unfolding outgoing_def by blast
-
-lemma in_incomingD[dest]: "(u, v') \<in> incoming v \<Longrightarrow> (u, v) \<in> E \<and> v' = v"
-  unfolding incoming_def by blast
-
-
-section \<open>Set of nodes within a certain distance\<close>
-definition boundedReachableNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
-  "boundedReachableNodes b u \<equiv> {v. connected u v \<and> min_dist u v \<le> b}"
-
-(* TODO prettify proof *)
-lemma boundedReachableNodes_alt:
-  "boundedReachableNodes (Suc b) u = boundedReachableNodes b u \<union> E `` boundedReachableNodes b u"
-  unfolding boundedReachableNodes_def
-  apply auto
-    apply (metis (no_types, lifting) ImageI le_antisym mem_Collect_eq min_dist_suc not_less_eq_eq)
-  using connected_append_edge min_dist_succ le_trans by blast+
-
-lemma boundedReachableNodes_ss: "boundedReachableNodes b u \<subseteq> reachableNodes u"
-  unfolding boundedReachableNodes_def reachableNodes_def by blast
-
-lemma self_boundedReachable: "u \<in> boundedReachableNodes b u"
-  unfolding boundedReachableNodes_def by simp
-
-lemma boundedReachableNodes_mono: "a \<le> b \<Longrightarrow> boundedReachableNodes a u \<subseteq> boundedReachableNodes b u"
-  unfolding boundedReachableNodes_def by auto
-
-definition exactDistNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
-  "exactDistNodes b u \<equiv> {v. connected u v \<and> min_dist u v = b}"
-
-lemma exactDistNodes_alt:
-  "exactDistNodes (Suc b) u = boundedReachableNodes (Suc b) u - boundedReachableNodes b u"
-  unfolding exactDistNodes_def boundedReachableNodes_def by auto
-
-lemma exactDistNodes_reachable_ss: "exactDistNodes b u \<subseteq> boundedReachableNodes b u"
-  unfolding exactDistNodes_def boundedReachableNodes_def by blast
-
-
-
-
-
-
-(* TODO move *)
-lemma pathVertices_reachable: "isPath u p v \<Longrightarrow> set (pathVertices u p) \<subseteq> reachableNodes u"
-proof (induction p arbitrary: u)
-  case Nil
-  then show ?case unfolding reachableNodes_def by auto
-next
-  case (Cons a p)
-  then show ?case unfolding reachableNodes_def
-    by (metis connected_def mem_Collect_eq pathVertices_fwd split_path_at_vertex subsetI)
-qed
+definition subtract_skew_graph :: "_ graph \<Rightarrow> _ graph" where
+  "subtract_skew_graph c' \<equiv> \<lambda>(u, v). c (u, v) - c' (u, v) + c' (v, u)"
 end
 
-
-
-lemma min_dist_eqI: (* TODO use this wherever applicable *)
-  "\<lbrakk>Graph.isShortestPath c u p v; Graph.isShortestPath c' u p v\<rbrakk> \<Longrightarrow> Graph.min_dist c u v = Graph.min_dist c' u v"
-  unfolding Graph.isShortestPath_min_dist_def by simp
-
-
-
-
-
-
-
-
-
-
-subsection \<open>Layerings\<close>
+section \<open>Layerings\<close>
 (* TODO we need some notion of locality (as the layer function only gives useful information on
    some of the nodes). This may be done by restricting the nodes to be in some set or by setting the
    layering to 0 for all unconcerned nodes. Check which approach is better *)
 
-(* This version requires all nodes to be in S, and might be ugly to work with *)
-(*
-locale Local_Prelayer_Graph_Old = Graph +
-  fixes layer :: "node \<Rightarrow> nat"
-    and S
-  assumes layer_edge_weak: "\<And> u v. \<lbrakk>u \<in> S; v \<in> S; (u, v) \<in> E\<rbrakk> \<Longrightarrow> layer v \<le> Suc (layer u)"
-begin
-lemma path_prelayered: "\<lbrakk>isPath u p v; set (pathVertices u p) \<subseteq> S\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p"
-  apply (induction rule: isPath_front_induct)
-  apply auto
-  by (metis add_Suc add_le_imp_le_right empty.pathVertices_fwd_simps(5) layer_edge_weak le_antisym le_trans nat_le_linear pathVertices_fwd subset_code(1))
-end
-*)
-
-(* TODO this has a weaker precondition and is thus stronger. Check if this works and is still weak enough *)
 locale Local_Prelayer_Graph = Graph +
   fixes layer :: "node \<Rightarrow> nat"
     and S
@@ -612,20 +478,6 @@ corollary edge_prelayered: "\<lbrakk>u \<in> S; v \<in> S; (u, v) \<in> E\<rbrak
 
 corollary dist_prelayered: "\<lbrakk>u \<in> S; v \<in> S; dist u d v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + d"
   unfolding dist_def using path_prelayered by blast
-
-(* TODO remove *)
-(*
-sublocale Local_Prelayer_Graph_Old
-proof
-  fix u v
-  assume "(u, v) \<in> E"
-  then have "isPath u [(u, v)] v" by simp
-  moreover assume "u \<in> S" "v \<in> S"
-  ultimately show "layer v \<le> Suc (layer u)"
-    using path_prelayered
-    by (metis One_nat_def add.commute length_Cons list.size(3) plus_1_eq_Suc)
-qed
-*)
 end
 
 locale Generic_Layer_Graph = Graph +
@@ -712,12 +564,12 @@ qed (* TODO this idea is reused, can this be prevented? Maybe set this up as Int
 
 sublocale Source_Layer_Graph unfolding Source_Layer_Graph_def
   by (fastforce elim: obtain_shortest_st_path_via_edge
-                dest: split_shortest_path_around_edge st_connected
+                dest: isShortestPath.split_around_edge st_connected
                 simp: isShortestPath_min_dist_def)
 
 sublocale Target_Layer_Graph unfolding Target_Layer_Graph_def
   by (fastforce elim: obtain_shortest_st_path_via_edge
-                dest: split_shortest_path_around_edge st_connected
+                dest: isShortestPath.split_around_edge st_connected
                 simp: isShortestPath_min_dist_def)
 
 lemma layer_bounded_by_t: "u \<in> V \<Longrightarrow> layer u \<le> layer t"
@@ -741,5 +593,114 @@ end \<comment> \<open>Dual_Layer_Graph\<close>
 
 \<comment> \<open>Layerings\<close>
 
+
+
+
+
+
+
+
+
+
+
+(* TODO check if useful *)
+context Graph
+begin
+
+
+(* TODO check whether this is useful *)
+lemma E_def': "E = {e. c e \<noteq> 0}" unfolding E_def by blast
+
+
+
+
+
+thm list.cases
+
+(* TODO improve, check if useful *)
+(*
+lemma parallel_edge_cases:
+  obtains (NO_EDGE) "(u, v) \<notin> E" "(v, u) \<notin> E"
+  | (EDGE) "(u, v) \<in> E" "(v, u) \<notin> E"
+  | (REV_EDGE) "(u, v) \<notin> E" "(v, u) \<in> E"
+  | (PARALLEL_EDGE) "(u, v) \<in> E" "(v, u) \<in> E"
+  by blast
+
+lemma parallel_edge_cases':
+  obtains (NO_EDGE) u v where "(u, v) \<notin> E" "(v, u) \<notin> E"
+  | (EDGE) u v where "(u, v) \<in> E" "(v, u) \<notin> E"
+  | (REV_EDGE) u v where "(u, v) \<notin> E" "(v, u) \<in> E"
+  | (PARALLEL_EDGE) u v where "(u, v) \<in> E" "(v, u) \<in> E"
+  by blast
+
+lemma parallel_edge_cases [case_names EDGE REV_EDGE NO_EDGE, cases pred]:
+  "\<lbrakk>\<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
+    \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v);
+    \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v)\<rbrakk>
+  \<Longrightarrow> P (u, v)" using no_parallel_edge by blast*)
+
+
+
+
+
+section \<open>Set of nodes within a certain distance\<close>
+definition boundedReachableNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
+  "boundedReachableNodes b u \<equiv> {v. connected u v \<and> min_dist u v \<le> b}"
+
+(* TODO prettify proof *)
+lemma boundedReachableNodes_alt:
+  "boundedReachableNodes (Suc b) u = boundedReachableNodes b u \<union> E `` boundedReachableNodes b u"
+  unfolding boundedReachableNodes_def
+  apply auto
+    apply (metis (no_types, lifting) ImageI le_antisym mem_Collect_eq min_dist_suc not_less_eq_eq)
+  using connected_append_edge min_dist_succ le_trans by blast+
+
+lemma boundedReachableNodes_ss: "boundedReachableNodes b u \<subseteq> reachableNodes u"
+  unfolding boundedReachableNodes_def reachableNodes_def by blast
+
+lemma self_boundedReachable: "u \<in> boundedReachableNodes b u"
+  unfolding boundedReachableNodes_def by simp
+
+lemma boundedReachableNodes_mono: "a \<le> b \<Longrightarrow> boundedReachableNodes a u \<subseteq> boundedReachableNodes b u"
+  unfolding boundedReachableNodes_def by auto
+
+definition exactDistNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
+  "exactDistNodes b u \<equiv> {v. connected u v \<and> min_dist u v = b}"
+
+lemma exactDistNodes_alt:
+  "exactDistNodes (Suc b) u = boundedReachableNodes (Suc b) u - boundedReachableNodes b u"
+  unfolding exactDistNodes_def boundedReachableNodes_def by auto
+
+lemma exactDistNodes_reachable_ss: "exactDistNodes b u \<subseteq> boundedReachableNodes b u"
+  unfolding exactDistNodes_def boundedReachableNodes_def by blast
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(* TODO from here on stuff is experimental *)
+section \<open>Optional Distance\<close>
+context Graph
+begin
+(* TODO use *)
+definition opt_dist :: "node \<Rightarrow> node \<Rightarrow> nat option" where
+  "opt_dist u v \<equiv> if connected u v then Some (min_dist u v) else None"
+
+(* TODO option ordering with None as top element *)
+end
 
 end

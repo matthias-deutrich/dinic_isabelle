@@ -2,7 +2,6 @@ theory Original_Dinitz_Refine
   imports
     Original_Dinitz_Algo
     Graph_Transpose
-    Refine_Imperative_HOL.Sepref_Foreach
 begin
 text \<open>This theory takes the abstract definition of the Original Dinitz algorithm and refines
       it towards a concrete version. The goal here is not yet to arrive at an executable version,
@@ -14,15 +13,8 @@ text \<open>For several refinement proofs in this theory, we need an additional 
 lemma RELATESI_in_spec(*[refine_dref_pattern]*):
   "RELATES R \<Longrightarrow> S \<le> (spec x. (x, y) \<in> R) \<Longrightarrow> S \<le> (spec x. (x, y) \<in> R)" .
 
-lemmas nfoldli_to_fold =
-  foldli_eq_nfoldli[where c="\<lambda>_. True", symmetric, unfolded foldli_foldl foldl_conv_fold]
-
-(* TODO remove notation *)
-term Ref.update
-(*no_notation Ref.update ("_ := _")*)
-
-
-
+lemma nfoldli_to_fold: "nfoldli l (\<lambda>_. True) (\<lambda>x s. return (f x s)) s = return (fold f l s)"
+  by (induction l arbitrary: s) auto
 
 subsection \<open>Restructuring\<close>
 context NFlow
@@ -316,7 +308,7 @@ proof
     then obtain t p where "(u, v) \<in> set p" "isShortestPath s p t" "length p \<le> Suc b"
       unfolding isBoundedShortestPath_def by blast
     then obtain p' where SP: "isShortestPath s (p' @ [(u, v)]) v" and LEN: "length p' \<le> b"
-      by (fastforce dest: split_list split_shortest_path_around_edge)
+      by (fastforce dest: split_list isShortestPath.split_around_edge)
     then have "(u, v) \<in> E" by (simp add: isPath_append isShortestPath_def)
     from LEN consider (LEN_LE) "length p' < b" | (LEN_EQ) "length p' = b" by linarith
     then show "(u, v) \<in> g''.E"
@@ -1498,4 +1490,29 @@ proof -
 qed
 end
 \<comment> \<open>Dinitz outer loop refinement\<close>
+
+(* TODO directly refine entire programm *)
+(*
+definition dinitzRefine :: "_ flow nres" where
+  "dinitzRefine \<equiv> do {
+    (f, _) \<leftarrow> WHILE\<^sub>T snd
+      (\<lambda>(f, _). do {
+        stl \<leftarrow> Graph.buildDualLayering (cf_of f) s t;
+        (f', _, _, changed) \<leftarrow> WHILE\<^sub>T
+          (\<lambda>(_, _, brk, _). \<not> brk)
+          (\<lambda>(f', stl', _, changed). do {
+            p_opt \<leftarrow> Graph.greedyPathFinding stl' s t;
+            case p_opt of
+              None \<Rightarrow> return (f', stl', True, changed)
+            | Some p \<Rightarrow> do {
+                stl'' \<leftarrow> Graph.subtractPathRefine stl' p;
+                stl'' \<leftarrow> cleaningRefine p stl'';
+                let f' = NFlow.augment c f' (NPreflow.augmentingFlow c f' p);
+                return (f', stl'', False, True)
+              }})
+          (f, stl, False, False);
+        return (f', changed)})
+      (\<lambda>_. 0, True);
+    return f}"
+*)
 end

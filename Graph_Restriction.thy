@@ -27,75 +27,6 @@ lemma restricted_unique: "Restricted_Graph c'' c P \<Longrightarrow> c'' = c'"
   by (simp add: CapComp_comm CapComp_transfer Capacity_Compatible.eq_if_E_eq Restricted_Graph.axioms(1) Restricted_Graph.filtered_edges filtered_edges)
 end
 
-locale Path_Kind =
-  fixes isKindPath :: "_ graph \<Rightarrow> node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool"
-  assumes path_kind: "\<And>c u p v. isKindPath c u p v \<Longrightarrow> Graph.isPath c u p v"
-begin
-lemma connected: "isKindPath c u p v \<Longrightarrow> Graph.connected c u v"
-  using Graph.connected_def path_kind by blast
-end
-
-locale Splittable_Path_Kind = Path_Kind +
-  assumes split_path: "\<And>c u p\<^sub>1 p\<^sub>2 v. isKindPath c u (p\<^sub>1 @ p\<^sub>2) v \<Longrightarrow> \<exists>w. isKindPath c u p\<^sub>1 w \<and> isKindPath c w p\<^sub>2 v"
-begin
-lemma split_around_edge:
-  assumes "isKindPath c s (p @ (u, v) # p') t"
-  shows "(u, v) \<in> Graph.E c
-        \<and> isKindPath c s p u \<and> isKindPath c u ((u, v) # p') t
-        \<and> isKindPath c s (p @ [(u, v)]) v \<and> isKindPath c v p' t"
-proof (intro conjI)
-  from assms show "(u, v) \<in> Graph.E c"
-    by (meson Graph.isPath_edgeset in_set_conv_decomp path_kind)
-next
-  from assms obtain w where "isKindPath c s p w" "isKindPath c w ((u, v) # p') t"
-    using split_path by blast
-  moreover from this have "w = u" by (meson Graph.isPath.simps(2) path_kind)
-  ultimately show "isKindPath c s p u" "isKindPath c u ((u, v) # p') t" by auto
-next
-  from assms obtain w where "isKindPath c s (p @ [(u, v)]) w" "isKindPath c w p' t"
-    using split_path by (metis append.assoc append_Cons append_Nil)
-  moreover from this have "w = v" by (metis Graph.isPath_tail path_kind snd_conv)
-  ultimately show "isKindPath c s (p @ [(u, v)]) v" "isKindPath c v p' t" by auto
-qed
-end
-
-(* TODO is this useful? *)
-locale Connecting_Path_Kind = Path_Kind +
-  assumes connecting: "\<And>c u v. Graph.connected c u v \<Longrightarrow> \<exists>p. isKindPath c u p v"
-begin
-lemma obtain_path:
-  assumes "Graph.connected c u v"
-  obtains p where "isKindPath c u p v"
-  using assms connecting by blast
-end
-
-locale Subgraph_Path_Kind = Path_Kind +
-  assumes transfer_path: "\<And>c' c u p v. \<lbrakk>Subgraph c' c; set p \<subseteq> Graph.E c'; isKindPath c u p v\<rbrakk> \<Longrightarrow> isKindPath c' u p v"
-
-locale Regular_Path_Kind = Splittable_Path_Kind + Connecting_Path_Kind + Subgraph_Path_Kind
-
-(* TODO manually prove the interpretations, then replace the corresponding theorems in Graph.thy *)
-interpretation isPath: Regular_Path_Kind Graph.isPath
-  apply unfold_locales
-     apply simp
-    apply (simp add: Graph.isPath_append)
-   apply (simp add: Graph.connected_def)
-  by (simp add: Graph.isPath_alt)
-
-interpretation isSimplePath: Regular_Path_Kind Graph.isSimplePath
-  apply unfold_locales
-    apply (simp add: Graph.isSimplePath_def)
-    apply (simp add: Graph.split_simple_path)
-  using Graph.connected_def Graph.isSPath_pathLE apply blast
-  by (simp add: Graph.isPath_alt Graph.isSimplePath_def)
-
-interpretation isShortestPath: Regular_Path_Kind Graph.isShortestPath
-  apply unfold_locales
-     apply (simp add: Graph.shortestPath_is_path)
-    apply (simp add: Graph.split_shortest_path)
-   apply (meson Graph.obtain_shortest_path)
-  by (meson Graph.shortestPath_is_path Subgraph_def Subset_Graph.sub_shortest_path_if_contained isPath.transfer_path)
-
 locale Graph_Prop_Union = Capacity_Compatible c' c
   for P c' c +
   (* for P and c' c :: "'capacity::linordered_idom graph" + *)
@@ -166,8 +97,8 @@ lemma ST_path_remains:
   shows "isKindPath c' s p t"
 proof -
   from assms have "set p \<subseteq> E'" by (auto simp: path_union)
-  with PATH show ?thesis using transfer_path 
-    using Subgraph_Path_Kind.transfer_path Subgraph_Path_Kind_axioms Subgraph_axioms by blast
+  with PATH show ?thesis
+    using Subgraph_Path_Kind.transfer_path Subgraph_Path_Kind_axioms Subset_Graph_axioms by blast
 qed
 end
 
@@ -327,9 +258,9 @@ proof (elim g'.vertex_cases)
     using obtain_ST_path_via_edge by force
     (*by (elim obtain_shortest_ST_edge_path)*)
   with SP have "isShortestPath s (p @ (u, v) # p\<^sub>2) t"
-    by (metis (no_types, lifting) isShortestPath_min_dist_def isPath_append length_append split_shortest_path_around_edge)
+    by (metis (no_types, lifting) isShortestPath_min_dist_def isPath_append length_append isShortestPath.split_around_edge)
   with \<open>t \<in> V\<close> have "g'.isShortestPath s (p @ (u, v) # p\<^sub>2) t" using ST_path_remains by blast
-  then show ?thesis using g'.shortestPath_is_path g'.split_shortest_path_around_edge by blast
+  then show ?thesis using g'.shortestPath_is_path isShortestPath.split_around_edge by blast
 next
   fix v
   assume SP: "isShortestPath s p u" and "(v, u) \<in> E'"
@@ -337,7 +268,7 @@ next
     using obtain_ST_path_via_edge by force
     (*by (elim obtain_shortest_sT_edge_path)*)
   with SP have "isShortestPath s (p @ p\<^sub>2) t"
-    by (metis (mono_tags, lifting) Graph.isShortestPath_min_dist_def append.assoc append_Cons isPath_append length_append self_append_conv2 split_shortest_path_around_edge)
+    by (metis (mono_tags, lifting) Graph.isShortestPath_min_dist_def append.assoc append_Cons isPath_append length_append self_append_conv2 isShortestPath.split_around_edge)
   with \<open>t \<in> V\<close> have "g'.isShortestPath s (p @  p\<^sub>2) t" using ST_path_remains by blast
   with SP show ?thesis
     by (meson Graph.isPath_alt Graph.shortestPath_is_path g'.split_shortest_path)
@@ -421,14 +352,6 @@ qed
 
 (* TODO this is mostly the same, but includes a length bound. Is there a way without so much duplication? *)
 subsection \<open>Unions of bounded length shortest paths\<close>
-
-definition isBoundedShortestPath :: "nat \<Rightarrow> _ graph \<Rightarrow> node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool" where
-  "isBoundedShortestPath b c u p v \<equiv> Graph.isShortestPath c u p v \<and> length p \<le> b"
-
-interpretation isBoundedShortestPath: Splittable_Path_Kind "isBoundedShortestPath b" +
-    isBoundedShortestPath: Subgraph_Path_Kind "isBoundedShortestPath b" for b
-  unfolding isBoundedShortestPath_def
-  by unfold_locales (auto simp: isShortestPath.path_kind isShortestPath.split_path intro: isShortestPath.transfer_path)
 
 locale Bounded_Shortest_Path_Union = Graph_Prop_Union "isBoundedShortestPath b" for b
 sublocale Bounded_Shortest_Path_Union \<subseteq> Splittable_Subgraph_Path_Kind_Union "isBoundedShortestPath b" by intro_locales
