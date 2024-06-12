@@ -122,6 +122,51 @@ begin
 sublocale Splittable_Subgraph_Path_Kind_Union by intro_locales
 end
 
+(* TODO *)
+(*
+lemma Dual_Union_right_leftI:
+  assumes REGULAR_PATH_KIND: "Regular_Path_Kind isKindPath"
+    and RIGHT: "Source_Graph_Prop_Union isKindPath c' c s"
+    and LEFT: "Target_Graph_Prop_Union isKindPath c'' c' t"
+  shows "Dual_Graph_Prop_Union isKindPath c'' c s t"
+proof
+  from REGULAR_PATH_KIND interpret Regular_Path_Kind isKindPath .
+  from RIGHT interpret right: Source_Graph_Prop_Union isKindPath c' c s .
+  interpret right: Regular_Path_Kind_Union isKindPath c' c "{s}" right.V by intro_locales
+  from LEFT interpret left: Target_Graph_Prop_Union isKindPath c'' c' t .
+  interpret left: Regular_Path_Kind_Union isKindPath c'' c' right.V' "{t}" by intro_locales
+
+  thm right.ST_path_remains
+  thm left.ST_path_remains
+
+  show "\<And>e. c'' e = 0 \<or> c e = 0 \<or> c'' e = c e"
+    by (metis left.c'_sg_c_old right.c'_sg_c_old)
+
+  show "left.E' = \<Union> {set p |p. isKindPath c s p t}"
+  proof (intro pair_set_eqI)
+    fix u v
+    assume "(u, v) \<in> \<Union> {set p |p. right.isShortestPath s p t}"
+    then obtain p where SP: "(u, v) \<in> set p" "right.isShortestPath s p t" by blast
+    then have "s \<in> right.V" "t \<in> right.V" using right.distinct_nodes_in_V_if_connected right.isShortestPath_level_edge
+      by (metis right.min_dist_z empty_set ex_in_conv right.isShortestPath_min_dist_def length_0_conv)+
+    with SP have "right.g'.isShortestPath s p t" using right.ST_path_remains sorry by blast
+    with \<open>(u, v) \<in> set p\<close> \<open>s \<in> right.V\<close> show "(u, v) \<in> left.E'" using left.target_path_union
+      using Graph.isEmpty_def Graph.isPath_edgeset Graph.isShortestPath_min_dist_def right.s_in_V_if_nonempty by fastforce
+  next
+    fix u v
+    assume "(u, v) \<in> left.E'"
+    then obtain p w where "(u, v) \<in> set p" "w \<in> right.V'" "isKindPath c' w p t"
+      using left.target_path_union by blast
+    then have "right.g'.connected s w"
+      using right.obtain_connected_subgraph_ST by blast
+    then obtain p' where "isKindPath c' s p' w" using connecting by blast
+    with \<open>right.g'.isShortestPath w p t\<close> have "right.isShortestPath s (p' @ p) t"
+      using right.g'.shortestPath_is_path right.g'.isPath_append right.shortest_path_transfer by blast
+    with \<open>(u, v) \<in> set p\<close> show "(u, v) \<in> \<Union> {set p |p. right.isShortestPath s p t}" by auto
+  qed
+qed
+*)
+
 locale Path_Union = Graph_Prop_Union Graph.isPath
 sublocale Path_Union \<subseteq> Regular_Path_Kind_Union Graph.isPath by intro_locales
 
@@ -224,6 +269,9 @@ lemma shortest_path_transfer: "g'.isPath u p v \<Longrightarrow>  isShortestPath
 corollary min_dist_transfer: "g'.connected u v \<Longrightarrow> g'.min_dist u v = min_dist u v"
   using shortest_path_transfer g'.obtain_shortest_path g'.shortestPath_is_path min_dist_eqI
   by meson
+
+(* TODO show this here *)
+(* lemma path_prelayered: "\<lbrakk>u \<in> V'; v \<in> V'; isPath u p v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p" *)
 end \<comment> \<open>Layered_Shortest_Path_Union\<close>
 
 
@@ -243,11 +291,11 @@ qed (blast elim: obtain_connected_subgraph_ST)
 
 sublocale Layered_Shortest_Path_Union _ _ "{s}" V layer by intro_locales
 
+lemma edge_prelayered: "\<lbrakk>u \<in> V'; v \<in> V'; (u, v) \<in> E\<rbrakk> \<Longrightarrow> layer v \<le> Suc (layer u)"
+  by (simp add: min_dist_succ min_dist_transfer s_connected sub_connected)
 
-(* TODO prettify, necessary? *)
-sublocale Local_Prelayer_Graph c layer V'
-  apply unfold_locales
-  by (metis Graph.isPath_distD dist_trans min_dist_is_dist min_dist_minD min_dist_transfer s_connected sub_connected)
+lemma path_prelayered: "\<lbrakk>u \<in> V'; v \<in> V'; isPath u p v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p"
+  by (metis dist_trans isPath_distD min_dist_is_dist min_dist_minD min_dist_transfer s_connected sub_connected)
 
 (* TODO check if necessary, and if so, cleanup *)
 lemma shortest_s_path_remains_path: "\<lbrakk>u \<in> V'; isShortestPath s p u\<rbrakk> \<Longrightarrow> g'.isPath s p u"
@@ -305,9 +353,11 @@ qed (blast elim: obtain_connected_subgraph_ST)
 
 sublocale Layered_Shortest_Path_Union _ _ "{s}" "{t}" layer by intro_locales
 
-sublocale Local_Prelayer_Graph c layer V'
-  apply unfold_locales
-  by (metis Graph.isPath_distD dist_trans min_dist_is_dist min_dist_minD min_dist_transfer s_connected sub_connected)
+lemma edge_prelayered: "\<lbrakk>u \<in> V'; v \<in> V'; (u, v) \<in> E\<rbrakk> \<Longrightarrow> layer v \<le> Suc (layer u)"
+  by (simp add: min_dist_succ min_dist_transfer s_connected sub_connected)
+
+lemma path_prelayered: "\<lbrakk>u \<in> V'; v \<in> V'; isPath u p v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p"
+  by (metis dist_trans isPath_distD min_dist_is_dist min_dist_minD min_dist_transfer s_connected sub_connected)
 
 (* TODO right place? *)
 lemma st_connected_iff: "g'.connected s t \<longleftrightarrow> connected s t"
@@ -342,7 +392,8 @@ proof
     assume "(u, v) \<in> left.E'"
     then obtain p w where "(u, v) \<in> set p" "w \<in> right.V'" "right.g'.isShortestPath w p t"
       using left.target_path_union by blast
-    then obtain p' where "right.g'.isShortestPath s p' w" using right.g'.obtain_shortest_path by blast
+    then obtain p' where "right.g'.isShortestPath s p' w"
+      using right.g'.obtain_shortest_path by blast
     with \<open>right.g'.isShortestPath w p t\<close> have "right.isShortestPath s (p' @ p) t"
       using right.g'.shortestPath_is_path right.g'.isPath_append right.shortest_path_transfer by blast
     with \<open>(u, v) \<in> set p\<close> show "(u, v) \<in> \<Union> {set p |p. right.isShortestPath s p t}" by auto
@@ -350,7 +401,6 @@ proof
 qed
 \<comment> \<open>Unions of shortest paths\<close>
 
-(* TODO this is mostly the same, but includes a length bound. Is there a way without so much duplication? *)
 subsection \<open>Unions of bounded length shortest paths\<close>
 
 locale Bounded_Shortest_Path_Union = Graph_Prop_Union "isBoundedShortestPath b" for b

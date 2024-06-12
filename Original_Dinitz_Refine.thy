@@ -1461,7 +1461,7 @@ definition dinitzRefine :: "_ flow nres" where
     (f, _) \<leftarrow> WHILE\<^sub>T snd (NFlow.dinitzPhaseRefine c s t \<circ> fst) (\<lambda>_. 0, True);
     return f}"
 
-theorem dinitzRefine_correct: "dinitzRefine \<le> SPEC (\<lambda>f. isMaxFlow f)"
+theorem dinitzRefine_correct: "dinitzRefine \<le> (spec f. isMaxFlow f)"
   unfolding dinitzRefine_def
   apply (refine_vcg WHILET_rule[where I="\<lambda>(f', m). NFlow c s t f' \<and> (m \<or> isMaxFlow f')"
           and R="inv_image (less_than_bool <*lex*> res_dist_rel) prod.swap"])

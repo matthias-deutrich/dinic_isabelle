@@ -464,13 +464,9 @@ definition subtract_skew_graph :: "_ graph \<Rightarrow> _ graph" where
 end
 
 section \<open>Layerings\<close>
-(* TODO we need some notion of locality (as the layer function only gives useful information on
-   some of the nodes). This may be done by restricting the nodes to be in some set or by setting the
-   layering to 0 for all unconcerned nodes. Check which approach is better *)
-
+(* deprecated *)
 locale Local_Prelayer_Graph = Graph +
-  fixes layer :: "node \<Rightarrow> nat"
-    and S
+  fixes layer :: "node \<Rightarrow> nat" and S
   assumes path_prelayered: "\<And> u p v. \<lbrakk>u \<in> S; v \<in> S; isPath u p v\<rbrakk> \<Longrightarrow> layer v \<le> layer u + length p"
 begin
 corollary edge_prelayered: "\<lbrakk>u \<in> S; v \<in> S; (u, v) \<in> E\<rbrakk> \<Longrightarrow> layer v \<le> Suc (layer u)"
