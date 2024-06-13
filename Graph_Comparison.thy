@@ -291,8 +291,28 @@ definition subtract_path :: "path \<Rightarrow> _ graph"
     else
       c e"
 
+(*
+definition subtract_skew_path :: "path \<Rightarrow> _ graph"
+  where "subtract_skew_path p \<equiv> \<lambda>(u, v).
+    if (u, v) \<in> (set p) then
+      c (u, v) - pathCap p
+    else if (v, u) \<in> (set p) then
+      c (u, v) + pathCap p
+    else
+      c (u, v)"
+*)
+
+definition subtract_skew_path :: "path \<Rightarrow> _ graph"
+  where "subtract_skew_path p \<equiv> \<lambda>(u, v).
+    c (u, v)
+      - (if (u, v) \<in> (set p) then pathCap p else 0)
+      + (if (v, u) \<in> (set p) then  pathCap p else 0)"
+
 lemma subtract_path_alt: "subtract_path p = subtract_graph (path_induced_graph p)"
   unfolding subtract_graph_def subtract_path_def path_induced_graph_def by auto
+
+lemma subtract_skew_path_alt: "subtract_skew_path p = subtract_skew_graph (path_induced_graph p)"
+  unfolding subtract_skew_graph_def subtract_skew_path_def path_induced_graph_def by simp
 end
 
 context Nonnegative_Graph

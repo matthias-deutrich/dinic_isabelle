@@ -50,7 +50,7 @@ proof (rule ext, unfold split_paired_all)
   proof (cases "(u, v) \<notin> E \<and> (v, u) \<notin> E")
     case True
     then have "f' (u, v) = 0" "f' (v, u) = 0"
-      using cap_abs_le NPreflow.cf_def NPreflow_axioms nle_le by fastforce+
+      using cap_abs_bounded NPreflow.cf_def NPreflow_axioms nle_le by fastforce+
     then show ?thesis unfolding Graph.subtract_skew_graph_def augment_def residualGraph_def by auto
   next
     case False
@@ -140,6 +140,12 @@ proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative
     finally show "sum f (incoming v) = sum f (outgoing v)" .
   qed
 qed
+end
+
+context Network
+begin
+thm flow_of_cf_def
+thm residualGraph_def
 end
 
 (* TODO prove this more general version and use it to show the previous *)
