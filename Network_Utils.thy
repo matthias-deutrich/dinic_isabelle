@@ -144,6 +144,14 @@ end
 
 context Network
 begin
+lemma c_is_RGraph: "RGraph c s t c"
+proof
+  interpret Flow c s t "\<lambda>_. 0" using zero_is_flow .
+  have "NFlow c s t (\<lambda>_. 0)" by intro_locales
+  moreover have "c = cf_of (\<lambda>_. 0)" unfolding residualGraph_def E_def by fastforce
+  ultimately show "\<exists>f. NFlow c s t f \<and> c = cf_of f" by blast
+qed
+
 thm flow_of_cf_def
 thm residualGraph_def
 end

@@ -490,8 +490,8 @@ lemma dinitzPhase_final:
     shows "res_dist_increasing_flow f'"
   unfolding res_dist_increasing_flow_def
 proof
-  from INVAR interpret f': NFlow c s t f' unfolding dinitzPhaseInvar_def by blast
-  show "NFlow c s t f'" using f'.NFlow_axioms .
+  from INVAR show "NFlow c s t f'" unfolding dinitzPhaseInvar_def by blast
+  then interpret f': NFlow c s t f' .
 
   from INVAR interpret Bounded_Dual_Shortest_Path_Union stl f'.cf s t "cf.min_dist s t"
     unfolding dinitzPhaseInvar_def by blast

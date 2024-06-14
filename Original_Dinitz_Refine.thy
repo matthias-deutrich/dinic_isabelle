@@ -307,12 +307,32 @@ proof (simp, intro conjI)
     using INVAR_UNFOLD(5) INVAR_UNFOLD(6) \<open>rg'.cf.isPath s p t\<close> isPath.connected by blast
 qed
 
+definition dist_increasing_cf
+  where "dist_increasing_cf cf' \<equiv>
+    RGraph c s t cf' \<and> (Graph.connected cf' s t \<longrightarrow> cf.min_dist s t < Graph.min_dist cf' s t)"
+
+lemma dinitzPhaseRestructured_final:
+  fixes cf' stl
+    assumes INVAR: "dinitzPhaseRestructuredInvar (cf', stl, True, changed)"
+    shows "dist_increasing_cf cf'"
+  unfolding dist_increasing_cf_def
+proof
+  from INVAR show "RGraph c s t cf'" unfolding dinitzPhaseRestructuredInvar_def by blast
+  then interpret rg': RGraph c s t cf' .
+
+  from INVAR interpret Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t"
+    unfolding dinitzPhaseRestructuredInvar_def by blast
+  from INVAR have "\<not> Graph.connected stl s t" unfolding dinitzPhaseRestructuredInvar_def by blast
+  then show "rg'.cf.connected s t \<longrightarrow> cf.min_dist s t < rg'.cf.min_dist s t"
+    by (metis Bounded_Dual_Shortest_Path_Union_axioms Dual_Shortest_Path_Union.st_connected_iff le_eq_less_or_eq linorder_neqE_nat min_st_dist_bound)
+qed
+
 definition "dinitzPhaseRestructured_wf_rel \<equiv> inv_image
   (less_than_bool <*lex*> finite_psubset)
   (\<lambda>(_, stl, brk, _). (\<not>brk, Graph.E stl))"
-thm f.dinitzPhase_final
+
 lemma dinitzPhaseRestructured_correct:
-  "dinitzPhaseRestructured \<le> SPEC (\<lambda>(cf', changed). f.res_dist_increasing_flow (flow_of_cf cf') \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
+  "dinitzPhaseRestructured \<le> SPEC (\<lambda>(cf', changed). dist_increasing_cf cf' \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
   unfolding dinitzPhaseRestructured_def
   apply (refine_vcg WHILET_rule[where I=dinitzPhaseRestructuredInvar and R=dinitzPhaseRestructured_wf_rel])
               apply (all \<open>(simp add: dinitzPhaseRestructuredInvar_def; fail)?\<close>)
@@ -322,8 +342,7 @@ lemma dinitzPhaseRestructured_correct:
      apply (simp add: dinitzPhaseRestructured_step dinitzPhaseRestructured_wf_rel_def)
     apply (simp add: dinitzPhaseRestructuredInvar_def Graph.connected_def)
    apply (simp add: dinitzPhaseRestructured_wf_rel_def)
-  using f.dinitzPhase_final dinitzPhaseRestructuredInvar_alt dinitzPhaseRestructuredInvar_def by fastforce
-  (*apply (fastforce intro: dinitzPhaseRestructuredInvar_alt simp: f.dinitzPhase_final)*)
+  by (simp add: dinitzPhaseRestructured_final)
 end
 
 
@@ -474,6 +493,66 @@ proof -
       using Graph.connected_def Graph.isSimplePath_fwd n'.fofu_III_I n'.fofu_II_III n'.isAugmentingPath_def DIST by blast
   qed
   finally show "dinitzPhaseRestructured \<le> (spec s'. (case s' of (f', m) \<Rightarrow> NFlow c s t f' \<and> (m \<or> isMaxFlow f')) \<and> (prod.swap s', True, f) \<in> less_than_bool <*lex*> res_dist_rel)" .
+qed
+
+thm res_dist_rel_def
+(* TODO we need only one of these to be an rgraph, check which is better *)
+(*RGraph c s t cf \<and> *)
+definition "cf_dist_rel \<equiv> {(cf', cf).
+  RGraph c s t cf \<and>
+  Graph.connected cf s t \<and> (\<not> Graph.connected cf' s t \<or> Graph.min_dist cf s t < Graph.min_dist cf' s t)}"
+
+lemma cf_dist_rel_wf: "wf cf_dist_rel"
+proof (rule wf_subset)
+  let ?r = "less_than_bool <*lex*> (greater_bounded (card V))"
+    and ?cf = "\<lambda>cf. (Graph.connected cf s t, Graph.min_dist cf s t)"
+
+  show "wf (inv_image ?r ?cf)" by blast
+
+  have "\<And>cf. RGraph c s t cf \<and> Graph.connected cf s t \<Longrightarrow> Graph.min_dist cf s t < card (Graph.V cf)"
+    by (metis Finite_Graph.min_dist_less_V Finite_Graph_def Graph.distinct_nodes_in_V_if_connected(1) RGraph.this_loc_rpg RPreGraph.resV_netV finite_V t_not_s)
+  moreover have "\<And>cf. RGraph c s t cf \<Longrightarrow> Graph.V cf \<subseteq> V"
+    using RGraph.this_loc_rpg RPreGraph.resV_netV by blast
+  ultimately have "\<And>cf. RGraph c s t cf \<and> Graph.connected cf s t \<Longrightarrow> Graph.min_dist cf s t < card V"
+    by (meson card_mono dual_order.strict_trans1 finite_V)
+  then show "cf_dist_rel \<subseteq> inv_image ?r ?cf"
+    by (fastforce simp: cf_dist_rel_def greater_bounded_def)
+qed
+
+definition dinitzRestructured' :: "_ graph nres" where
+  "dinitzRestructured' \<equiv> do {
+    (cf, _) \<leftarrow> WHILE\<^sub>T snd (RGraph.dinitzPhaseRestructured s t \<circ> fst) (c, True);
+    return (flow_of_cf cf)}"
+
+theorem dinitzRestructured_correct': "dinitzRestructured' \<le> (spec f. isMaxFlow f)"
+  unfolding dinitzRestructured'_def
+  apply (refine_vcg WHILET_rule[where I="\<lambda>(cf, m). RGraph c s t cf \<and> (m \<or> isMaxFlow (flow_of_cf cf))"
+          and R="inv_image (less_than_bool <*lex*> cf_dist_rel) prod.swap"])
+      apply (fastforce simp: cf_dist_rel_wf)
+     apply (clarsimp_all simp: c_is_RGraph)
+proof -
+  fix cf
+  assume RG: "RGraph c s t cf"
+  then interpret RGraph c s t cf .
+  have "dinitzPhaseRestructured \<le> SPEC (\<lambda>(cf', changed). dist_increasing_cf cf' \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
+    using dinitzPhaseRestructured_correct .
+  also have "... \<le> (spec s'. (case s' of (cf', m) \<Rightarrow> RGraph c s t cf' \<and> (m \<or> isMaxFlow (flow_of_cf cf'))) \<and> (prod.swap s', True, cf) \<in> less_than_bool <*lex*> cf_dist_rel)"
+  proof (clarsimp, intro conjI)
+    fix cf'
+    assume "dist_increasing_cf cf'" and CON_IF_NEQ: "(cf' \<noteq> cf) \<longrightarrow> cf.connected s t"
+    then show "RGraph c s t cf'"
+      unfolding dist_increasing_cf_def by simp
+    then interpret rg': RGraph c s t cf' .
+    from \<open>dist_increasing_cf cf'\<close> have DIST: "rg'.cf.connected s t \<longrightarrow> cf.min_dist s t < rg'.cf.min_dist s t"
+      unfolding dist_increasing_cf_def by simp
+    with CON_IF_NEQ RG show "cf' = cf \<or> cf' \<noteq> cf \<and> (cf', cf) \<in> cf_dist_rel" unfolding cf_dist_rel_def by blast
+    from CON_IF_NEQ show "cf' = cf \<longrightarrow>  isMaxFlow (flow_of_cf cf)"
+      by (metis DIST Graph.isPath_rtc Graph.isSimplePath_def cf.connected_edgeRtc f.isAugmentingPath_def f.noAugPath_iff_maxFlow f_def le_eq_less_or_eq linorder_not_le rg_fo_inv)
+  qed
+  finally show "dinitzPhaseRestructured
+  \<le> (spec s'.
+         (case s' of (cf', m) \<Rightarrow> RGraph c s t cf' \<and> (m \<or> isMaxFlow (flow_of_cf cf'))) \<and>
+         (prod.swap s', True, cf) \<in> less_than_bool <*lex*> cf_dist_rel)" .
 qed
 end
 \<comment> \<open>Restructuring\<close>
