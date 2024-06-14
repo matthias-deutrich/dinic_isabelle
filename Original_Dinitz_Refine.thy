@@ -519,10 +519,12 @@ proof (rule wf_subset)
     by (fastforce simp: cf_dist_rel_def greater_bounded_def)
 qed
 
-definition dinitzRestructured' :: "_ graph nres" where
+term RGraph.dinitzPhaseRestructured
+definition dinitzRestructured' :: "_ flow nres" where
   "dinitzRestructured' \<equiv> do {
     (cf, _) \<leftarrow> WHILE\<^sub>T snd (RGraph.dinitzPhaseRestructured s t \<circ> fst) (c, True);
-    return (flow_of_cf cf)}"
+    f \<leftarrow> return (flow_of_cf cf);
+    return f}"
 
 theorem dinitzRestructured_correct': "dinitzRestructured' \<le> (spec f. isMaxFlow f)"
   unfolding dinitzRestructured'_def
@@ -1195,6 +1197,25 @@ lemma subtractPathRefine_correct:
   unfolding subtractPathRefine_def subtract_path_def
   apply (simp split: list.splits add: nfoldli_to_fold pathCapRefine_correct)
   using assms subtractPathRefine_correct_aux by simp
+
+definition subtractSkewPathRefine :: "path \<Rightarrow> _ graph nres" where
+  "subtractSkewPathRefine p \<equiv> do {
+    cap \<leftarrow> pathCapRefine p;
+    c' \<leftarrow> nfoldli p (\<lambda>_. True) (\<lambda>e c'. return (subtractEdge e cap c')) c;
+    c' \<leftarrow> nfoldli p (\<lambda>_. True) (\<lambda>e c'. return (subtractEdge (prod.swap e) (- cap) c')) c';
+    return c'
+  }"
+
+lemma subtractSkewPathRefine_correct_aux:
+  "distinct p \<Longrightarrow> fold (\<lambda>e c'. subtractEdge (prod.swap e) cap c') p c = (\<lambda>e. if e \<in> (set p)\<inverse> then c e - cap else c e)"
+  unfolding subtractEdge_def by (induction p arbitrary: c) auto
+
+lemma subtractSkewPathRefine_correct:
+  assumes "distinct p"
+  shows "subtractSkewPathRefine p = return (subtract_skew_path p)"
+  unfolding subtractSkewPathRefine_def subtract_skew_path_def
+  by (auto split: list.splits simp: nfoldli_to_fold pathCapRefine_correct
+      subtractPathRefine_correct_aux[OF assms] Graph.subtractSkewPathRefine_correct_aux[OF assms])
 end
 \<comment> \<open>Subtracting a path\<close>
 
@@ -1807,16 +1828,16 @@ definition dinitzPhaseAssert :: "(_ graph \<times> bool) nres" where
             assert (Graph.isPath stl' s p t);
             assert (Dual_Shortest_Path_Union stl' cf' s t);
             stl'' \<leftarrow> return (Graph.subtract_path stl' p);
+            cf' \<leftarrow> return (Graph.subtract_skew_path cf' p);
             assert (Contained_Graph stl'' stl');
             assert (Graph.E stl' \<subseteq> Graph.E stl'' \<union> set p);
             stl'' \<leftarrow> spec c'. Dual_Path_Union c' stl'' s t;
-            cf' \<leftarrow> return (Graph.subtract_skew_path cf' p);
             return (cf', stl'', False, True)}})
       (cf, stl, False, False);
     return (cf', changed)}"
 
 lemma dinitzPhaseAssert_correct:
-  "dinitzPhaseAssert \<le> SPEC (\<lambda>(cf', changed). f.res_dist_increasing_flow (flow_of_cf cf') \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
+  "dinitzPhaseAssert \<le> SPEC (\<lambda>(cf', changed). dist_increasing_cf cf' \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
   unfolding dinitzPhaseAssert_def
   apply (refine_vcg WHILEIT_rule[where R=dinitzPhaseRestructured_wf_rel])
                       apply (all \<open>(simp add: dinitzPhaseRestructuredInvar_def; fail)?\<close>)
@@ -1829,7 +1850,7 @@ lemma dinitzPhaseAssert_correct:
       apply (simp add: dinitzPhaseRestructured_step dinitzPhaseRestructured_wf_rel_def)
      apply (simp add: dinitzPhaseRestructuredInvar_def Graph.connected_def)
     apply (simp add: dinitzPhaseRestructured_wf_rel_def)
-  using f.dinitzPhase_final dinitzPhaseRestructuredInvar_alt dinitzPhaseRestructuredInvar_def apply fastforce
+  apply (simp add: dinitzPhaseRestructured_final)
 proof clarsimp_all
 
   fix cf' stl p changed
@@ -1906,11 +1927,72 @@ qed
 lemma dinitzPhaseRefine_correct: "dinitzPhaseRefine \<le> SPEC (\<lambda>(f', changed). res_dist_increasing_flow f' \<and> changed = (f' \<noteq> f) \<and> (changed \<longrightarrow> cf.connected s t))"
   using dinitzPhaseRefine_refine dinitzPhaseAssert_correct by simp
 end
+
+context RGraph
+begin
+definition dinitzPhaseRefine :: "(_ graph \<times> bool) nres" where
+  "dinitzPhaseRefine \<equiv> do {
+    stl \<leftarrow> cf.buildDualLayering s t;
+    (cf', _, _, changed) \<leftarrow> WHILE\<^sub>T\<^bsup>dinitzPhaseRestructuredInvar\<^esup>
+      (\<lambda>(_, _, brk, _). \<not> brk)
+      (\<lambda>(cf', stl', _, changed). do {
+        p_opt \<leftarrow> Graph.greedyPathFinding stl' s t;
+        case p_opt of
+          None \<Rightarrow> return (cf', stl', True, changed)
+        | Some p \<Rightarrow> do {
+            stl'' \<leftarrow> Graph.subtractPathRefine stl' p;
+            cf' \<leftarrow> Graph.subtractSkewPathRefine cf' p;
+            stl'' \<leftarrow> cleaningRefine p stl'';
+            return (cf', stl'', False, True)}})
+      (cf, stl, False, False);
+    return (cf', changed)}"
+
+lemma dinitzPhaseRefine_refine:
+  notes [refine_dref_pattern] = RELATESI_in_spec
+  shows "dinitzPhaseRefine \<le> \<Down> Id dinitzPhaseAssert"
+  unfolding dinitzPhaseRefine_def dinitzPhaseAssert_def
+proof (refine_rcg, refine_dref_type, clarsimp_all)
+  show "cf.buildDualLayering s t \<le> (spec c'. Dual_Shortest_Path_Union c' cf s t)"
+    using cf.buildDualLayering_correct .
+
+  fix cf' stl' changed
+  assume "dinitzPhaseRestructuredInvar (cf', stl', False, changed)"
+  then interpret bdspu: Bounded_Dual_Shortest_Path_Union stl' cf' s t "cf.min_dist s t"
+    unfolding dinitzPhaseRestructuredInvar_def by blast
+  show "bdspu.g'.greedyPathFinding s t \<le> (select p. bdspu.g'.isPath s p t)"
+    using bdspu.greedyPathFinding_correct .
+next
+  fix cf' stl' p changed
+  assume "Dual_Shortest_Path_Union stl' cf' s t"
+    and INVAR: "dinitzPhaseRestructuredInvar (cf', stl', False, changed)"
+  then interpret dspu: Dual_Shortest_Path_Union stl' cf' s t by blast
+  from INVAR interpret rg': RGraph c s t cf' unfolding dinitzPhaseRestructuredInvar_def by blast
+
+  assume PATH: "dspu.g'.isPath s p t"
+  then have "dspu.g'.subtractPathRefine p = return (dspu.g'.subtract_path p)"
+    using dspu.g'.isSPath_distinct dspu.paths_are_simple dspu.g'.subtractPathRefine_correct by blast
+  then show "dspu.g'.subtractPathRefine p \<le> RES {dspu.g'.subtract_path p}" by simp
+
+  from PATH have "dspu.subtractSkewPathRefine p = return (dspu.subtract_skew_path p)"
+    using dspu.g'.isSPath_distinct dspu.paths_are_simple dspu.subtractSkewPathRefine_correct by blast
+  then show "dspu.subtractSkewPathRefine p \<le> RES {dspu.subtract_skew_path p}" by simp
+
+  fix stl''
+  assume "Contained_Graph stl'' stl'" "dspu.E' \<subseteq> Graph.E stl'' \<union> set p"
+  with PATH show "cleaningRefine p stl'' \<le> (spec c''. Dual_Path_Union c'' stl'' s t)"
+    using dspu.Finite_Graph_EI dspu.sub_Finite_Graph dspu.cleaningRefine_correct by blast
+qed
+
+lemma dinitzPhaseRefine_correct:
+  "dinitzPhaseRefine \<le> SPEC (\<lambda>(cf', changed). dist_increasing_cf cf' \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
+  using dinitzPhaseRefine_refine dinitzPhaseAssert_correct by simp
+end
 \<comment> \<open>Refining the assertion version\<close>
 
 subsection \<open>Dinitz outer loop refinement\<close>
 context Network
 begin
+(*
 definition dinitzRefine :: "_ flow nres" where
   "dinitzRefine \<equiv> do {
     (f, _) \<leftarrow> WHILE\<^sub>T snd (NFlow.dinitzPhaseRefine c s t \<circ> fst) (\<lambda>_. 0, True);
@@ -1942,6 +2024,44 @@ proof -
       using Graph.connected_def Graph.isSimplePath_fwd n'.fofu_III_I n'.fofu_II_III n'.isAugmentingPath_def DIST by blast
   qed 
   finally show "dinitzPhaseRefine \<le> (spec s'. (case s' of (f', m) \<Rightarrow> NFlow c s t f' \<and> (m \<or> isMaxFlow f')) \<and> (prod.swap s', True, f) \<in> less_than_bool <*lex*> res_dist_rel)" .
+qed
+*)
+
+definition dinitzRefine :: "_ flow nres" where
+  "dinitzRefine \<equiv> do {
+    (cf, _) \<leftarrow> WHILE\<^sub>T snd (RGraph.dinitzPhaseRefine c s t \<circ> fst) (c, True);
+    f \<leftarrow> return (flow_of_cf cf);
+    return f}"
+
+theorem dinitzRefine_correct: "dinitzRefine \<le> (spec f. isMaxFlow f)"
+  unfolding dinitzRefine_def
+  apply (refine_vcg WHILET_rule[where I="\<lambda>(cf, m). RGraph c s t cf \<and> (m \<or> isMaxFlow (flow_of_cf cf))"
+          and R="inv_image (less_than_bool <*lex*> cf_dist_rel) prod.swap"])
+      apply (fastforce simp: cf_dist_rel_wf)
+     apply (clarsimp_all simp: c_is_RGraph)
+proof -
+  fix cf
+  assume RG: "RGraph c s t cf"
+  then interpret RGraph c s t cf .
+  have "dinitzPhaseRefine \<le> SPEC (\<lambda>(cf', changed). dist_increasing_cf cf' \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
+    using dinitzPhaseRefine_correct .
+  also have "... \<le> (spec s'. (case s' of (cf', m) \<Rightarrow> RGraph c s t cf' \<and> (m \<or> isMaxFlow (flow_of_cf cf'))) \<and> (prod.swap s', True, cf) \<in> less_than_bool <*lex*> cf_dist_rel)"
+  proof (clarsimp, intro conjI)
+    fix cf'
+    assume "dist_increasing_cf cf'" and CON_IF_NEQ: "(cf' \<noteq> cf) \<longrightarrow> cf.connected s t"
+    then show "RGraph c s t cf'"
+      unfolding dist_increasing_cf_def by simp
+    then interpret rg': RGraph c s t cf' .
+    from \<open>dist_increasing_cf cf'\<close> have DIST: "rg'.cf.connected s t \<longrightarrow> cf.min_dist s t < rg'.cf.min_dist s t"
+      unfolding dist_increasing_cf_def by simp
+    with CON_IF_NEQ RG show "cf' = cf \<or> cf' \<noteq> cf \<and> (cf', cf) \<in> cf_dist_rel" unfolding cf_dist_rel_def by blast
+    from CON_IF_NEQ show "cf' = cf \<longrightarrow>  isMaxFlow (flow_of_cf cf)"
+      by (metis DIST Graph.isPath_rtc Graph.isSimplePath_def cf.connected_edgeRtc f.isAugmentingPath_def f.noAugPath_iff_maxFlow f_def le_eq_less_or_eq linorder_not_le rg_fo_inv)
+  qed
+  finally show "dinitzPhaseRefine
+  \<le> (spec s'.
+         (case s' of (cf', m) \<Rightarrow> RGraph c s t cf' \<and> (m \<or> isMaxFlow (flow_of_cf cf'))) \<and>
+         (prod.swap s', True, cf) \<in> less_than_bool <*lex*> cf_dist_rel)" .
 qed
 end
 \<comment> \<open>Dinitz outer loop refinement\<close>
