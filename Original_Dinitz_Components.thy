@@ -46,7 +46,7 @@ definition transferEdges :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ grap
   "transferEdges S c' = (\<lambda>e. if e \<in> S then c e else c' e)"
 
 definition transferEdgesRefine :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
-  "transferEdgesRefine S c' \<equiv> foreach S (\<lambda>e c'. return (transferEdge e c')) c'"
+  "transferEdgesRefine S c' \<equiv> foreach S (return \<circ>\<circ> transferEdge) c'"
 
 lemma transferEdge_alt: "transferEdge e c' = (\<lambda>e'. if e' = e then c e' else c' e')"
   unfolding transferEdge_def by fastforce
@@ -682,10 +682,10 @@ subsection \<open>Cleaning\<close>
 
 subsubsection \<open>Deleting a set of edges\<close>
 definition deleteEdges :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph" where
-  "deleteEdges R c \<equiv> \<lambda>e. if e \<in> R then 0 else c e"
+  "deleteEdges S c \<equiv> \<lambda>e. if e \<in> S then 0 else c e"
 
 definition deleteEdgesRefine :: "edge set \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
-  "deleteEdgesRefine R c \<equiv> foreach R (return \<circ>\<circ> deleteEdge) c"
+  "deleteEdgesRefine S c \<equiv> foreach S (return \<circ>\<circ> deleteEdge) c"
 
 lemma deleteEdgesRefine_correct: "finite R \<Longrightarrow> deleteEdgesRefine R c \<le> return (deleteEdges R c)"
   unfolding deleteEdgesRefine_def
