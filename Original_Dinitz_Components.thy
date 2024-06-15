@@ -540,39 +540,6 @@ text \<open>Used primitives:
   - RES (outgoing u) / checking outgoing u for emptiness
   - checking whether s is a vertex
   - list Cons\<close>
-(*
-definition (in Graph) greedyPathFinding :: "node \<Rightarrow> node \<Rightarrow> path option nres" where
-  "greedyPathFinding s t \<equiv> do {
-    if s = t
-      then return (Some [])
-      else do {
-        (p, _, found, _) \<leftarrow> WHILE\<^sub>T
-          (\<lambda>(_, _, _, brk). \<not> brk)
-          (\<lambda>(p, u, _, _). do {
-            if (outgoing u = {})
-              then return (p, u, False, True)
-            else do {
-              e \<leftarrow> RES (outgoing u);
-              let p = e # p;
-              let u = snd e;
-              let found = (u = t);
-              return (p, u, found, found)}})
-          ([], s, False, s \<notin> V);
-        return (if found then Some (rev p) else None)}}"
-
-(* TODO prettify *)
-lemma (in Dual_Layer_Graph) greedyPathFinding_correct:
-  "greedyPathFinding s t \<le> SELECT (\<lambda>p. isPath s p t)"
-  unfolding greedyPathFinding_def SELECT_as_SPEC
-  apply (refine_vcg WHILET_rule[where R="inv_image (greater_bounded (min_dist s t)) (length \<circ> fst)"
-          and I="\<lambda>(p, u, found, brk). isPath s (rev p) u \<and> found = (u = t) \<and> (brk = (outgoing u = {}))"])
-               apply clarsimp_all
-  using isEmpty_def no_outgoingD outgoing_edges s_in_V_if_nonempty apply blast
-     apply (fastforce intro: isPath_append_edge)
-    apply (metis Graph.connected_append_edge Graph.connected_refl Graph.distinct_nodes_in_V_if_connected(2) Graph.in_outgoingD no_outgoingD obtain_back_terminal_connected)
-  using b_length_paths_are_terminal(2) le_antisym path_length_bounded length_rev not_less_eq_eq apply metis
-  by (metis Graph.connected_def Graph.distinct_nodes_in_V_if_connected(2) Graph.empty_connected no_outgoingD s_in_V_if_nonempty)
-*)
 
 definition (in Graph) greedyPathFinding :: "node \<Rightarrow> node \<Rightarrow> path option nres" where
   "greedyPathFinding s t \<equiv> do {
@@ -647,7 +614,25 @@ lemma subtractPathRefine_correct:
   unfolding subtractPathRefine_def subtract_path_def
   apply (simp split: list.splits add: nfoldli_to_fold pathCapRefine_correct)
   using assms subtractPathRefine_correct_aux by simp
+end
 
+definition subtractSkewEdgeRefine :: "edge \<Rightarrow> ('capacity::linordered_idom) \<Rightarrow> _ graph \<Rightarrow> _ graph nres" where
+  "subtractSkewEdgeRefine e cap c = do {
+    c \<leftarrow> return (subtractEdge e cap c);
+    c \<leftarrow> return (subtractEdge (prod.swap e) (- cap) c);
+    return c
+  }"
+
+lemma subtractSkewEdgeRefine_correct:
+  "subtractSkewEdgeRefine e cap c = return (subtractEdge (prod.swap e) (- cap) (subtractEdge e cap c))"
+  unfolding subtractSkewEdgeRefine_def by simp
+(*
+lemma subtractSkewEdgeRefine_correct':
+  "subtractSkewEdgeRefine e cap = (\<lambda> c. return (subtractEdge (prod.swap e) (- cap) (subtractEdge e cap c)))"
+  unfolding subtractSkewEdgeRefine_def by simp*)
+
+context Graph
+begin
 definition subtractSkewPathRefine :: "path \<Rightarrow> _ graph nres" where
   "subtractSkewPathRefine p \<equiv> do {
     cap \<leftarrow> pathCapRefine p;
@@ -666,6 +651,37 @@ lemma subtractSkewPathRefine_correct:
   unfolding subtractSkewPathRefine_def subtract_skew_path_def
   by (auto split: list.splits simp: nfoldli_to_fold pathCapRefine_correct
       subtractPathRefine_correct_aux[OF assms] Graph.subtractSkewPathRefine_correct_aux[OF assms])
+
+(*
+definition subtractSkewPathRefine :: "path \<Rightarrow> _ graph nres" where
+  "subtractSkewPathRefine p \<equiv> do {
+    cap \<leftarrow> pathCapRefine p;
+    c' \<leftarrow> nfoldli p (\<lambda>_. True) (\<lambda>e c'. subtractSkewEdgeRefine e cap c') c;
+    return c'
+  }"
+
+thm nfoldli_to_fold
+thm subtractSkewEdgeRefine_correct'
+thm subtractSkewPathRefine_correct_aux
+lemma subtractSkewPathRefine_correct:
+  assumes "distinct p"
+  shows "subtractSkewPathRefine p = return (subtract_skew_path p)"
+  unfolding subtractSkewPathRefine_def subtract_skew_path_def
+  thm subtractPathRefine_correct_aux[OF assms]
+  thm Graph.subtractSkewPathRefine_correct_aux[OF assms]
+  apply (simp split: list.splits add: nfoldli_to_fold subtractSkewEdgeRefine_correct pathCapRefine_correct)
+  using Graph.subtractSkewPathRefine_correct_aux[OF assms] subtractPathRefine_correct_aux[OF assms] sledgehammer
+  apply auto
+  apply (simp add: Graph.subtractSkewPathRefine_correct_aux[OF assms])
+  using subtractPathRefine_correct_aux[OF assms] Graph.subtractSkewPathRefine_correct_aux[OF assms]
+  apply clarsimp
+  apply auto
+  apply (auto simp: Graph.subtractSkewPathRefine_correct_aux[OF assms])
+
+
+  by (auto split: list.splits simp: nfoldli_to_fold pathCapRefine_correct
+      subtractPathRefine_correct_aux[OF assms] Graph.subtractSkewPathRefine_correct_aux[OF assms])
+*)
 end
 \<comment> \<open>Subtracting a path\<close>
 
