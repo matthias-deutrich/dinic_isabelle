@@ -317,7 +317,7 @@ context NFlow
 begin
 definition dinitzPhase :: "_ flow nres" where
   "dinitzPhase \<equiv> do {
-    let stl = Graph.induced_dual_layering cf s t;
+    let stl = cf.induced_dual_layering s t;
     (f', _) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, stl'). Graph.connected stl' s t)
       (\<lambda>(f', stl'). do {
@@ -329,11 +329,11 @@ definition dinitzPhase :: "_ flow nres" where
     return f'}"
 thm Graph.subtract_path_alt
 
-definition dinitzPhaseInvar :: "(_ flow \<times> _ graph) \<Rightarrow> bool" where
+definition dinitzPhaseInvar :: "_ flow \<times> _ graph \<Rightarrow> bool" where
   "dinitzPhaseInvar \<equiv> \<lambda>(f', stl).
     NFlow c s t f'
     \<and> Bounded_Dual_Shortest_Path_Union stl (cf_of f') s t (cf.min_dist s t)
-    \<and> (Graph.connected (cf_of f') s t \<longrightarrow> (cf.min_dist s t) \<le> (Graph.min_dist (cf_of f') s t))"
+    \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t \<le> Graph.min_dist (cf_of f') s t)"
 
 (* TODO use this in phase step *)
 lemma dual_spu_if_invar_and_path:

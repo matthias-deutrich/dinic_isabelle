@@ -339,7 +339,7 @@ begin
 definition dinitzPhaseRefine :: "(_ graph \<times> bool) nres" where
   "dinitzPhaseRefine \<equiv> do {
     stl \<leftarrow> cf.buildDualLayering s t;
-    (cf', _, _, changed) \<leftarrow> WHILE\<^sub>T\<^bsup>dinitzPhaseRestructuredInvar\<^esup>
+    (cf', _, _, changed) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, _, brk, _). \<not> brk)
       (\<lambda>(cf', stl', _, changed). do {
         p_opt \<leftarrow> Graph.greedyPathFinding stl' s t;
@@ -400,7 +400,7 @@ context Network
 begin
 definition dinitzRefine :: "_ flow nres" where
   "dinitzRefine \<equiv> do {
-    (cf, _) \<leftarrow> WHILE\<^sub>T snd (RGraph.dinitzPhaseRefine c s t \<circ> fst) (c, True);
+    (cf, _) \<leftarrow> WHILE\<^sub>T snd (RGraph.dinitzPhaseRefine s t \<circ> fst) (c, True);
     f \<leftarrow> return (flow_of_cf cf);
     return f}"
 

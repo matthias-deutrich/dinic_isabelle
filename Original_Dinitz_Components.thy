@@ -93,8 +93,6 @@ text \<open>NOTE: For the correctness proofs, we need "V_i = Graph.V c' \<union>
 
 context Graph
 begin
-(* TODO here we directly use the refined version of transferEdges, where in rightPass we first
-  use the abstract version and refine later. Unify! *)
 definition ebfsPhase :: "node set \<Rightarrow> _ graph \<Rightarrow> node set \<Rightarrow> (_ graph \<times> node set) nres" where
   "ebfsPhase V\<^sub>i c' Q \<equiv> foreach Q
     (\<lambda>u (c', Q'). do {
@@ -371,9 +369,7 @@ end
 \<comment> \<open>Extended Breadth First Search Outer Loop\<close>
 
 subsubsection \<open>Backward EBFS\<close>
-context Graph
-begin
-definition ebfsBackward :: "node \<Rightarrow> _ graph nres" where
+definition (in Graph) ebfsBackward :: "node \<Rightarrow> _ graph nres" where
   "ebfsBackward t \<equiv> do {
     (c', _, _) \<leftarrow> WHILE\<^sub>T
       (\<lambda>(_, Q, _). Q \<noteq> {})
@@ -419,17 +415,17 @@ qed
 lemma symmetric_spu: "Target_Shortest_Path_Union c' c t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
 proof
   assume "Target_Shortest_Path_Union c' c t"
-  then interpret spu: Target_Shortest_Path_Union c' c t .
+  then interpret Target_Shortest_Path_Union c' c t .
   show "Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
   proof
     show "\<And>e. (c'\<^sup>T) e = 0 \<or> (c\<^sup>T) e = 0 \<or> (c'\<^sup>T) e = (c\<^sup>T) e"
-      using spu.cap_compatible by fastforce
+      using cap_compatible by fastforce
     show "Graph.E (c'\<^sup>T) = \<Union> {set p |p. \<exists>s \<in> Graph.V (c\<^sup>T). Graph.isShortestPath (c\<^sup>T) t p s}"
     proof (simp, intro pair_set_eqI)
       fix u v
-      assume "(u, v) \<in> spu.E'\<inverse>"
+      assume "(u, v) \<in> E'\<inverse>"
       then obtain s p where "(v, u) \<in> set p" "s \<in> V" "isShortestPath s p t"
-        using spu.target_path_union by blast
+        using target_path_union by blast
       then have "(u, v) \<in> set (transpose_path p)" "isShortestPath s (transpose_path (transpose_path p)) t"
         by auto
       with \<open>s \<in> V\<close> show "(u, v) \<in> \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s (transpose_path p) t}"
@@ -437,20 +433,21 @@ proof
     next
       fix u v
       assume "(u, v) \<in> \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s (transpose_path p) t}"
-      then show "(u, v) \<in> spu.E'\<inverse>" using spu.target_path_union by fastforce
+      then show "(u, v) \<in> E'\<inverse>" using target_path_union by fastforce
     qed
   qed
 next
+  interpret Graph_Comparison c' c .
   assume "Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t"
   then interpret spu: Source_Shortest_Path_Union "c'\<^sup>T" "c\<^sup>T" t by simp
   show "Target_Shortest_Path_Union c' c t"
   proof
     show "\<And>e. c' e = 0 \<or> c e = 0 \<or> c' e = c e"
       using spu.cap_compatible by fastforce
-    show "Graph.E c' = \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s p t}"
+    show "E' = \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s p t}"
     proof (intro pair_set_eqI)
       fix u v
-      assume "(u, v) \<in> Graph.E c'"
+      assume "(u, v) \<in> E'"
       then obtain s p where "(v, u) \<in> set p" "s \<in> V" "spu.isShortestPath t p s"
         using spu.source_path_union by fastforce
       then show "(u, v) \<in> \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s p t}"
@@ -458,7 +455,7 @@ next
     next
       fix u v
       assume "(u, v) \<in> \<Union> {set p |p. \<exists>s\<in>V. isShortestPath s p t}"
-      then obtain s p where "(u, v) \<in> set p" "s \<in> V" "Graph.isShortestPath c s p t"
+      then obtain s p where "(u, v) \<in> set p" "s \<in> V" "isShortestPath s p t"
         by blast
       then have "(v, u) \<in> set (transpose_path p)" "spu.isShortestPath t (transpose_path p) s" by auto
       with \<open>s \<in> V\<close> have "(v, u) \<in> spu.E'" using spu.source_path_union transpose_V by blast
@@ -467,19 +464,16 @@ next
   qed
 qed
 
-lemma  ebfsBackward_correct:
+lemma (in Graph) ebfsBackward_correct:
   assumes FINITE_REACHED_FROM: "finite {u. connected u t}"
   shows "ebfsBackward t \<le> (spec c'. Target_Shortest_Path_Union c' c t)"
 proof -
   interpret Symmetric_Graph_Algorithms "swap_args2 Graph.ebfsBackward t" "swap_args2 Graph.ebfs t"
     using symmetric_ebfs .
   have "swap_args2 Graph.ebfsBackward t c \<le> (spec c'. Target_Shortest_Path_Union c' c t)"
-    (*using dual_spu apply (auto elim!: transfer_spec)*)
-    (*thm dual_spu[THEN transfer_spec]*)
-    (*thm transfer_spec[OF dual_spu]*)
   proof (intro transfer_spec[where abst'="\<lambda>c c'. Source_Shortest_Path_Union c' c t"])
     show "\<And>c c'. Target_Shortest_Path_Union c' c t = Source_Shortest_Path_Union (c'\<^sup>T) (c\<^sup>T) t "
-      using Graph.symmetric_spu .
+      using symmetric_spu .
     from FINITE_REACHED_FROM have "finite (Graph.reachableNodes (c\<^sup>T) t)"
       unfolding Graph.reachableNodes_def by simp
     then show "swap_args2 Graph.ebfs t (c\<^sup>T) \<le> (spec c'. Source_Shortest_Path_Union c' (c\<^sup>T) t)"
@@ -487,7 +481,6 @@ proof -
   qed
   then show ?thesis by simp
 qed
-end
 \<comment> \<open>Backward EBFS\<close>
 
 subsubsection \<open>Building a dual layering\<close>
