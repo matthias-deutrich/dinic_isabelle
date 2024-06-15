@@ -311,7 +311,6 @@ end
 
 subsection \<open>Dinitz inner loop\<close>
 
-(* TODO *)
 interpretation Refine_Monadic_Syntax .
 
 context NFlow
