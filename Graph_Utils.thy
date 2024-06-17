@@ -335,7 +335,8 @@ next
   qed
 qed
 
-lemma obtain_front_terminal_path: obtains u p where "isPath u p v" "incoming u = {}"
+lemma obtain_front_terminal_path:
+  fixes v obtains u p where "isPath u p v" "incoming u = {}"
   using ex_front_terminal_path by (meson Graph.isPath.simps(1))
 
 corollary obtain_front_terminal_connected: obtains u where "connected u v" "incoming u = {}"
@@ -360,7 +361,7 @@ next
   qed
 qed
 
-lemma obtain_back_terminal_path: obtains v p where "isPath u p v" "outgoing v = {}"
+lemma obtain_back_terminal_path: fixes u obtains v p where "isPath u p v" "outgoing v = {}"
   using ex_back_terminal_path by (meson Graph.isPath.simps(1))
 
 corollary obtain_back_terminal_connected: obtains v where "connected u v" "outgoing v = {}"
