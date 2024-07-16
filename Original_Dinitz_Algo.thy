@@ -93,49 +93,37 @@ qed (simp add: Dual_Shortest_Path_Union_layeringI)
 \<comment> \<open>Building a layering from an arbitrary graph\<close>
 
 subsection \<open>Properties when removing a flow from the ST_Layering\<close>
-(*locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f': Flow stl s t f'
-  for c s t f stl f'*)
-locale ST_Layered_Flow = NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f'_stl: Contained_Graph f' stl
-  for c s t f stl f'
+text \<open>The Graph locales stl and f' lead to cleaner names.\<close>
+locale ST_Layered_Flow =
+  stl: Graph stl + f': Graph f' +
+  NFlow c s t f + Dual_Shortest_Path_Union stl cf s t + f'_stl: Contained_Graph f' stl
+  for c :: "'capacity::linordered_idom graph" and s t and f stl f' :: "'capacity graph"
 begin
-interpretation g': Irreducible_Graph stl
+interpretation stl: Irreducible_Graph stl
   unfolding Irreducible_Graph_def Irreducible_Graph_axioms_def
   using no_parallel_edge cf.Nonnegative_Graph_axioms sg_Nonnegative_Graph by blast
 
-abbreviation "stl' \<equiv> Graph.cleaning (g'.subtract_graph f') s t"
-interpretation stl': Graph stl' .
-
-abbreviation "aug_cf \<equiv> cf_of (augment f')"
-interpretation aug_cf: Graph_Comparison stl' aug_cf .
-
 interpretation f'_stl: Pos_Contained_Graph f' stl
-  by (meson Pos_Contained_Graph_leI f'_stl.cap_abs_bounded g'.cap_non_negative order_trans)
+  by (meson Pos_Contained_Graph_leI f'_stl.cap_abs_bounded stl.cap_non_negative order_trans)
 
 interpretation f'_cf: Pos_Contained_Graph f' cf
   by unfold_locales (metis c'_sg_c_old f'_stl.cap_le f'_stl.cap_nonzero resE_nonNegative)
 
-interpretation cleaning: Dual_Path_Union stl' "g'.subtract_graph f'"
-  using Dual_Path_Union_cleaningI .
-
-find_theorems name:augment_alt
-find_theorems "residualGraph ?c (NFlow.augment ?c ?f ?f') = Graph.subtract_skew_graph (residualGraph ?c ?f) ?f'"
-find_theorems "Contained_Graph ?f' cf \<Longrightarrow> cf_of (augment ?f') = cf.subtract_skew_graph ?f'"
+abbreviation "aug_cf \<equiv> cf_of (augment f')"
+interpretation aug_cf: Graph aug_cf .
 
 lemma aug_cf_alt: "aug_cf = cf.subtract_skew_graph f'"
-  using augment_alt' f'_cf.Contained_Graph_axioms .
+  by (rule augment_alt') intro_locales
+
+abbreviation "stl' \<equiv> Graph.cleaning (stl.subtract_graph f') s t"
+interpretation stl_minus_f': Graph "stl.subtract_graph f'" .
+interpretation stl': Graph stl' .
 
 definition new_edge_count :: "path \<Rightarrow> nat"
   where "new_edge_count p \<equiv> length (filter (\<lambda>e. e \<notin> cf.E) p)"
 
-thm path_prelayered
-thm g'.E_def
-thm cf.E_def
-thm aug_cf.E_def
-thm stl'.E_def
-find_theorems "layer ?v \<le> layer ?u + length ?p"
-
 lemma aug_cf_new_edge_prelayered:
-  "\<lbrakk>u \<in> V'; v \<in> V'; aug_cf.isPath u p v\<rbrakk> \<Longrightarrow> layer v + 2 * new_edge_count p \<le> layer u + length p"
+  "\<lbrakk>u \<in> stl.V; v \<in> stl.V; aug_cf.isPath u p v\<rbrakk> \<Longrightarrow> layer v + 2 * new_edge_count p \<le> layer u + length p"
 proof (induction "new_edge_count p" arbitrary: u p v rule: less_induct)
   case less
   then show ?case
@@ -158,14 +146,14 @@ proof (induction "new_edge_count p" arbitrary: u p v rule: less_induct)
       using aug_cf.isPath_append by auto
 
     from P less.prems have "(w\<^sub>1, w\<^sub>2) \<in> aug_cf.E" using aug_cf.isPath_append by simp
-    with W_NOT_CF have "(w\<^sub>2, w\<^sub>1) \<in> Graph.E f'"
+    with W_NOT_CF have "(w\<^sub>2, w\<^sub>1) \<in> f'.E"
       unfolding aug_cf_alt using f'_cf.subtract_skew_edges_sub by blast
     then have "(w\<^sub>2, w\<^sub>1) \<in> E'" using f'_stl.E_ss by blast
-    then have "w\<^sub>1 \<in> V'" "w\<^sub>2 \<in> V'" and W_L: "layer w\<^sub>1 = Suc (layer w\<^sub>2)" unfolding g'.V_def by auto
+    then have "w\<^sub>1 \<in> V'" "w\<^sub>2 \<in> V'" and W_L: "layer w\<^sub>1 = Suc (layer w\<^sub>2)" unfolding stl.V_def by auto
 
     show ?thesis using W_NOT_CF
-        less.hyps[OF P1_COUNT \<open>u \<in> V'\<close> \<open>w\<^sub>1 \<in> V'\<close> P1_PATH]
-        less.hyps[OF P2_COUNT \<open>w\<^sub>2 \<in> V'\<close> \<open>v \<in> V'\<close> P2_PATH]
+        less.hyps[OF P1_COUNT \<open>u \<in> stl.V\<close> \<open>w\<^sub>1 \<in> stl.V\<close> P1_PATH]
+        less.hyps[OF P2_COUNT \<open>w\<^sub>2 \<in> stl.V\<close> \<open>v \<in> stl.V\<close> P2_PATH]
       by (simp add: W_L P new_edge_count_def)
   qed
 qed
@@ -176,6 +164,7 @@ corollary "\<lbrakk>u \<in> V'; v \<in> V'; aug_cf.isPath u p v\<rbrakk> \<Longr
   using aug_cf_new_edge_prelayered try0
 *)
 
+(*
 lemma st_min_dist_non_decreasing: "aug_cf.connected s t \<Longrightarrow> cf.min_dist s t \<le> aug_cf.min_dist s t"
 proof (cases "Graph.isEmpty f'")
   case True
@@ -193,18 +182,43 @@ next
     using aug_cf.shortestPath_is_path aug_cf_new_edge_prelayered by fastforce
   finally show ?thesis using SP' aug_cf.isShortestPath_min_dist_def by simp
 qed
+*)
+
+lemma st_min_dist_non_decreasing: "min_dist_less_eq s t cf aug_cf"
+proof (cases f'.isEmpty)
+  case True
+  then show ?thesis unfolding aug_cf_alt cf.subtract_skew_graph_def Graph.isEmpty_def by simp
+next
+  case False
+  then have IN_STL_V: "s \<in> stl.V" "t \<in> stl.V"
+    using f'_stl.E_ss s_in_V_if_nonempty t_in_V_if_nonempty
+    unfolding Graph.isEmpty_def by auto
+  then have CF_LAYER: "cf.min_dist s t = layer t" using min_dist_transfer s_connected by simp
+
+  show ?thesis unfolding min_dist_less_eq_def
+  proof (intro impI conjI)
+    from IN_STL_V show "cf.connected s t" using s_connected st_connected_iff by blast
+
+    assume AUG_CON: "aug_cf.connected s t"
+    then obtain p where SP': "aug_cf.isShortestPath s p t" by (rule aug_cf.obtain_shortest_path)
+    with IN_STL_V have "layer t \<le> length p"
+      using aug_cf.shortestPath_is_path aug_cf_new_edge_prelayered by fastforce
+    with CF_LAYER show "cf.min_dist s t \<le> aug_cf.min_dist s t"
+      using SP' aug_cf.isShortestPath_min_dist_def by fastforce
+  qed
+qed
 
 lemma aug_cf_path_transfer:
-  "\<lbrakk>aug_cf.isPath u p v; g'.isPath u p v\<rbrakk> \<Longrightarrow> Graph.isPath (g'.subtract_graph f') u p v"
+  "\<lbrakk>aug_cf.isPath u p v; stl.isPath u p v\<rbrakk> \<Longrightarrow> stl_minus_f'.isPath u p v"
 proof (unfold Graph.isPath_alt, clarify)
   fix w\<^sub>1 w\<^sub>2
-  assume "(w\<^sub>1, w\<^sub>2) \<in> set p" "set p \<subseteq> aug_cf.E" "set p \<subseteq> E'"
-  then have assms: "(w\<^sub>1, w\<^sub>2) \<in> aug_cf.E" "(w\<^sub>1, w\<^sub>2) \<in> E'" by auto
-  then have "(w\<^sub>2, w\<^sub>1) \<notin> E'" using no_parallel_edge by blast
+  assume "(w\<^sub>1, w\<^sub>2) \<in> set p" "set p \<subseteq> aug_cf.E" "set p \<subseteq> stl.E"
+  then have assms: "(w\<^sub>1, w\<^sub>2) \<in> aug_cf.E" "(w\<^sub>1, w\<^sub>2) \<in> stl.E" by auto
+  then have "(w\<^sub>2, w\<^sub>1) \<notin> stl.E" using no_parallel_edge by blast
   then have "f' (w\<^sub>2, w\<^sub>1) = 0"
-    using Graph.zero_cap_simp f'_stl.E_ss by blast
-  with assms show "(w\<^sub>1, w\<^sub>2) \<in> Graph.E (g'.subtract_graph f')"
-    unfolding Graph.E_def aug_cf_alt g'.subtract_graph_def cf.subtract_skew_graph_def
+    using f'.zero_cap_simp f'_stl.E_ss by blast
+  with assms show "(w\<^sub>1, w\<^sub>2) \<in> stl_minus_f'.E"
+    unfolding Graph.E_def aug_cf_alt stl.subtract_graph_def cf.subtract_skew_graph_def
     by simp (metis cap_compatible cap_nonzero)
 qed
 
@@ -212,48 +226,45 @@ lemma cleaning_maintains_bounded_union:
   "Bounded_Dual_Shortest_Path_Union stl' aug_cf s t (cf.min_dist s t)"
 proof (cases "Graph.isEmpty f'")
   case True
-  then have "(g'.subtract_graph f') = stl"
-    unfolding Graph.isEmpty_def g'.subtract_graph_def by auto
+  then have "(stl.subtract_graph f') = stl"
+    unfolding Graph.isEmpty_def stl.subtract_graph_def by auto
   then have "stl' = stl"
-    unfolding Graph.cleaning_def using g'.V_def g'.zero_cap_simp by fastforce
+    unfolding Graph.cleaning_def using stl.V_def stl.zero_cap_simp by fastforce
   moreover from True have "aug_cf = cf"
     unfolding Graph.isEmpty_def aug_cf_alt cf.subtract_skew_graph_def by simp
   moreover note Dual_Shortest_Path_Union_axioms
   ultimately show ?thesis  by (simp add: min_st_dist_bound)
 next
   case False
-  then have ST_IN_V': "s \<in> V'" "t \<in> V'"
+  then have IN_STL_V: "s \<in> stl.V" "t \<in> stl.V"
     using f'_stl.E_ss s_in_V_if_nonempty t_in_V_if_nonempty
     unfolding Graph.isEmpty_def by auto
 
-  (* TODO make SUB an interpretation *)
+  interpret cleaning: Dual_Path_Union stl' "stl.subtract_graph f'"
+    using Dual_Path_Union_cleaningI .
+  interpret subtract_subgraph: Subgraph "stl.subtract_graph f'" aug_cf unfolding aug_cf_alt
+    by (rule irreducible_contained_skew_subtract) intro_locales
+  interpret stl'_sub_aug_cf: Subgraph stl' aug_cf
+    by (rule subgraph.order_trans[where y="stl.subtract_graph f'"]) intro_locales
 
-
-  have "Subgraph stl' (g'.subtract_graph f')" by intro_locales
-  also have SUB: "Subgraph ... aug_cf" unfolding aug_cf_alt
-    using irreducible_contained_skew_subtract f'_stl.Contained_Graph_axioms g'.Irreducible_Graph_axioms .
-  finally interpret Capacity_Compatible stl' aug_cf
-    unfolding Subgraph_def by blast
   show ?thesis
   proof (unfold_locales, intro pair_set_eqI)
-    (*show "aug_cf.E' = \<Union> {set p |p. aug_cf.isShortestPath s p t \<and> length p \<le> cf.min_dist s t}"*)
     fix u v
     assume "(u, v) \<in> stl'.E"
-    then obtain p where "Graph.isPath (g'.subtract_graph f') s p t" "(u, v) \<in> set p"
+    then obtain p where "stl_minus_f'.isPath s p t" "(u, v) \<in> set p"
       using cleaning.dual_path_union by blast
-    with SUB have "aug_cf.isPath s p t"
-      using Subgraph_def Subset_Graph.sub_path by blast
+    then have "aug_cf.isPath s p t" using subtract_subgraph.sub_path by blast
     moreover have "length p = cf.min_dist s t"
     proof -
-      interpret f'': Contained_Graph "g'.subtract_graph f'" stl
+      interpret f'': Contained_Graph "stl.subtract_graph f'" stl
         using f'_stl.subtract_contained .
-      from \<open>Graph.isPath (g'.subtract_graph f') s p t\<close> have "g'.isPath s p t"
+      from \<open>stl_minus_f'.isPath s p t\<close> have "stl.isPath s p t"
         unfolding Graph.isPath_alt using f''.E_ss by blast
       then show ?thesis using cf.isShortestPath_min_dist_def (* using shortest_path_transfer by presburger *)
-        by (metis Graph.connected_def g'.isShortestPath_min_dist_def insert_iff min_ST_dist_transfer path_is_shortest st_connected_iff)
+        by (metis Graph.connected_def stl.isShortestPath_min_dist_def insert_iff min_ST_dist_transfer path_is_shortest st_connected_iff)
     qed
     moreover from \<open>aug_cf.isPath s p t\<close> have "cf.min_dist s t \<le> aug_cf.min_dist s t"
-      using st_min_dist_non_decreasing aug_cf.connected_def by blast
+      using st_min_dist_non_decreasing aug_cf.connected_def unfolding min_dist_less_eq_def by blast
     moreover note \<open>(u, v) \<in> set p\<close>
     ultimately show "(u, v) \<in> \<Union> {set p |p. isBoundedShortestPath (cf.min_dist s t) aug_cf s p t}"
       unfolding isBoundedShortestPath_def aug_cf.isShortestPath_min_dist_def
@@ -268,9 +279,9 @@ next
     with ST_IN_V' have "new_edge_count p = 0" using min_dist_transfer st_connected by simp
     with SP' have "cf.isShortestPath s p t"
       unfolding new_edge_count_def Graph.isShortestPath_min_dist_def
-      by (metis aug_cf.connected_def Graph.isPath_alt empty_filter_conv length_0_conv nle_le st_min_dist_non_decreasing subset_code(1)) (* TODO fix *)
-    then have "g'.isPath s p t" using ST_IN_V' by (simp add: ST_path_remains path_kind)
-    with SP' have "Graph.isPath (g'.subtract_graph f') s p t"
+      by (metis aug_cf.connected_def Graph.isPath_alt empty_filter_conv length_0_conv nle_le st_min_dist_non_decreasing min_dist_less_eq_def subset_code(1)) (* TODO fix *)
+    then have "stl.isPath s p t" using ST_IN_V' by (simp add: ST_path_remains path_kind)
+    with SP' have "Graph.isPath (stl.subtract_graph f') s p t"
       using aug_cf_path_transfer aug_cf.shortestPath_is_path by blast
     then have "Graph.isPath stl' s p t"
       using cleaning.dual_path_union unfolding Graph.isPath_alt by blast
@@ -328,12 +339,18 @@ definition dinitzPhase :: "_ flow nres" where
       (f, stl);
     return f'}"
 thm Graph.subtract_path_alt
-
+(*
 definition dinitzPhaseInvar :: "_ flow \<times> _ graph \<Rightarrow> bool" where
   "dinitzPhaseInvar \<equiv> \<lambda>(f', stl).
     NFlow c s t f'
     \<and> Bounded_Dual_Shortest_Path_Union stl (cf_of f') s t (cf.min_dist s t)
     \<and> (Graph.connected (cf_of f') s t \<longrightarrow> cf.min_dist s t \<le> Graph.min_dist (cf_of f') s t)"
+*)
+definition dinitzPhaseInvar :: "_ flow \<times> _ graph \<Rightarrow> bool" where
+  "dinitzPhaseInvar \<equiv> \<lambda>(f', stl).
+    NFlow c s t f'
+    \<and> Bounded_Dual_Shortest_Path_Union stl (cf_of f') s t (cf.min_dist s t)
+    \<and> min_dist_less_eq s t cf (cf_of f')"
 
 (* TODO use this in phase step *)
 lemma dual_spu_if_invar_and_path:
@@ -350,7 +367,7 @@ proof -
     show ?thesis
     proof (intro antisym)
       from PATH INVAR show "cf.min_dist s t \<le> f'.cf.min_dist s t"
-        unfolding dinitzPhaseInvar_def Graph.connected_def
+        unfolding dinitzPhaseInvar_def Graph.connected_def min_dist_less_eq_def
         using sub_path by blast
 
       from PATH have "f'.cf.min_dist s t \<le> g'.min_dist s t"
@@ -381,7 +398,7 @@ proof (intro conjI)
     show ?thesis
     proof (intro antisym)
       from PATH INVAR show "cf.min_dist s t \<le> f'.cf.min_dist s t"
-        unfolding dinitzPhaseInvar_def Graph.connected_def
+        unfolding dinitzPhaseInvar_def Graph.connected_def min_dist_less_eq_def
         using sub_path by blast
 
       from PATH have "f'.cf.min_dist s t \<le> g'.min_dist s t"
@@ -458,6 +475,7 @@ proof (intro conjI)
   moreover have "Bounded_Dual_Shortest_Path_Union stl' (cf_of aug_f') s t (cf.min_dist s t)"
     using st_layered_flow.cleaning_maintains_bounded_union INDUCED_EQ BOUND_EQ
     unfolding g'.subtract_path_alt f'.augmentingFlow_alt aug_f'_def stl'_def by simp
+  (*moreover have "min_dist_less_eq s t *)
   moreover have "(Graph.connected (cf_of aug_f') s t \<longrightarrow> cf.min_dist s t \<le> Graph.min_dist (cf_of aug_f') s t)"
     using st_layered_flow.st_min_dist_non_decreasing BOUND_EQ unfolding aug_f'_def by simp
   ultimately show "dinitzPhaseInvar (aug_f', stl')"

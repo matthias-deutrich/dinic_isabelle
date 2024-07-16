@@ -2,19 +2,14 @@ theory Graph_Restriction
   imports Graph_Comparison
 begin
 
-(* For presentation *)
+text \<open>This function-based definition is an alternative to the predicate-based locale approach.
+      However, the locale-based approach is more convenient to use.\<close>
 definition (in Graph) restrict_graph :: "(edge \<Rightarrow> bool) \<Rightarrow> _ graph"
   where "restrict_graph P \<equiv> \<lambda>e. if P e then c e else 0"
 
 lemma (in Graph) restrict_graph_Subgraph: "Subgraph (restrict_graph P) c"
   apply unfold_locales
   unfolding restrict_graph_def Graph.E_def by auto
-
-(* TODO check whether something like this can be useful*)
-(*
-typedef (overloaded) 'capacity::linordered_idom irreducible_graph = "{c::('capacity graph). Irreducible_Graph c}"
-  by (metis irreducibleI mem_Collect_eq reduce_reduced_cong reduced_cong_iff_reduce_eq)
-*)
 
 locale Restricted_Graph = Capacity_Compatible +
   fixes P :: "edge \<Rightarrow> bool"

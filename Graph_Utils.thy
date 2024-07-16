@@ -31,6 +31,7 @@ lemma connected_trans[trans]: "\<lbrakk>connected u v; connected v w\<rbrakk> \<
   using dist_trans min_dist_is_dist by blast
 
 text \<open>Dual to connected_append_edge\<close>
+thm connected_append_edge
 lemma connected_prepend_edge: "(u, v) \<in> E \<Longrightarrow> connected v w \<Longrightarrow> connected u w"
   unfolding connected_def using isPath.simps by blast
 
@@ -78,98 +79,6 @@ lemma min_dist_eqI: (* TODO use this wherever applicable *)
   "\<lbrakk>Graph.isShortestPath c u p v; Graph.isShortestPath c' u p v\<rbrakk> \<Longrightarrow> Graph.min_dist c u v = Graph.min_dist c' u v"
   unfolding Graph.isShortestPath_min_dist_def by simp
 
-section \<open>Empty graph\<close>
-context Graph
-begin
-definition isEmpty where "isEmpty \<equiv> E = {}"
-
-lemma isEmptyV: "isEmpty \<longleftrightarrow> V = {}" unfolding isEmpty_def V_def by auto
-
-lemma empty_connected: "\<lbrakk>isEmpty; connected u v\<rbrakk> \<Longrightarrow> u = v" unfolding connected_def isEmpty_def
-  using isPath_fwd_cases by fastforce
-end
-
-(* TODO is there a better way to define constant functions? *)
-(*definition empty_graph :: "_ graph" where "empty_graph \<equiv> \<lambda>_. 0"*)
-(*interpretation empty: Graph empty_graph .*)
-
-section \<open>Custom induction rules\<close>
-context Graph
-begin
-text \<open>This rule allows us to use isPath as if it were an inductive predicate,
-      which is sometimes more convenient\<close>
-lemma isPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
-  "\<lbrakk>isPath u' p' t; \<And>u. P u [] u; \<And>u v p. \<lbrakk>(u, v) \<in> E; isPath v p t; P v p t\<rbrakk> \<Longrightarrow> P u ((u, v) # p) t\<rbrakk> \<Longrightarrow> P u' p' t"
-  by (induction p' arbitrary: u') auto
-
-lemma isPath_back_induct[consumes 1, case_names SelfPath EdgePath]:
-  "\<lbrakk>isPath s p' v'; \<And>u. P u [] u; \<And>p u v. \<lbrakk>(u, v) \<in> E; isPath s p u; P s p u\<rbrakk> \<Longrightarrow> P s (p @ [(u, v)]) v\<rbrakk> \<Longrightarrow> P s p' v'"
-  by (induction p' arbitrary: v' rule: rev_induct) (auto simp: isPath_tail)
-
-lemma connected_front_induct[consumes 1, case_names Self Edge]:
-  "\<lbrakk>connected w t; \<And>u. P u u; \<And>u v. \<lbrakk>(u, v) \<in> E; connected v t; P v t\<rbrakk> \<Longrightarrow> P u t\<rbrakk> \<Longrightarrow> P w t"
-  unfolding connected_def
-  apply clarify
-  apply (induct_tac rule: isPath_front_induct)
-  by blast+
-
-lemma connected_back_induct[consumes 1, case_names Self Edge]:
-  "\<lbrakk>connected s w; \<And>u. P u u; \<And>u v. \<lbrakk>(u, v) \<in> E; connected s u; P s u\<rbrakk> \<Longrightarrow> P s v\<rbrakk> \<Longrightarrow> P s w"
-  unfolding connected_def
-  apply clarify
-  apply (induct_tac rule: isPath_back_induct)
-  by blast+
-
-lemma shortestPath_prepend_edge:
-  "(u, v) \<in> E \<Longrightarrow> isShortestPath v p w \<Longrightarrow> min_dist u w = Suc (min_dist v w) \<Longrightarrow> isShortestPath u ((u, v) # p) w"
-  unfolding isShortestPath_min_dist_def by simp
-
-lemma shortestPath_append_edge:
-  "isShortestPath u p v \<Longrightarrow> (v, w) \<in> E \<Longrightarrow> Suc (min_dist u v) = min_dist u w \<Longrightarrow> isShortestPath u (p @ [(v, w)]) w"
-  unfolding isShortestPath_min_dist_def by (simp add: isPath_append_edge)
-
-lemma shortestPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
-  "\<lbrakk>isShortestPath u' p' t; \<And>u. P u [] u; \<And>u v p. \<lbrakk>(u, v) \<in> E; min_dist u t = Suc (min_dist v t); isShortestPath v p t; P v p t\<rbrakk> \<Longrightarrow> P u ((u, v) # p) t\<rbrakk> \<Longrightarrow> P u' p' t"
-  apply (induction p' arbitrary: u')
-   apply (simp add: Graph.isShortestPath_def)
-  apply auto
-  by (metis isPath.simps(2) isShortestPath_level_edge(5) isShortestPath_min_dist_def length_Cons list.set_intros(1) nat.inject plus_1_eq_Suc) (* TODO *)
-
-lemma shortestPath_back_induct[consumes 1, case_names SelfPath EdgePath]:
-  "\<lbrakk>isShortestPath s p' v'; \<And>u. P u [] u; \<And>p u v. \<lbrakk>(u, v) \<in> E; Suc (min_dist s u) = min_dist s v; isShortestPath s p u; P s p u\<rbrakk> \<Longrightarrow> P s (p @ [(u, v)]) v\<rbrakk> \<Longrightarrow> P s p' v'"
-  apply (induction p' arbitrary: v' rule: rev_induct)
-   apply (simp add: Graph.isShortestPath_def)
-  apply auto
-  by (metis Nil_is_append_conv isPath.simps(2) isPath_bwd_cases isShortestPath_alt length_append_singleton shortestPath_is_path split_shortest_path) (* TODO *)
-  (*apply (auto simp: isShortestPath_min_dist_def)*)
-end
-
-section \<open>Alternative definition of paths\<close>
-inductive isLinked :: "node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool" where
-  SelfPrePath: "isLinked u [] u"
-| StepPrePath: "isLinked v p w \<Longrightarrow> isLinked u ((u, v) # p) w"
-
-lemma (in Graph) isPath_alt: "isPath u p v \<longleftrightarrow>  isLinked u p v \<and> set p \<subseteq> E"
-proof
-  assume "isPath u p v"
-  then show "isLinked u p v \<and> (set p) \<subseteq> E"
-    by (induction rule: isPath_front_induct) (simp_all add: isLinked.intros)
-next
-  assume "isLinked u p v \<and> (set p) \<subseteq> E"
-  then have "isLinked u p v" "(set p) \<subseteq> E" by blast+
-  then show "isPath u p v" by (induction rule: isLinked.induct) simp_all
-qed
-
-lemma isLinked_if_isPath: "Graph.isPath c u p v \<Longrightarrow> isLinked u p v"
-  using Graph.isPath_alt by blast
-
-lemma isPath_endpoints_eq:
-  "\<lbrakk>Graph.isPath c u p v; Graph.isPath c' u' p v'; p \<noteq> []\<rbrakk> \<Longrightarrow> u' = u"
-  "\<lbrakk>Graph.isPath c u p v; Graph.isPath c' u' p v'; p \<noteq> []\<rbrakk> \<Longrightarrow> v' = v"
-  by (metis Graph.isPath_head neq_Nil_conv) (metis Graph.isPath_tail rev_exhaust)
-
-
-
 section \<open>Unifying different kinds of paths\<close>
 locale Path_Kind =
   fixes isKindPath :: "_ graph \<Rightarrow> node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool"
@@ -203,7 +112,6 @@ next
 qed
 end
 
-(* TODO is this useful? *)
 locale Connecting_Path_Kind = Path_Kind +
   assumes connecting: "\<And>c u v. Graph.connected c u v \<Longrightarrow> \<exists>p. isKindPath c u p v"
 begin
@@ -233,6 +141,93 @@ interpretation isShortestPath: Splittable_Path_Kind Graph.isShortestPath +
     isShortestPath: Connecting_Path_Kind Graph.isShortestPath
   by unfold_locales (auto simp: Graph.shortestPath_is_path Graph.split_shortest_path elim: Graph.obtain_shortest_path)
 
+section \<open>Empty graph\<close>
+context Graph
+begin
+definition isEmpty where "isEmpty \<equiv> E = {}"
+
+lemma isEmptyV: "isEmpty \<longleftrightarrow> V = {}" unfolding isEmpty_def V_def by auto
+
+lemma empty_connected: "\<lbrakk>isEmpty; connected u v\<rbrakk> \<Longrightarrow> u = v" unfolding connected_def isEmpty_def
+  using isPath_fwd_cases by fastforce
+end
+
+section \<open>Custom induction rules\<close>
+context Graph
+begin
+text \<open>This rule allows us to use isPath as if it were an inductive predicate,
+      which is sometimes more convenient\<close>
+lemma isPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
+  "\<lbrakk>isPath u' p' t; \<And>u. P u [] u; \<And>u v p. \<lbrakk>(u, v) \<in> E; isPath v p t; P v p t\<rbrakk> \<Longrightarrow> P u ((u, v) # p) t\<rbrakk> \<Longrightarrow> P u' p' t"
+  by (induction p' arbitrary: u') auto
+
+lemma isPath_back_induct[consumes 1, case_names SelfPath EdgePath]:
+  "\<lbrakk>isPath s p' v'; \<And>u. P u [] u; \<And>p u v. \<lbrakk>(u, v) \<in> E; isPath s p u; P s p u\<rbrakk> \<Longrightarrow> P s (p @ [(u, v)]) v\<rbrakk> \<Longrightarrow> P s p' v'"
+  by (induction p' arbitrary: v' rule: rev_induct) (auto simp: isPath_tail)
+
+lemma connected_front_induct[consumes 1, case_names Self Edge]:
+  "\<lbrakk>connected w t; \<And>u. P u u; \<And>u v. \<lbrakk>(u, v) \<in> E; connected v t; P v t\<rbrakk> \<Longrightarrow> P u t\<rbrakk> \<Longrightarrow> P w t"
+  unfolding connected_def
+  apply clarify
+  apply (rule isPath_front_induct)
+  by blast+
+
+lemma connected_back_induct[consumes 1, case_names Self Edge]:
+  "\<lbrakk>connected s w; \<And>u. P u u; \<And>u v. \<lbrakk>(u, v) \<in> E; connected s u; P s u\<rbrakk> \<Longrightarrow> P s v\<rbrakk> \<Longrightarrow> P s w"
+  unfolding connected_def
+  apply clarify
+  apply (rule isPath_back_induct)
+  by blast+
+
+lemma shortestPath_prepend_edge:
+  "(u, v) \<in> E \<Longrightarrow> isShortestPath v p w \<Longrightarrow> min_dist u w = Suc (min_dist v w) \<Longrightarrow> isShortestPath u ((u, v) # p) w"
+  unfolding isShortestPath_min_dist_def by simp
+
+lemma shortestPath_append_edge:
+  "isShortestPath u p v \<Longrightarrow> (v, w) \<in> E \<Longrightarrow> Suc (min_dist u v) = min_dist u w \<Longrightarrow> isShortestPath u (p @ [(v, w)]) w"
+  unfolding isShortestPath_min_dist_def by (simp add: isPath_append_edge)
+
+lemma shortestPath_front_induct[consumes 1, case_names SelfPath EdgePath]:
+  "\<lbrakk>isShortestPath u' p' t; \<And>u. P u [] u; \<And>u v p. \<lbrakk>(u, v) \<in> E; min_dist u t = Suc (min_dist v t); isShortestPath v p t; P v p t\<rbrakk> \<Longrightarrow> P u ((u, v) # p) t\<rbrakk> \<Longrightarrow> P u' p' t"
+  apply (induction p' arbitrary: u')
+   apply (simp add: Graph.isShortestPath_def)
+  apply clarify
+  by (metis isPath.simps(2) isShortestPath_level_edge(5) isShortestPath_min_dist_def length_Cons list.set_intros(1) nat.inject plus_1_eq_Suc)
+
+lemma shortestPath_back_induct[consumes 1, case_names SelfPath EdgePath]:
+  "\<lbrakk>isShortestPath s p' v'; \<And>u. P u [] u; \<And>p u v. \<lbrakk>(u, v) \<in> E; Suc (min_dist s u) = min_dist s v; isShortestPath s p u; P s p u\<rbrakk> \<Longrightarrow> P s (p @ [(u, v)]) v\<rbrakk> \<Longrightarrow> P s p' v'"
+  apply (induction p' arbitrary: v' rule: rev_induct)
+   apply (simp add: Graph.isShortestPath_def)
+  apply clarify
+  by (metis Nil_is_append_conv isPath.simps(2) isPath_bwd_cases isShortestPath_alt length_append_singleton shortestPath_is_path split_shortest_path)
+  (*apply (auto simp: isShortestPath_min_dist_def)*)
+end
+
+section \<open>Alternative definition of paths\<close>
+inductive isLinked :: "node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool" where
+  SelfPrePath: "isLinked u [] u"
+| StepPrePath: "isLinked v p w \<Longrightarrow> isLinked u ((u, v) # p) w"
+
+lemma (in Graph) isPath_alt: "isPath u p v \<longleftrightarrow>  isLinked u p v \<and> set p \<subseteq> E"
+proof
+  assume "isPath u p v"
+  then show "isLinked u p v \<and> (set p) \<subseteq> E"
+    by (induction rule: isPath_front_induct) (simp_all add: isLinked.intros)
+next
+  assume "isLinked u p v \<and> (set p) \<subseteq> E"
+  then have "isLinked u p v" "(set p) \<subseteq> E" by blast+
+  then show "isPath u p v" by (induction rule: isLinked.induct) simp_all
+qed
+
+lemma isLinked_if_isPath: "Graph.isPath c u p v \<Longrightarrow> isLinked u p v"
+  using Graph.isPath_alt by blast
+
+lemma isPath_endpoints_eq:
+  "\<lbrakk>Graph.isPath c u p v; Graph.isPath c' u' p v'; p \<noteq> []\<rbrakk> \<Longrightarrow> u' = u"
+  "\<lbrakk>Graph.isPath c u p v; Graph.isPath c' u' p v'; p \<noteq> []\<rbrakk> \<Longrightarrow> v' = v"
+  by (metis Graph.isPath_head neq_Nil_conv) (metis Graph.isPath_tail rev_exhaust)
+
+section \<open>Bounded Shortest Paths\<close>
 definition isBoundedShortestPath :: "nat \<Rightarrow> _ graph \<Rightarrow> node \<Rightarrow> path \<Rightarrow> node \<Rightarrow> bool" where
   "isBoundedShortestPath b c u p v \<equiv> Graph.isShortestPath c u p v \<and> length p \<le> b"
 
@@ -251,7 +246,8 @@ lemma cycle_induces_arbitrary_length_paths: "isCycle u p \<Longrightarrow> \<exi
 proof (induction n)
   case (Suc n)
   then obtain p' where "isPath u p' u" "length p' \<ge> n" by blast
-  moreover from Suc.prems have "isPath u p u" "length p \<ge> 1" unfolding isCycle_def by (simp_all add: Suc_leI)
+  moreover from Suc.prems have "isPath u p u" "length p \<ge> 1"
+    unfolding isCycle_def by (simp_all add: Suc_leI)
   ultimately have "isPath u (p @ p') u" "length (p @ p') \<ge> Suc n" using isPath_append by auto
   then show ?case by blast
 qed (auto simp: isCycle_def)
@@ -315,7 +311,6 @@ proof -
   qed
 qed
 
-(* TODO can this proof be done without the ugly precondition? *)
 lemma ex_front_terminal_path: "isPath u p v \<Longrightarrow> \<exists>u' p'. isPath u' p' v \<and> incoming u' = {}"
 proof (induction "b - length p" arbitrary: u p)
   case 0
@@ -641,15 +636,29 @@ lemma parallel_edge_cases [case_names EDGE REV_EDGE NO_EDGE, cases pred]:
 
 
 section \<open>Set of nodes within a certain distance\<close>
+(*fun boundedReachableNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
+  "boundedReachableNodes 0 u = {u}"
+| "boundedReachableNodes (Suc b) u = boundedReachableNodes b u \<union> E `` boundedReachableNodes b u"
+
+lemma boundedReachableNodes_alt:
+  "boundedReachableNodes b u = {v. connected u v \<and> min_dist u v \<le> b}"
+proof (induction b)
+  case 0
+  then show ?case by fastforce
+next
+  case (Suc b)
+  then show ?case apply simp apply safe
+qed*)
+
 definition boundedReachableNodes :: "nat \<Rightarrow> node \<Rightarrow> node set" where
   "boundedReachableNodes b u \<equiv> {v. connected u v \<and> min_dist u v \<le> b}"
 
-(* TODO prettify proof *)
 lemma boundedReachableNodes_alt:
   "boundedReachableNodes (Suc b) u = boundedReachableNodes b u \<union> E `` boundedReachableNodes b u"
   unfolding boundedReachableNodes_def
-  apply auto
-    apply (metis (no_types, lifting) ImageI le_antisym mem_Collect_eq min_dist_suc not_less_eq_eq)
+  apply safe
+     apply (metis (no_types, lifting) ImageI le_antisym mem_Collect_eq min_dist_suc not_less_eq_eq)
+    apply simp
   using connected_append_edge min_dist_succ le_trans by blast+
 
 lemma boundedReachableNodes_ss: "boundedReachableNodes b u \<subseteq> reachableNodes u"
@@ -690,6 +699,19 @@ end
 
 
 (* TODO from here on stuff is experimental *)
+
+(* TODO use or remove *)
+definition min_dist_less_eq :: "node \<Rightarrow> node \<Rightarrow> _ graph \<Rightarrow> _ graph \<Rightarrow> bool" where
+  "min_dist_less_eq s t c c' \<equiv> Graph.connected c' s t \<longrightarrow> (Graph.connected c s t \<and> Graph.min_dist c s t \<le> Graph.min_dist c' s t)"
+
+definition min_dist_less :: "node \<Rightarrow> node \<Rightarrow> _ graph \<Rightarrow> _ graph \<Rightarrow> bool" where
+  "min_dist_less s t c c' \<equiv> Graph.connected c s t \<and> (Graph.connected c' s t \<longrightarrow> Graph.min_dist c s t < Graph.min_dist c' s t)"
+
+interpretation min_dist_preorder: preorder "min_dist_less_eq s t" "min_dist_less s t"
+  for s t
+  by unfold_locales (auto simp: min_dist_less_eq_def min_dist_less_def)
+thm min_dist_preorder.eq_refl
+
 section \<open>Optional Distance\<close>
 context Graph
 begin

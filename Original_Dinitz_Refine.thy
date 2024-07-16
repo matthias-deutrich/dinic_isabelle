@@ -404,6 +404,41 @@ definition dinitzRefine :: "_ flow nres" where
     f \<leftarrow> return (flow_of_cf cf);
     return f}"
 
+find_theorems "_ \<le> SPEC _ \<Longrightarrow> _ \<le> _ \<Longrightarrow> _ \<le> SPEC _"
+find_theorems name:trans SPEC
+thm SPEC_cons_rule
+
+lemma dinitzRefine_step:
+  assumes RG: "RGraph c s t cf"
+  shows "RGraph.dinitzPhaseRefine s t cf \<le> SPEC (\<lambda>(cf', changed). RGraph c s t cf'
+      \<and> (changed \<or> isMaxFlow (flow_of_cf cf))
+      \<and> (changed \<longrightarrow> (cf', cf) \<in> cf_dist_rel))"
+proof -
+  from RG interpret RGraph c s t cf .
+  show ?thesis
+  proof (rule SPEC_cons_rule[OF dinitzPhaseRefine_correct], clarify, intro conjI)
+    fix cf'
+    assume "dist_increasing_cf cf'" and CON_IF_NEQ: "(cf' \<noteq> cf) \<longrightarrow> cf.connected s t"
+    then show "RGraph c s t cf'"
+      unfolding dist_increasing_cf_def by simp
+    then interpret rg': RGraph c s t cf' .
+
+    from \<open>dist_increasing_cf cf'\<close> have DIST: "rg'.cf.connected s t \<longrightarrow> cf.min_dist s t < rg'.cf.min_dist s t"
+      unfolding dist_increasing_cf_def by simp
+    with CON_IF_NEQ RG show "cf' \<noteq> cf \<longrightarrow> (cf', cf) \<in> cf_dist_rel" unfolding cf_dist_rel_def by blast
+
+    from 
+    with CON_IF_NEQ RG show "cf' = cf \<or> cf' \<noteq> cf \<and> (cf', cf) \<in> cf_dist_rel" unfolding cf_dist_rel_def by blast
+    from CON_IF_NEQ show "cf' = cf \<longrightarrow>  isMaxFlow (flow_of_cf cf)"
+      by (metis DIST Graph.isPath_rtc Graph.isSimplePath_def cf.connected_edgeRtc f.isAugmentingPath_def f.noAugPath_iff_maxFlow f_def le_eq_less_or_eq linorder_not_le rg_fo_inv)
+
+
+
+
+  apply (rule SPEC_cons_rule[OF RGraph.dinitzPhaseRefine_correct[OF RG]])
+  apply clarify
+  apply simp oops
+
 theorem dinitzRefine_correct: "dinitzRefine \<le> (spec f. isMaxFlow f)"
   unfolding dinitzRefine_def
   apply (refine_vcg WHILET_rule[where I="\<lambda>(cf, m). RGraph c s t cf \<and> (m \<or> isMaxFlow (flow_of_cf cf))"
@@ -436,4 +471,18 @@ proof -
 qed
 end
 \<comment> \<open>Dinitz outer loop refinement\<close>
+
+
+
+
+
+
+
+(* TODO space for testing, remove! *)
+(*instantiation graph_dist_ord :: (type) ord
+begin
+
+end*)
+(*global_interpretation graph_dist_ord: *)
+
 end
