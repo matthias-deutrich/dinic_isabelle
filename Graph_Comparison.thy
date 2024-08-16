@@ -125,22 +125,33 @@ lemma c'_sg_c: "isSubgraph c' c"
 *)
 
 (* TODO rename or remove *)
-lemma c'_sg_c_old: "\<forall>e. c' e = c e \<or> c' e = 0" using cap_compatible cap_nonzero by auto
+(*lemma c'_sg_c_old: "\<forall>e. c' e = c e \<or> c' e = 0" using cap_compatible cap_nonzero by auto*)
+lemma sg_cap: "\<And>e. c' e = c e \<or> c' e = 0" using cap_compatible cap_nonzero by auto
 
-(* TODO check whether this is useful *)
-lemma sg_cap_cases': "\<lbrakk>c' (u, v) = c (u, v) \<Longrightarrow> P (u, v); c' (u, v) = 0 \<Longrightarrow> P (u, v)\<rbrakk> \<Longrightarrow> P (u, v)"
-  using c'_sg_c_old by blast
-lemma sg_cap_cases: "\<And>u v. \<lbrakk>c' (u, v) = c (u, v) \<Longrightarrow> P; c' (u, v) = 0 \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P"
-  using c'_sg_c_old by blast
-
-
-
+lemma sg_cap_cases: "\<lbrakk>c' e = c e \<Longrightarrow> P e; c' e = 0 \<Longrightarrow> P e\<rbrakk> \<Longrightarrow> P e"
+  using sg_cap by blast
 
 
 (* TODO is this the right location for this? *)
 text \<open>Transfer lemmas\<close>
-lemma sg_Nonnegative_Graph: "Nonnegative_Graph c \<Longrightarrow> Nonnegative_Graph c'"
-  unfolding Nonnegative_Graph_def by (metis Orderings.order_eq_iff cap_compatible cap_nonzero)
+lemma sg_Nonnegative_Graph:
+  assumes "Nonnegative_Graph c"
+  shows "Nonnegative_Graph c'"
+proof -
+  from assms interpret Nonnegative_Graph c .
+  show ?thesis
+    using cap_non_negative by unfold_locales (fastforce intro: sg_cap_cases)
+qed
+
+lemma sg_Irreducible_Graph:
+  assumes "Irreducible_Graph c"
+  shows "Irreducible_Graph c'"
+proof -
+  from assms interpret Irreducible_Graph c .
+  interpret g': Nonnegative_Graph c'
+    by (intro sg_Nonnegative_Graph) intro_locales
+  show ?thesis using edge'_if_edge no_parallel_edge by unfold_locales blast
+qed
 
 lemma CapComp_transfer:
   "Capacity_Compatible c c'' \<Longrightarrow> Capacity_Compatible c' c''"
@@ -249,6 +260,10 @@ end
 
 lemma Pos_Contained_Graph_leI: "(\<And>e. 0 \<le> c' e \<and> c' e \<le> c e) \<Longrightarrow> Pos_Contained_Graph c' c"
   by unfold_locales auto
+
+lemma (in Contained_Graph) Pos_Contained_Graph_if_Nonnegative:
+  "Nonnegative_Graph c \<Longrightarrow> Pos_Contained_Graph c' c"
+  unfolding Nonnegative_Graph_def using cap_abs_bounded order_trans Pos_Contained_Graph_leI by meson
 
 context Graph
 begin
@@ -373,7 +388,7 @@ lemma pathCap_eq: "set p \<subseteq> E' \<Longrightarrow> g'.pathCap p = pathCap
 proof -
   assume "set p \<subseteq> E'"
   then have "(c' ` set p) = (c ` set p)"
-    by (smt (verit) c'_sg_c_old g'.E_def' image_cong mem_Collect_eq subsetD) (* TODO prettify *)
+    by (smt (verit) Capacity_Compatible.cap_compatible Capacity_Compatible_axioms cap_nonzero g'.E_def' image_cong in_mono mem_Collect_eq)(* TODO prettify *)
   then show ?thesis unfolding g'.pathCap_alt pathCap_alt by simp
 qed
 

@@ -48,9 +48,35 @@ lemma dinitzPhaseRestructuredInvar_alt:
   assumes "dinitzPhaseRestructuredInvar (cf', stl, brk, changed)"
   shows "f.dinitzPhaseInvar (flow_of_cf cf', stl)"
   using assms
-  unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def
+  unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def oops
   by clarsimp (metis RGraph.is_NFlow RGraph.this_loc_rpg RPreGraph.rg_fo_inv)
 
+(* TODO integrate into step *)
+lemma dual_spu_if_invar_and_path:
+  assumes INVAR: "dinitzPhaseRestructuredInvar (cf', stl, brk, changed)"
+    and PATH: "Graph.isPath stl s p t"
+  shows "Dual_Shortest_Path_Union stl cf' s t \<and> cf.min_dist s t = Graph.min_dist cf' s t"
+proof
+  from INVAR interpret rg': RGraph c s t cf' +
+    Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t"
+    unfolding dinitzPhaseRestructuredInvar_def by auto
+  show "cf.min_dist s t = rg'.cf.min_dist s t"
+  proof (intro antisym)
+    from PATH INVAR show "cf.min_dist s t \<le> rg'.cf.min_dist s t"
+      unfolding dinitzPhaseRestructuredInvar_def Graph.connected_def min_dist_less_eq_def
+      using sub_path by blast
+
+    from PATH have "rg'.cf.min_dist s t \<le> g'.min_dist s t"
+      using isPath.connected sub_min_dist_geq by blast
+    also have "... = length p" using PATH path_ascends_layer by force
+    also have "... \<le> cf.min_dist s t" using PATH path_length_bounded by simp
+    finally show "rg'.cf.min_dist s t \<le> cf.min_dist s t" .
+  qed
+  with INVAR show "Dual_Shortest_Path_Union stl cf' s t"
+    unfolding dinitzPhaseRestructuredInvar_def using min_st_dist_bound by fastforce
+qed
+
+(*
 lemma dual_spu_if_invar_and_path:
   assumes INVAR: "dinitzPhaseRestructuredInvar (cf', stl, brk, changed)"
     and PATH: "Graph.isPath stl s p t"
@@ -78,6 +104,7 @@ proof -
   with INVAR show "Dual_Shortest_Path_Union stl cf' s t"
     unfolding dinitzPhaseRestructuredInvar_def using min_st_dist_bound by fastforce
 qed
+*)
 
 lemma dinitzPhaseRestructured_step:
   fixes cf' stl stl' changed
@@ -86,8 +113,7 @@ lemma dinitzPhaseRestructured_step:
       and INVAR: "dinitzPhaseRestructuredInvar (cf', stl, False, changed)"
   defines "aug_cf' \<equiv> Graph.subtract_skew_path cf' p"
     shows "dinitzPhaseRestructuredInvar (aug_cf', stl', False, True) \<and> Graph.E stl' \<subset> Graph.E stl \<and> finite (Graph.E stl)"
-  unfolding dinitzPhaseRestructuredInvar_def
-proof (simp, intro conjI)
+proof (unfold dinitzPhaseRestructuredInvar_def, intro case_prodI conjI)
   interpret stl: Graph stl .
   interpret stl': Graph stl' .
 
@@ -111,6 +137,8 @@ proof (simp, intro conjI)
   have aug_cf'_alt: "aug_cf' = cf_of (rg'.f.augment (rg'.f.augmentingFlow p))"
     unfolding aug_cf'_def rg'.cf.subtract_skew_path_alt rg'.f.augmentingFlow_alt
     using rg'.f.augment_alt' p_pos_cont.Contained_Graph_axioms by simp
+
+  oops end end
 
   from INVAR PATH have FLOW_INVAR:
     "f.dinitzPhaseInvar (rg'.f.augment (rg'.f.augmentingFlow p), stl')"

@@ -325,7 +325,7 @@ proof
   from LEFT interpret left: Target_Shortest_Path_Union c'' c' t .
 
   show "\<And>e. c'' e = 0 \<or> c e = 0 \<or> c'' e = c e"
-    by (metis left.c'_sg_c_old right.c'_sg_c_old)
+    by (metis left.cap_compatible left.cap_nonzero right.cap_compatible)
 
   show "left.E' = \<Union> {set p |p. right.isShortestPath s p t}" (* TODO prettify *)
   proof (intro pair_set_eqI)
@@ -470,5 +470,4 @@ lemma min_st_dist_bound:
   unfolding isBoundedShortestPath_def
   unfolding Graph.isShortestPath_min_dist_def
   by fastforce
-
 end

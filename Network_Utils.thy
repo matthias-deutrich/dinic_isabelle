@@ -7,9 +7,14 @@ lemma (in Pos_Contained_Graph) conservation_FlowI:
   "\<forall>v \<in> V - {s, t}. (\<Sum>e \<in> incoming v. c' e) = (\<Sum>e \<in> outgoing v. c' e) \<Longrightarrow> Flow c s t c'"
   using g'.cap_non_negative cap_le by unfold_locales auto
 
-text \<open>This is a workaround to introduce NFlow more easily, since it usually requires showing Preflow twice.\<close>
+(*
 lemma NFlowI: "\<lbrakk>Network c s t; Flow c s t f\<rbrakk> \<Longrightarrow> NFlow c s t f"
   unfolding NFlow_def NPreflow_def Flow_def by simp
+*)
+
+text \<open>This is a workaround to introduce NFlow more easily, since it usually requires showing Preflow twice.\<close>
+lemma (in Network) NFlowI: "Flow c s t f \<Longrightarrow> NFlow c s t f"
+  by (simp add: NFlow_def NPreflow_def Flow_def) intro_locales
 
 sublocale Network \<subseteq> Irreducible_Graph
   using cap_non_negative no_parallel_edge by unfold_locales auto
@@ -110,7 +115,7 @@ proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative
   interpret Finite_Graph c using FINITE .
 
   show "Pos_Contained_Graph f c"
-    by unfold_locales (metis c'_sg_c_old cap_non_negative f.capacity_const order_antisym_conv)
+    by unfold_locales (metis sg_cap cap_non_negative f.capacity_const order_antisym_conv)
 
   show "\<forall>v\<in>V - {s, t}. sum f (incoming v) = sum f (outgoing v)"
   proof
