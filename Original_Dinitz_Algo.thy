@@ -440,7 +440,7 @@ qed
 
 
 
-
+(*
 (* TODO introduce notion of blocking flow or reuse from Push Relabel, then connect this concept *)
 definition res_dist_increasing_flow
   where "res_dist_increasing_flow f' \<equiv>
@@ -470,7 +470,38 @@ lemma dinitzPhase_correct:
   apply (refine_vcg WHILET_rule[where I=dinitzPhaseInvar and R="inv_image finite_psubset (Graph.E \<circ> snd)"])
        apply (simp_all add: dinitzPhase_step dinitzPhase_final)
   apply (simp add: dinitzPhaseInvar_def NFlow_axioms) (* TODO *)
-  by (simp_all add: dinitzPhaseInvar_def res_dist_increasing_flow_def NFlow_axioms Dual_Shortest_Path_Union_layeringI min_st_dist_bound)
+  by (simp_all add: dinitzPhaseInvar_def res_dist_increasing_flow_def NFlow_axioms Dual_Shortest_Path_Union_layeringI min_st_dist_bound)*)
+context
+  assumes RES_CON: "cf.connected s t"
+begin
+lemma dinitzPhase_final:
+  fixes f' stl
+    assumes DISCON: "\<not> Graph.connected stl s t"
+      and INVAR: "dinitzPhaseInvar (f', stl)"
+    shows "NFlow c s t f' \<and> min_dist_less s t cf (cf_of f')"
+proof
+  from INVAR show "NFlow c s t f'" unfolding dinitzPhaseInvar_def by blast
+  then interpret f': NFlow c s t f' .
+
+  have "f'.cf.connected s t \<Longrightarrow> cf.min_dist s t < f'.cf.min_dist s t"
+  proof -
+    assume "f'.cf.connected s t"
+    with DISCON have "\<not> Dual_Shortest_Path_Union stl f'.cf s t"
+      using Dual_Shortest_Path_Union.st_connected_iff by blast
+    with INVAR show "cf.min_dist s t < f'.cf.min_dist s t"
+      unfolding dinitzPhaseInvar_def using min_st_dist_bound linorder_not_le by fastforce
+  qed
+  with RES_CON show "min_dist_less s t cf f'.cf" unfolding min_dist_less_def by blast
+qed
+
+lemma dinitzPhase_correct:
+  "dinitzPhase \<le> (spec f'. NFlow c s t f' \<and> min_dist_less s t cf (cf_of f'))"
+  unfolding dinitzPhase_def
+  apply (refine_vcg WHILET_rule[where I=dinitzPhaseInvar and R="inv_image finite_psubset (Graph.E \<circ> snd)"])
+       apply (simp_all add: dinitzPhase_step dinitzPhase_final)
+  by (simp add: dinitzPhaseInvar_def NFlow_axioms Dual_Shortest_Path_Union_layeringI min_st_dist_bound)
+end
+
 end
 
 \<comment> \<open>Dinitz inner loop\<close>
@@ -486,34 +517,37 @@ definition dinitz :: "_ flow nres" where
       (\<lambda>_. 0);
     return f}"
 
-(* TODO check if something like this already exists *)
-definition res_dist_rel :: "(_ flow) rel"
-  where "res_dist_rel \<equiv> {(f', f). Graph.connected (cf_of f) s t
-    \<and> (\<not> Graph.connected (cf_of f') s t \<or> Graph.min_dist (cf_of f) s t < Graph.min_dist (cf_of f') s t)}"
+definition dist_greater_rel :: "(_ graph) rel"
+  where "dist_greater_rel \<equiv> {(c', c''). min_dist_less s t c'' c' \<and> Graph.V c' \<subseteq> V}"
 
-lemma res_dist_wf: "wf res_dist_rel"
+lemma dist_greater_wf: "wf dist_greater_rel"
 proof (rule wf_subset)
   let ?r = "less_than_bool <*lex*> (greater_bounded (card V))"
-    and ?f = "\<lambda>f. (Graph.connected (cf_of f) s t, Graph.min_dist (cf_of f) s t)"
+    and ?f = "\<lambda>c'. (Graph.connected c' s t, Graph.min_dist c' s t)"
 
   show "wf (inv_image ?r ?f)" by blast
 
-  have "\<And>f. Graph.connected (cf_of f) s t \<Longrightarrow> Graph.min_dist (cf_of f) s t < card (Graph.V (cf_of f))"
-    by (simp add: Finite_Graph.min_dist_less_V Graph.Finite_Graph_EI Graph.distinct_nodes_in_V_if_connected(1))
-  moreover have "\<And>f. Graph.V (cf_of f) \<subseteq> V"
-    unfolding residualGraph_def Graph.V_def Graph.E_def by auto
-  ultimately have "\<And>f. Graph.connected (cf_of f) s t \<Longrightarrow> Graph.min_dist (cf_of f) s t < card V"
-    by (meson card_mono dual_order.strict_trans1 finite_V)
-  then show "res_dist_rel \<subseteq> inv_image ?r ?f"
-    by (fastforce simp: res_dist_rel_def greater_bounded_def)
+  have "\<And>c'. \<lbrakk>Graph.connected c' s t; Graph.V c' \<subseteq> V\<rbrakk> \<Longrightarrow> Graph.min_dist c' s t < card V"
+    by (metis Finite_Graph.intro Finite_Graph.min_dist_less_V Graph.distinct_nodes_in_V_if_connected(1) card_mono dual_order.strict_trans1 finite_V rev_finite_subset t_not_s)
+  then show "dist_greater_rel \<subseteq> inv_image ?r ?f"
+    unfolding dist_greater_rel_def min_dist_less_def greater_bounded_def by fastforce
 qed
+
+definition res_dist_rel :: "(_ flow) rel"
+  where "res_dist_rel \<equiv> {(f', f). min_dist_less s t (cf_of f) (cf_of f')}"
+
+lemma res_dist_rel_alt: "res_dist_rel = inv_image dist_greater_rel cf_of"
+  unfolding res_dist_rel_def dist_greater_rel_def using cf_of_V_ss by auto
+
+lemma res_dist_wf: "wf res_dist_rel"
+  using res_dist_rel_alt dist_greater_wf by auto
 
 theorem dinitz_correct: "dinitz \<le> (spec f. isMaxFlow f)"
   unfolding dinitz_def
   apply (refine_vcg WHILET_rule[where I="NFlow c s t" and R=res_dist_rel])
      apply (rule res_dist_wf)
-    apply (simp add: NFlowI Network_axioms zero_is_flow)
-   apply (fastforce intro: NFlow.dinitzPhase_correct[THEN SPEC_cons_rule] simp: NFlow.res_dist_increasing_flow_def res_dist_rel_def)
+    apply (simp add: NFlowI zero_is_flow)
+   apply (simp add: NFlow.dinitzPhase_correct res_dist_rel_def)
   by (simp add: Graph.connected_def Graph.isSimplePath_def NFlow.axioms(1) NFlow.ford_fulkerson(1) NPreflow.isAugmentingPath_def)
 end
 

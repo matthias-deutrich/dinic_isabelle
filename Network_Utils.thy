@@ -102,6 +102,8 @@ thm f'_augment_alt
 end
 \<comment> \<open>Auxiliary statements concerning the edges of augments\<close>
 
+
+(* TODO still necessary? *)
 context Subgraph
 begin
 lemma transfer_flow:
@@ -156,6 +158,9 @@ proof
   moreover have "c = cf_of (\<lambda>_. 0)" unfolding residualGraph_def E_def by fastforce
   ultimately show "\<exists>f. NFlow c s t f \<and> c = cf_of f" by blast
 qed
+
+lemma cf_of_V_ss: "Graph.V (cf_of cf) \<subseteq> V"
+  unfolding Graph.V_def using cfE_of_ss_invE by blast
 
 thm flow_of_cf_def
 thm residualGraph_def

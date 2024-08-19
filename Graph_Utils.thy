@@ -707,8 +707,7 @@ definition min_dist_less_eq :: "node \<Rightarrow> node \<Rightarrow> _ graph \<
 definition min_dist_less :: "node \<Rightarrow> node \<Rightarrow> _ graph \<Rightarrow> _ graph \<Rightarrow> bool" where
   "min_dist_less s t c c' \<equiv> Graph.connected c s t \<and> (Graph.connected c' s t \<longrightarrow> Graph.min_dist c s t < Graph.min_dist c' s t)"
 
-interpretation min_dist_preorder: preorder "min_dist_less_eq s t" "min_dist_less s t"
-  for s t
+interpretation min_dist_preorder: preorder "min_dist_less_eq s t" "min_dist_less s t" for s t
   by unfold_locales (auto simp: min_dist_less_eq_def min_dist_less_def)
 thm min_dist_preorder.eq_refl
 
