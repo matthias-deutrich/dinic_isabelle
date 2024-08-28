@@ -9,6 +9,9 @@ text \<open>This theory takes the abstract definition of the Original Dinitz alg
       or execution framework. The functions will thus still include simple, but not necessarily
       executable, primitives such as set operations.\<close>
 
+(* TODO remove *)
+thm NFlow.augment_flow_value
+
 text \<open>For several refinement proofs in this theory, we need an additional pattern for refine_dref_type\<close>
 lemma RELATESI_in_spec:
   "RELATES R \<Longrightarrow> S \<le> (spec x. (x, y) \<in> R) \<Longrightarrow> S \<le> (spec x. (x, y) \<in> R)" .
@@ -44,13 +47,352 @@ definition dinitzPhaseRestructuredInvar :: "(_ graph \<times> _ graph \<times> b
     \<and> (changed \<longleftrightarrow> cf' \<noteq> cf)
     \<and> (changed \<longrightarrow> cf.connected s t)"
 
+text \<open>This new invariant is an extended version of the old one. However, transitioning from an
+      RGraph to a NFlow via flow_of_cf loses some information (namely that cf is nonnegative and
+      has the same sum capacity for each node pair), so we need some additional information on the
+      unfolded side.\<close>
+lemma dinitzPhaseRestructuredInvar_alt: "dinitzPhaseRestructuredInvar (cf', stl, brk, changed) \<longleftrightarrow>
+    RGraph c s t cf'
+    \<and> f.dinitzPhaseInvar (flow_of_cf cf', stl)
+    \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t)
+    \<and> f.val \<le> Flow.val c s (flow_of_cf cf')
+    \<and> changed = (cf' \<noteq> cf)
+    \<and> (changed \<longrightarrow> cf.connected s t)"
+  unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def
+  by (auto intro: RGraph.is_NFlow dest: RGraph.this_loc_rpg simp: RPreGraph.rg_fo_inv)
+
+(*
+(* Weaker version, check if better *)
+lemma dinitzPhaseRestructuredInvar_alt': "dinitzPhaseRestructuredInvar (cf', stl, brk, changed) \<longleftrightarrow>
+    cf' = cf_of (flow_of_cf cf')
+    \<and> f.dinitzPhaseInvar (flow_of_cf cf', stl)
+    \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t)
+    \<and> f.val \<le> Flow.val c s (flow_of_cf cf')
+    \<and> changed = (cf' \<noteq> cf)
+    \<and> (changed \<longrightarrow> cf.connected s t)"
+proof
+assume assms: "cf' = cf_of (flow_of_cf cf') \<and> f.dinitzPhaseInvar (flow_of_cf cf', stl) \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t) \<and> f.val \<le> Flow.val c s (flow_of_cf cf') \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t)"
+  then interpret rg': RGraph c s t cf' unfolding f.dinitzPhaseInvar_def apply simp using NFlow.is_RGraph by metis
+  from assms show "dinitzPhaseRestructuredInvar (cf', stl, brk, changed)" unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def using NFlow.is_RGraph by fastforce
+next
+  assume "dinitzPhaseRestructuredInvar (cf', stl, brk, changed)"
+  then show "cf' = cf_of (flow_of_cf cf') \<and> f.dinitzPhaseInvar (flow_of_cf cf', stl) \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t) \<and> f.val \<le> Flow.val c s (flow_of_cf cf') \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t)"
+    unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def by (auto intro: RGraph.is_NFlow dest: RGraph.this_loc_rpg simp: RPreGraph.rg_fo_inv)
+qed
+(*
+lemma dinitzPhaseRestructuredInvar_alt': "dinitzPhaseRestructuredInvar (cf', stl, brk, changed) \<longleftrightarrow>
+    cf' = cf_of (flow_of_cf cf')
+    \<and> f.dinitzPhaseInvar (flow_of_cf cf', stl)
+    \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t)
+    \<and> f.val \<le> Flow.val c s (flow_of_cf cf')
+    \<and> changed = (cf' \<noteq> cf)
+    \<and> (changed \<longrightarrow> cf.connected s t)"
+proof
+assume assms: "cf' = cf_of (flow_of_cf cf') \<and> f.dinitzPhaseInvar (flow_of_cf cf', stl) \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t) \<and> f.val \<le> Flow.val c s (flow_of_cf cf') \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t)"
+  then interpret rg': RGraph c s t cf' unfolding f.dinitzPhaseInvar_def apply simp using NFlow.is_RGraph by metis
+  from assms show "dinitzPhaseRestructuredInvar (cf', stl, brk, changed)" unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def using NFlow.is_RGraph by fastforce
+next
+  assume "dinitzPhaseRestructuredInvar (cf', stl, brk, changed)"
+  then show "cf' = cf_of (flow_of_cf cf') \<and> f.dinitzPhaseInvar (flow_of_cf cf', stl) \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t) \<and> f.val \<le> Flow.val c s (flow_of_cf cf') \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t)"
+    unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def by (auto intro: RGraph.is_NFlow dest: RGraph.this_loc_rpg simp: RPreGraph.rg_fo_inv)
+qed*)
+*)
+
+
+
+
+
+
+
+
+
+lemma dinitzPhaseRestructured_step:
+  fixes cf' stl stl' changed
+  assumes PATH: "Graph.isPath stl s p t"
+      and CLEANED: "Dual_Path_Union stl' (Graph.subtract_path stl p) s t"
+      and INVAR: "dinitzPhaseRestructuredInvar (cf', stl, False, changed)"
+  defines "aug_cf' \<equiv> Graph.subtract_skew_path cf' p"
+    shows "dinitzPhaseRestructuredInvar (aug_cf', stl', False, True) \<and> Graph.E stl' \<subset> Graph.E stl \<and> finite (Graph.E stl)"
+proof -
+  interpret cf': Graph cf' + stl: Graph stl + stl': Graph stl' . (* For prettier names *)
+  from INVAR interpret Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t" +
+    rg': RGraph c s t cf' unfolding dinitzPhaseRestructuredInvar_def by auto
+
+  have "RGraph c s t aug_cf'" "Bounded_Dual_Shortest_Path_Union stl' aug_cf' s t (cf.min_dist s t)"
+    "min_dist_less_eq s t cf aug_cf'" "f.val \<le> Flow.val c s (flow_of_cf aug_cf')"
+    "aug_cf' \<noteq> cf" "cf.connected s t" "stl'.E \<subset> stl.E" "finite stl.E"
+  proof -
+    let ?aug_f = "rg'.f.augment (rg'.f.augmentingFlow p)"
+
+    have aug_cf'_alt: "aug_cf' = cf_of (?aug_f)"
+    proof -
+      from PATH have "cf'.isPath s p t" by (simp add: sub_path)
+      then interpret p_pos_cont: Pos_Contained_Graph "cf'.path_induced_graph p" cf'
+        using rg'.f.cf.path_induced_graph_pos_contained by auto
+      show ?thesis
+        unfolding aug_cf'_def cf'.subtract_skew_path_alt rg'.f.augmentingFlow_alt
+        using rg'.f.augment_alt' p_pos_cont.Contained_Graph_axioms by simp
+    qed
+
+    from INVAR PATH CLEANED have STEP': "f.dinitzPhaseInvar (?aug_f, stl')
+      \<and> stl'.E \<subset> stl.E \<and> finite stl.E"
+      unfolding dinitzPhaseRestructuredInvar_alt rg'.f_def
+      using f.dinitzPhase_step Dual_Path_Union_iff_cleaning by metis
+    then interpret aug_f: NFlow c s t ?aug_f unfolding f.dinitzPhaseInvar_def by blast
+
+    from STEP' show "RGraph c s t aug_cf'"
+      "Bounded_Dual_Shortest_Path_Union stl' aug_cf' s t (cf.min_dist s t)"
+      "min_dist_less_eq s t cf aug_cf'" "stl'.E \<subset> E'" "finite E'"
+      unfolding f.dinitzPhaseInvar_def aug_cf'_alt
+      using aug_f.is_RGraph by auto
+
+    have "f.val < aug_f.val"
+    proof -
+      from PATH have AUG_PATH: "rg'.f.isAugmentingPath p"
+        using Graph.isSimplePath_def rg'.f.isAugmentingPath_def paths_are_simple sub_path rg'.rg_is_cf
+        by metis
+
+      from INVAR have "f.val \<le> rg'.f.val"
+        unfolding dinitzPhaseRestructuredInvar_def rg'.f_def by blast
+      also from PATH have "... < rg'.f.val + rg'.f.resCap p"
+        using rg'.f.resCap_gzero_aux sub_path by simp
+      also from AUG_PATH have "... = aug_f.val"
+        using rg'.f.augFlow_val rg'.f.augment_flow_value rg'.f.augFlow_resFlow by simp
+      finally show ?thesis .
+    qed
+    then show "f.val \<le> Flow.val c s (flow_of_cf aug_cf')" "aug_cf' \<noteq> cf"
+      using aug_cf'_alt aug_f.fo_rg_inv f_def by auto
+  
+    from INVAR PATH show "cf.connected s t"
+      unfolding dinitzPhaseRestructuredInvar_def
+      using isPath.connected sub_path by blast
+  qed
+  then show ?thesis unfolding dinitzPhaseRestructuredInvar_def by blast
+qed
+
+proof (unfold dinitzPhaseRestructuredInvar_def, intro case_prodI conjI)
+  interpret cf': Graph cf' + stl: Graph stl + stl': Graph stl' . (* For prettier names *)
+  from INVAR interpret Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t" +
+    rg': RGraph c s t cf' unfolding dinitzPhaseRestructuredInvar_def by auto
+
+  from CLEANED have stl'_alt: "stl' = Graph.cleaning (Graph.subtract_path stl p) s t"
+    by (simp add: Dual_Path_Union_iff_cleaning)
+
+  have aug_cf'_alt: "aug_cf' = cf_of (rg'.f.augment (rg'.f.augmentingFlow p))"
+  proof -
+    from PATH have "cf'.isPath s p t" by (simp add: sub_path)
+    then interpret p_pos_cont: Pos_Contained_Graph "cf'.path_induced_graph p" cf'
+      using rg'.f.cf.path_induced_graph_pos_contained by auto
+    show ?thesis
+      unfolding aug_cf'_def cf'.subtract_skew_path_alt rg'.f.augmentingFlow_alt
+      using rg'.f.augment_alt' p_pos_cont.Contained_Graph_axioms by simp
+  qed
+
+  from INVAR PATH have "f.dinitzPhaseInvar (rg'.f.augment (rg'.f.augmentingFlow p), stl')
+    \<and> stl'.E \<subset> stl.E \<and> finite stl.E"
+    unfolding dinitzPhaseRestructuredInvar_alt rg'.f_def stl'_alt
+    using f.dinitzPhase_step by metis
+  then show "RGraph c s t aug_cf'" "Bounded_Dual_Shortest_Path_Union stl' aug_cf' s t (cf.min_dist s t)"
+    "min_dist_less_eq s t cf aug_cf'" "stl'.E \<subset> E'" "finite E'"
+    unfolding f.dinitzPhaseInvar_def aug_cf'_alt
+    using NFlow.is_RGraph by auto
+  then interpret aug_rg: RGraph c s t aug_cf' by blast
+
+  have "f.val < aug_rg.f.val" sorry
+  then show "f.val \<le> Flow.val c s (flow_of_cf aug_cf')" "True = (aug_cf' \<noteq> cf)"
+    using aug_rg.f_def by auto
+
+  from INVAR PATH show "True \<longrightarrow> cf.connected s t"
+    unfolding dinitzPhaseRestructuredInvar_def
+    using isPath.connected sub_path by blast
+
+
+
+
+
+
+
+
+
+
+
+
+  have "f.val < Flow.val c s (flow_of_cf aug_cf')"
+    using aug_rg.f_def
+
+from \<open>f.val \<le> Flow.val c s (flow_of_cf cf')\<close> have "f.val \<le> rg'.f.val" unfolding rg'.f_def .
+
+  have "f.val < Flow.val c s (flow_of_cf aug_cf')"
+  proof -
+    have BOUND_EQ: "cf.min_dist s t = rg'.cf.min_dist s t"
+    proof -
+      (*from INVAR interpret Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t"
+        unfolding dinitzPhaseInvar_def by simp*)
+      show ?thesis
+      proof (intro antisym)
+        from PATH INVAR show "cf.min_dist s t \<le> rg'.cf.min_dist s t"
+          unfolding dinitzPhaseRestructuredInvar_def Graph.connected_def
+          using old_bounded.sub_path by blast
+  
+        from PATH have "rg'.cf.min_dist s t \<le> stl.min_dist s t"
+          using isPath.connected old_bounded.sub_min_dist_geq by blast
+        also have "... = length p" using PATH old_bounded.path_ascends_layer by force
+        also have "... \<le> cf.min_dist s t" using PATH old_bounded.path_length_bounded by simp
+        finally show "rg'.cf.min_dist s t \<le> cf.min_dist s t" .
+      qed
+        qed
+        then interpret stu: Dual_Shortest_Path_Union stl cf' s t
+          using min_st_dist_bound old_bounded.Bounded_Dual_Shortest_Path_Union_axioms by fastforce
+    have 0: "Flow rg'.f.cf s t (rg'.f.augmentingFlow p)"
+      apply (intro rg'.f.augFlow_resFlow)
+      unfolding rg'.f.isAugmentingPath_def
+      using PATH rg'.f.cf.isShortestPath_alt stu.shortest_path_transfer rg'.rg_fo_inv by simp
+
+    have 1: "rg'.f.isAugmentingPath p"
+      by (metis Graph.isSimplePath_def PATH \<open>rg'.cf.isPath s p t\<close> old_bounded.paths_are_simple rg'.f.isAugmentingPath_def rg'.rg_is_cf)
+    
+    have "rg'.f.cf.isPath s p t" by (simp add: \<open>rg'.cf.isPath s p t\<close>)
+    then have "0 < Flow.val rg'.f.cf s (rg'.f.augmentingFlow p)"
+      using rg'.f.augFlow_val[OF 1] rg'.f.resCap_gzero_aux by simp
+    with rg'.f.augment_flow_value[OF 0] have "rg'.f.val < Flow.val c s (rg'.f.augment (rg'.f.augmentingFlow p))"
+      by simp
+    with \<open>f.val \<le> Flow.val c s (flow_of_cf cf')\<close> show ?thesis
+      unfolding rg'.f_def using aug_cf'_alt
+      by (metis "0" Flow.axioms(1) NFlow.augment_flow_presv NPreflow.is_RPreGraph NPreflow_def RPreGraph.f_unique \<open>0 < Flow.val rg'.f.cf s (rg'.f.augmentingFlow p)\<close> \<open>Flow.val c s (rg'.f.augment (rg'.f.augmentingFlow p)) = rg'.f.val + Flow.val rg'.f.cf s (rg'.f.augmentingFlow p)\<close> add.commute add_strict_increasing aug_rg.is_NPreflow aug_rg.rg_fo_inv rg'.f_def rg'.is_NFlow)
+  qed
+  then show "f.val \<le> Flow.val c s (flow_of_cf aug_cf')" "aug_cf' \<noteq> cf" unfolding f_def by auto
+  show "cf.connected s t"
+    using INVAR_UNFOLD(5) INVAR_UNFOLD(6) \<open>rg'.cf.isPath s p t\<close> isPath.connected by blast
+
+
+
+
+  from INVAR PATH CLEANED have "f.dinitzPhaseInvar (flow_of_cf aug_cf', stl')"
+    unfolding dinitzPhaseRestructuredInvar_alt using f.dinitzPhase_step oops
+    apply (drule f.dinitzPhase_step)
+
+
+  from INVAR PATH have FLOW_INVAR:
+    "f.dinitzPhaseInvar (rg'.f.augment (rg'.f.augmentingFlow p), stl')"
+    unfolding dinitzPhaseRestructuredInvar_alt stl'_alt rg'.f_def
+    using f.dinitzPhase_step
+    by metis+
+
+  then show "RGraph c s t aug_cf'"
+    unfolding f.dinitzPhaseInvar_def unfolding aug_cf'_alt apply clarify
+    using NFlow.is_RGraph by auto
+
+
+  (*have BOUND_EQ: "cf.min_dist s t = rg'.cf.min_dist s t"
+  proof (intro antisym)
+    from INVAR interpret Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t"
+      unfolding dinitzPhaseRestructuredInvar_def by blast
+
+    from PATH INVAR show "cf.min_dist s t \<le> rg'.cf.min_dist s t"
+      unfolding dinitzPhaseRestructuredInvar_def Graph.connected_def min_dist_less_eq_def
+      using sub_path by blast
+
+    from PATH have "rg'.cf.min_dist s t \<le> g'.min_dist s t"
+      using isPath.connected sub_min_dist_geq by blast
+    also have "... = length p" using PATH path_ascends_layer by force
+    also have "... \<le> cf.min_dist s t" using PATH path_length_bounded by simp
+    finally show "rg'.cf.min_dist s t \<le> cf.min_dist s t" .
+  qed
+  with INVAR interpret Dual_Shortest_Path_Union stl cf' s t
+    unfolding dinitzPhaseRestructuredInvar_def using min_st_dist_bound by fastforce*)
+  (*from INVAR interpret Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t"
+    unfolding dinitzPhaseRestructuredInvar_def by simp*)
+
+  (*from PATH show "RGraph c s t aug_cf'"*)
+
+  
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  from INVAR have "RGraph c s t cf'" and INVAR': "f.dinitzPhaseInvar (flow_of_cf cf', stl)" and
+    "f.val \<le> Flow.val c s (flow_of_cf cf')" "changed = (cf' \<noteq> cf)" "(changed \<longrightarrow> cf.connected s t)"
+    unfolding dinitzPhaseRestructuredInvar_alt by auto
+  then interpret rg': RGraph c s t cf' by blast
+
+  from CLEANED have stl'_alt: "stl' = Graph.cleaning (Graph.subtract_path stl p) s t"
+    by (simp add: Dual_Path_Union_iff_cleaning)
+
+  thm NFlow.augment_alt'
+
+  from f.dinitzPhase_step[OF INVAR' PATH] have "f.dinitzPhaseInvar (flow_of_cf aug_cf', stl')"
+    unfolding stl'_alt
+
+
+  from INVAR' PATH CLEANED have "f.dinitzPhaseInvar (flow_of_cf aug_cf', stl')"
+    apply (drule f.dinitzPhase_step)
+  thm f.dinitzPhase_step
+  from INVAR' have 
+
+  show "RGraph c s t aug_cf'"
+  proof -
+    have "cf_of (flow_of_cf aug_cf') = aug_cf'" sorry
+    then show "RGraph c s t aug_cf'" using rg'.f.is_RGraph
+
+  show "aug_cf' = cf_of (flow_of_cf aug_cf')"
+  proof (intro ext, unfold split_paired_all)
+    fix u v
+    show "aug_cf' (u, v) = cf_of (flow_of_cf aug_cf') (u, v)"
+    proof (cases "(u, v) \<in> E")
+      case True
+      then show ?thesis unfolding residualGraph_def flow_of_cf_def by simp
+    next
+      case False
+      then show ?thesis unfolding residualGraph_def flow_of_cf_def apply auto
+        unfolding aug_cf'_def rg'.cf.subtract_skew_path_def apply auto defer oops
+    qed
+
+  thm f.dinitzPhase_step
+
+
+
+
+
+
+
+
+(*
 lemma dinitzPhaseRestructuredInvar_alt':
   "dinitzPhaseRestructuredInvar (cf', stl, brk, changed) \<Longrightarrow> f.dinitzPhaseInvar (flow_of_cf cf', stl)"
   unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def
   by (auto intro: RGraph.is_NFlow dest: RGraph.this_loc_rpg simp: RPreGraph.rg_fo_inv)
 
+lemma dinitzPhaseRestructuredInvar_alt:
+  "f.dinitzPhaseInvar (flow_of_cf cf', stl)
+    \<and> RGraph c s t cf'
+    \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t)
+    \<and> f.val \<le> Flow.val c s (flow_of_cf cf')
+    \<and> changed = (cf' \<noteq> cf)
+    \<and> (changed \<longrightarrow> cf.connected s t) \<Longrightarrow> dinitzPhaseRestructuredInvar (cf', stl, brk, changed)"
+  unfolding dinitzPhaseRestructuredInvar_def f.dinitzPhaseInvar_def prod.case
+proof (intro iffI conjI; elim conjE)
+  assume "RGraph c s t cf'" and assms: "brk \<longrightarrow> \<not> Graph.connected stl s t"
+    "Bounded_Dual_Shortest_Path_Union stl (cf_of (flow_of_cf cf')) s t (f.cf.min_dist s t)"
+    "min_dist_less_eq s t f.cf (cf_of (flow_of_cf cf'))" "f.val \<le> Flow.val c s (flow_of_cf cf')"
+    "changed = (cf' \<noteq> cf)" "changed \<longrightarrow> cf.connected s t"
+  then interpret rg': RGraph c s t cf' by blast
+  thm rg'.f.NFlow_axioms[unfolded rg'.f_def]
+*)
 
 
+(*
 lemma dinitzPhaseRestructuredInvar_alt:
   "f.dinitzPhaseInvar (flow_of_cf cf', stl)
     \<and> (brk \<longrightarrow> \<not> Graph.connected stl s t)
@@ -69,6 +411,19 @@ proof (intro iffI conjI; elim conjE)
     show "NFlow c s t (flow_of_cf cf')"
       by (simp add: f'.NFlow_axioms)
     show "cf' = cf_of (flow_of_cf cf')"
+    proof (intro ext, unfold split_paired_all)
+      fix u v
+      show "cf' (u, v) = cf_of (flow_of_cf cf') (u, v)"
+      proof (cases "(u, v) \<in> E")
+        case True
+        then show ?thesis unfolding residualGraph_def flow_of_cf_def by simp
+      next
+        case False
+        then show ?thesis unfolding residualGraph_def apply auto unfolding flow_of_cf_def apply simp
+      qed
+      unfolding residualGraph_def flow_of_cf_def
+      thm flow_of_cf_def
+      thm residualGraph_def[of c]
 
 
 end end
@@ -131,7 +486,7 @@ proof safe
   apply (intro iffI; clarify)
   apply (intro case_prodI)
   apply clarify apply simp
-
+*)
 
 
 (* TODO integrate into step *)
@@ -190,7 +545,7 @@ proof -
 qed
 *)
 
-lemma dinitzPhaseRestructured_step:
+lemma dinitzPhaseRestructured_step':
   fixes cf' stl stl' changed
   assumes PATH: "Graph.isPath stl s p t"
       and CLEANED: "Dual_Path_Union stl' (Graph.subtract_path stl p) s t"
@@ -204,18 +559,19 @@ proof (unfold dinitzPhaseRestructuredInvar_def, intro case_prodI conjI)
   thm f.dinitzPhase_step[OF this PATH, unfolded f.dinitzPhaseInvar_def, simplified]
   note this
 
-  note INVAR[THEN rg'.dinitzPhaseRestructuredInvar_alt]
+  thm INVAR[unfolded dinitzPhaseRestructuredInvar_alt]
+  (*note INVAR[THEN rg'.dinitzPhaseRestructuredInvar_alt]*)
   thm rg'.f.dinitzPhase_step
   thm f.dinitzPhase_step
   thm rg'.dinitzPhaseRestructuredInvar_alt
-  thm rg'.dinitzPhaseRestructuredInvar_alt[THEN rg'.f.dinitzPhase_step]
+  (*thm rg'.dinitzPhaseRestructuredInvar_alt[THEN rg'.f.dinitzPhase_step]*)
 
   interpret stl: Graph stl .
   interpret stl': Graph stl' .
 
   from INVAR have INVAR_UNFOLD: "RGraph c s t cf'"
     "Bounded_Dual_Shortest_Path_Union stl cf' s t (cf.min_dist s t)"
-    "Graph.connected cf' s t \<longrightarrow> cf.min_dist s t \<le> Graph.min_dist cf' s t"
+    "min_dist_less_eq s t cf cf'"
     "f.val \<le> Flow.val c s (flow_of_cf cf')"
     "changed = (cf' \<noteq> cf)"
     "changed \<longrightarrow> cf.connected s t"
@@ -234,7 +590,18 @@ proof (unfold dinitzPhaseRestructuredInvar_def, intro case_prodI conjI)
     unfolding aug_cf'_def rg'.cf.subtract_skew_path_alt rg'.f.augmentingFlow_alt
     using rg'.f.augment_alt' p_pos_cont.Contained_Graph_axioms by simp
 
-  oops end end
+  from INVAR PATH have FLOW_INVAR:
+    "f.dinitzPhaseInvar (rg'.f.augment (rg'.f.augmentingFlow p), stl')"
+    and "stl'.E \<subset> stl.E" "finite (stl.E)"
+    using dinitzPhaseRestructuredInvar_alt f.dinitzPhase_step stl'_alt rg'.f_def
+    by metis+
+
+  then show "stl'.E \<subset> stl.E" "finite (stl.E)" by simp_all
+  from FLOW_INVAR show "RGraph c s t aug_cf'"
+    unfolding f.dinitzPhaseInvar_def unfolding aug_cf'_alt apply clarify
+    using NFlow.is_RGraph by auto
+  then interpret aug_rg: RGraph c s t aug_cf' by blast
+
 
   from INVAR PATH have FLOW_INVAR:
     "f.dinitzPhaseInvar (rg'.f.augment (rg'.f.augmentingFlow p), stl')"
@@ -248,6 +615,14 @@ proof (unfold dinitzPhaseRestructuredInvar_def, intro case_prodI conjI)
     unfolding f.dinitzPhaseInvar_def aug_cf'_alt
     using NFlow.is_RGraph by auto
   then interpret aug_rg: RGraph c s t aug_cf' by blast
+
+
+
+
+
+
+
+
   from \<open>f.val \<le> Flow.val c s (flow_of_cf cf')\<close> have "f.val \<le> rg'.f.val" unfolding rg'.f_def .
 
   have "f.val < Flow.val c s (flow_of_cf aug_cf')"
@@ -291,7 +666,7 @@ proof (unfold dinitzPhaseRestructuredInvar_def, intro case_prodI conjI)
   then show "f.val \<le> Flow.val c s (flow_of_cf aug_cf')" "aug_cf' \<noteq> cf" unfolding f_def by auto
   show "cf.connected s t"
     using INVAR_UNFOLD(5) INVAR_UNFOLD(6) \<open>rg'.cf.isPath s p t\<close> isPath.connected by blast
-qed
+qed end end
 
 definition dist_increasing_cf
   where "dist_increasing_cf cf' \<equiv>

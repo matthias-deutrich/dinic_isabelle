@@ -625,11 +625,33 @@ lemma parallel_edge_cases':
   | (PARALLEL_EDGE) u v where "(u, v) \<in> E" "(v, u) \<in> E"
   by blast
 
-lemma parallel_edge_cases [case_names EDGE REV_EDGE NO_EDGE, cases pred]:
-  "\<lbrakk>\<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
-    \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v);
-    \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v)\<rbrakk>
-  \<Longrightarrow> P (u, v)" using no_parallel_edge by blast*)
+lemma parallel_edge_cases'':
+  assumes "\<And>u v. \<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P"
+    and "\<And>u v. \<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P"
+    and "\<And>u v. \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P"
+    and "\<And>u v. \<lbrakk>(u, v) \<in> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P"
+  shows "\<And>u v. P"
+  using assms by blast
+
+lemma parallel_edge_cases''':
+  "\<And>u v. \<lbrakk>\<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P;
+          \<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P;
+          \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P;
+          \<lbrakk>(u, v) \<in> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P\<rbrakk> \<Longrightarrow> P"
+  by blast
+*)
+lemma parallel_edge_cases:
+  "\<And>u v. \<lbrakk>\<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
+          \<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
+          \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v);
+          \<lbrakk>(u, v) \<in> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v)\<rbrakk> \<Longrightarrow> P (u, v)"
+  by blast
+
+lemma (in Irreducible_Graph) no_parallel_edge_cases[case_names NO_EDGE EDGE REV_EDGE, cases pred]:
+  "\<And>u v. \<lbrakk>\<lbrakk>(u, v) \<notin> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
+          \<lbrakk>(u, v) \<in> E; (v, u) \<notin> E\<rbrakk> \<Longrightarrow> P (u, v);
+          \<lbrakk>(u, v) \<notin> E; (v, u) \<in> E\<rbrakk> \<Longrightarrow> P (u, v)\<rbrakk>
+  \<Longrightarrow> P (u, v)" using no_parallel_edge by blast
 
 
 

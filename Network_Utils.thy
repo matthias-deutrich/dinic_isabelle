@@ -149,6 +149,10 @@ proof (intro Pos_Contained_Graph.conservation_FlowI) (* TODO extract Nonnegative
 qed
 end
 
+(* TODO make this a locale and sublocale it with RGraph, then we get the resulting lemma automatically *)
+definition pair_sums_eq :: "'capacity::linordered_idom graph \<Rightarrow> _ graph \<Rightarrow> bool"
+  where "pair_sums_eq c c' \<longleftrightarrow> (\<forall>u v. c (u, v) + c (v, u) = c' (u, v) + c' (v, u))"
+
 context Network
 begin
 lemma c_is_RGraph: "RGraph c s t c"
@@ -162,9 +166,75 @@ qed
 lemma cf_of_V_ss: "Graph.V (cf_of cf) \<subseteq> V"
   unfolding Graph.V_def using cfE_of_ss_invE by blast
 
+lemma flow_of_cf_iff_pair_sums_eq:
+  assumes "Nonnegative_Graph cf"
+  shows "cf_of (flow_of_cf cf) = cf \<longleftrightarrow> pair_sums_eq c cf"
+proof -
+  from assms interpret cf: Nonnegative_Graph cf .
+  have "\<And>u v. cf_of (flow_of_cf cf) (u, v) = cf (u, v) \<and>  cf_of (flow_of_cf cf) (v, u)
+              = cf (v, u)\<longleftrightarrow> c (u, v) + c (v, u) = cf (u, v) + cf (v, u)"
+    unfolding residualGraph_def flow_of_cf_def
+    by (auto intro: no_parallel_edge_cases simp: add_nonneg_eq_0_iff cf.cap_non_negative)
+  then show ?thesis unfolding pair_sums_eq_def by fastforce
+qed
+
+
+
+
+
+(*
+proof
+  assume EQ: "cf_of (flow_of_cf cf) = cf"
+  show "pair_sums_eq c cf"
+    apply (unfold pair_sums_eq_def, intro allI)
+    apply (rule no_parallel_edge_cases)
+    using EQ unfolding residualGraph_def flow_of_cf_def apply auto
+    apply (smt (verit, ccfv_SIG) add_0 case_prod_conv)
+  proof (unfold pair_sums_eq_def, intro allI, rule parallel_edge_cases'')
+    fix u v
+    from EQ have "cf (u, v) + cf (v, u) = cf_of (flow_of_cf cf) (u, v) + cf_of (flow_of_cf cf) (v, u)"
+      by simp
+    note this [unfolded residualGraph_def flow_of_cf_def, simplified]
+  unfolding residualGraph_def flow_of_cf_def pair_sums_eq_def
+(*
+  apply auto
+  apply (smt (verit, ccfv_threshold) add.right_neutral add_cancel_right_left case_prod_conv diff_add_cancel no_parallel_edge zero_cap_simp)
+  *)
+(*
+lemma pair_sums_eq_if_RGraph: "RGraph c s t cf \<Longrightarrow> pair_sums_eq c cf"
+proof -
+  assume "RGraph c s t cf"
+  then interpret RGraph c s t cf .
+  show "pair_sums_eq c cf" unfolding pair_sums_eq_def oops
+*)
+
 thm flow_of_cf_def
 thm residualGraph_def
+
+thm split_paired_all
+thm prod.case
+term flow_of_cf
+term cf_of
+term "flow_of_cf \<circ> cf_of"
+lemma "flow_of_cf \<circ> cf_of = id"
+(*proof (intro ext, unfold split_paired_all)*)
+proof (intro ext, unfold comp_apply id_apply)
+  fix f e
+  show "flow_of_cf (cf_of f) e = f e"
+  proof (cases "e \<in> E")
+    case True
+    then show ?thesis unfolding flow_of_cf_def residualGraph_def by (simp add: case_prod_unfold)
+  next
+    case False
+    then show ?thesis unfolding flow_of_cf_def apply simp oops
+  qed
+qed
+
+  apply (rule ext)
+  apply clarsimp
+*)
 end
+
 
 (* TODO prove this more general version and use it to show the previous *)
 lemma transfer_flow:

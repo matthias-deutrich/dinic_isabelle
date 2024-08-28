@@ -384,8 +384,9 @@ proof (unfold dinitzPhaseInvar_def, intro case_prodI conjI)
     unfolding dinitzPhaseInvar_def using min_st_dist_bound by fastforce
 
   from PATH show "NFlow c s t aug_f'"
-    by (fastforce simp: aug_f'_def f'.isAugmentingPath_def
-                  intro: NFlowI f'.augment_flow_presv f'.augFlow_resFlow shortest_path_transfer f'.cf.shortestPath_is_simple)
+    using f'.cf.shortestPath_is_simple NFlowI f'.isAugmentingPath_def aug_f'_def f'.augFlow_resFlow f'.augment_flow_presv shortest_path_transfer by blast
+    (*by (fastforce simp: aug_f'_def f'.isAugmentingPath_def
+                  intro: NFlowI f'.augment_flow_presv f'.augFlow_resFlow shortest_path_transfer f'.cf.shortestPath_is_simple)*)
 
   interpret g': Nonnegative_Graph stl
     by (intro sg_Nonnegative_Graph) intro_locales
