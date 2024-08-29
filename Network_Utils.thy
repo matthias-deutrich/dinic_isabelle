@@ -235,6 +235,9 @@ qed
 *)
 end
 
+lemma (in RGraph) res_max_if_discon: "\<not> cf.connected s t \<Longrightarrow> isMaxFlow (flow_of_cf cf)"
+  by (metis Graph.isSimplePath_fwd f.ford_fulkerson(1) f.isAugmentingPath_def isPath.connected rg_is_cf f_def)
+
 
 (* TODO prove this more general version and use it to show the previous *)
 lemma transfer_flow:
