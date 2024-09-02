@@ -235,6 +235,7 @@ lemma contained_irreducible: "Irreducible_Graph c \<Longrightarrow> Irreducible_
 lemma subtract_contained: "Contained_Graph (subtract_graph c') c"
   unfolding subtract_graph_def using cap_abs_bounded by unfold_locales auto
 end
+
 lemma contained_trans[trans]: "\<lbrakk>Contained_Graph c'' c'; Contained_Graph c' c\<rbrakk> \<Longrightarrow> Contained_Graph c'' c"
   unfolding Contained_Graph_def by (meson order_trans)
 
@@ -273,17 +274,9 @@ text \<open>While these definitions mostly make sense for Nonnegative_Graphs, th
 definition pathCap :: "path \<Rightarrow> 'capacity"
   where "pathCap p \<equiv> Min {c e | e. e \<in> set p}"
 
-lemma pathCap_alt: "pathCap p = Min (c ` (set p))" unfolding pathCap_def
+lemma pathCap_alt: "pathCap p = Min (c ` set p)" unfolding pathCap_def
   by (metis Setcompr_eq_image)
 
-definition path_induced_graph :: "path \<Rightarrow> _ graph"
-  where "path_induced_graph p \<equiv> \<lambda>e.
-    if e \<in> set p then
-      pathCap p
-    else
-      0"
-
-(* TODO why is this so hard to prove? *)
 lemma pathCap_nz:
   assumes "p \<noteq> []" "set p \<subseteq> E"
   shows "pathCap p \<noteq> 0"
@@ -295,7 +288,17 @@ proof (rule ccontr)
   with \<open>set p \<subseteq> E\<close> show False unfolding E_def by auto
 qed
 
-lemma path_induced_graph_edges:
+definition path_induced_graph :: "path \<Rightarrow> _ graph"
+  where "path_induced_graph p \<equiv> \<lambda>e.
+    if e \<in> set p then
+      pathCap p
+    else
+      0"
+
+lemma path_induced_graph_E_ss: "Graph.E (path_induced_graph p) \<subseteq> set p"
+  by (simp add: Graph.E_def Graph.path_induced_graph_def subset_eq)
+
+lemma path_induced_graph_E_eq:
   "\<lbrakk>p \<noteq> []; set p \<subseteq> E\<rbrakk> \<Longrightarrow> Graph.E (path_induced_graph p) = E \<inter> set p"
   using pathCap_nz unfolding Graph.E_def path_induced_graph_def by auto
 
@@ -326,32 +329,46 @@ definition subtract_skew_path :: "path \<Rightarrow> _ graph"
 lemma subtract_path_alt: "subtract_path p = subtract_graph (path_induced_graph p)"
   unfolding subtract_graph_def subtract_path_def path_induced_graph_def by auto
 
+lemma subtract_path_untouched_edges: "E \<subseteq> Graph.E (subtract_path p) \<union> set p"
+  unfolding subtract_path_alt using subtract_graph_untouched_edges path_induced_graph_E_ss by blast
+
 lemma subtract_skew_path_alt: "subtract_skew_path p = subtract_skew_graph (path_induced_graph p)"
   unfolding subtract_skew_graph_def subtract_skew_path_def path_induced_graph_def by simp
 end
 
 context Nonnegative_Graph
 begin
-lemma path_induced_graph_pos_contained_aux:
+lemma pathCap_nonnegative:
   "p \<noteq> [] \<Longrightarrow> 0 \<le> pathCap p" unfolding pathCap_alt using cap_non_negative by auto
 
 lemma path_induced_graph_pos_contained: "Pos_Contained_Graph (path_induced_graph p) c"
   unfolding path_induced_graph_def apply unfold_locales
-  using cap_non_negative apply (simp add: pathCap_alt)
-  by (fastforce intro: path_induced_graph_pos_contained_aux)
+   apply (simp add: pathCap_alt cap_non_negative)
+  by (fastforce intro: pathCap_nonnegative)
 
-lemma nonempty_path_cap_positive: "\<lbrakk>p \<noteq> []; set p \<subseteq> E\<rbrakk> \<Longrightarrow> 0 < pathCap p" (* TODO necessary? *)
+lemma nonempty_path_cap_positive: "p \<noteq> [] \<Longrightarrow> set p \<subseteq> E \<longleftrightarrow> 0 < pathCap p"
   unfolding pathCap_alt E_def
   by (auto intro!: le_neq_trans[OF cap_non_negative])
+
+(* TODO *)
+lemma path_induced_graph_edges_ss: "Graph.E (path_induced_graph p) \<subseteq> E"
+proof -
+  consider "p = []" | "pathCap p = 0" | "0 < pathCap p" using pathCap_nonnegative by fastforce
+  then show ?thesis
+    apply cases
+    using path_induced_graph_E_ss apply fastforce
+     apply (simp add: Graph.E_def' path_induced_graph_def)
+    using nonempty_path_cap_positive path_induced_graph_E_ss
+    by (metis order.trans empty_set empty_subsetI)
+qed
 end
 
 (* TODO prettify *)
 lemma (in Subgraph) irreducible_contained_skew_subtract:
   "\<lbrakk>Contained_Graph f c'; Irreducible_Graph c'\<rbrakk> \<Longrightarrow> Subgraph (g'.subtract_graph f) (subtract_skew_graph f)"
   apply (intro Subgraph_edgeI)
-  unfolding g'.subtract_graph_def subtract_skew_graph_def
   (*by (smt (verit, best) Contained_Graph.edges_ss Graph.E_def' Irreducible_Graph.no_parallel_capacity c'_sg_c_old case_prod_conv diff_0_right diff_diff_eq2 in_mono mem_Collect_eq) *)
-  apply auto
+  apply (clarsimp simp: g'.subtract_graph_def subtract_skew_graph_def)
   by (metis (no_types, opaque_lifting) Contained_Graph.cap_abs_bounded Irreducible_Graph.no_parallel_edge add_cancel_left_right cap_compatible cap_nonzero g'.zero_cap_simp nle_le)
 
 
@@ -405,7 +422,7 @@ proof (intro Subgraph_edgeI)
   assume "g'.subtract_path p e \<noteq> 0"
   then have C': "0 < c' e" unfolding g'.subtract_path_def g'.pathCap_alt
     apply (auto split: if_splits intro!: le_neq_trans[OF g'.cap_non_negative])
-    by (metis List.finite_set Min_le Orderings.order_eq_iff empty_iff finite_imageI g'.pathCap_alt g'.path_induced_graph_pos_contained_aux image_eqI list.set(1))
+    by (metis List.finite_set Min_le Orderings.order_eq_iff empty_iff finite_imageI g'.pathCap_alt g'.pathCap_nonnegative image_eqI list.set(1))
   then have C_EQ_C': "c e = c' e"
     by (metis cap_compatible cap_nonzero less_numeral_extra(3))
   then show "subtract_path p e = g'.subtract_path p e"

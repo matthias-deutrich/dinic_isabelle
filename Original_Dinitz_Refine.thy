@@ -196,24 +196,56 @@ definition dinitzPhaseAssert :: "(_ graph \<times> bool) nres" where
       (cf, stl, False, False);
     return (cf', changed)}"
 
+lemma dinitzPhaseAssert_Dual_Shortest_Path_Union:
+  assumes INVAR: "dinitzPhaseRestructuredInvar (cf', stl, False, changed)"
+    and PATH: "Graph.isPath stl s p t"
+  shows "Dual_Shortest_Path_Union stl cf' s t"
+proof -
+  interpret cf': Graph cf' + stl: Graph stl .
+  from INVAR interpret Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t"
+    unfolding dinitzPhaseRestructuredInvar_def by blast
+  have "cf.min_dist s t = cf'.min_dist s t"
+  proof (intro antisym)
+    from PATH INVAR show "cf.min_dist s t \<le> cf'.min_dist s t"
+      unfolding dinitzPhaseRestructuredInvar_def Graph.connected_def min_dist_less_eq_def
+      using sub_path by blast
+
+    from PATH have "cf'.min_dist s t \<le> stl.min_dist s t"
+      using isPath.connected sub_min_dist_geq by blast
+    also have "... = length p" using PATH path_ascends_layer by force
+    also have "... \<le> cf.min_dist s t" using PATH path_length_bounded by simp
+    finally show "cf'.min_dist s t \<le> cf.min_dist s t" .
+  qed
+  with INVAR show ?thesis
+    unfolding dinitzPhaseRestructuredInvar_def using min_st_dist_bound by fastforce
+qed
+
+lemma dinitzPhaseAssert_Contained_Graph:
+  assumes INVAR: "dinitzPhaseRestructuredInvar (cf', stl, False, changed)"
+    and PATH: "Graph.isPath stl s p t"
+  shows "Contained_Graph (Graph.subtract_path stl p) stl"
+proof -
+  from INVAR interpret rg': RGraph c s t cf' + Bounded_Dual_Shortest_Path_Union stl cf' s t "cf.min_dist s t"
+    unfolding dinitzPhaseRestructuredInvar_def by auto
+  interpret tmp: Pos_Contained_Graph "g'.subtract_path p" stl
+    unfolding g'.subtract_path_alt
+    using Pos_Contained_Graph.subtract_le_contained Nonnegative_Graph.path_induced_graph_pos_contained
+      sg_Nonnegative_Graph rg'.f.cf.Nonnegative_Graph_axioms by auto
+  show ?thesis by intro_locales
+qed
+
+lemmas dinitzPhase_asserts = dinitzPhaseAssert_Dual_Shortest_Path_Union
+  dinitzPhaseAssert_Contained_Graph
+  Graph.subtract_path_untouched_edges
+
 lemma dinitzPhaseAssert_correct:
   "dinitzPhaseAssert \<le> SPEC (\<lambda>(cf', changed). RGraph c s t cf' \<and> (if changed then min_dist_less s t cf cf' else isMaxFlow (flow_of_cf cf')))"
   unfolding dinitzPhaseAssert_def
   apply (refine_vcg WHILEIT_rule[where R="inv_image (less_than_bool <*lex*> finite_psubset) (\<lambda>(_, stl, brk, _). (\<not>brk, Graph.E stl))"])
-                     apply (all \<open>(auto simp: dinitzPhaseRestructured_step dinitzPhaseRestructured_final; fail)?\<close>)
-
-
-
-      apply (simp_all add: dinitzPhaseRestructuredInvar_def RGraph_axioms f_def min_st_dist_bound Graph.connected_def)
-    apply clarsimp_all oops
-apply (fastforce  intro: dual_spu_if_invar_and_path)
-
+                     apply (all \<open>(auto simp: dinitzPhaseRestructured_step dinitzPhaseRestructured_final dinitzPhase_asserts; fail)?\<close>)
   by (simp_all add: dinitzPhaseRestructuredInvar_def RGraph_axioms f_def min_st_dist_bound Graph.connected_def)
-
-
-
 end
-
+(*
 lemma dinitzPhaseAssert_correct:
   "dinitzPhaseAssert \<le> SPEC (\<lambda>(cf', changed). dist_increasing_cf cf' \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
   unfolding dinitzPhaseAssert_def
@@ -247,7 +279,7 @@ proof clarsimp_all
     using spu.g'.path_induced_graph_pos_contained Pos_Contained_Graph.subtract_le_contained by blast
   show "Contained_Graph (spu.g'.subtract_path p ) stl" by intro_locales
 qed
-end
+end*)
 \<comment> \<open>Abstract version with assertions\<close>
 
 subsubsection \<open>Refining the assertion version\<close>
@@ -307,7 +339,7 @@ next
 qed
 
 lemma dinitzPhaseRefine_correct:
-  "dinitzPhaseRefine \<le> SPEC (\<lambda>(cf', changed). dist_increasing_cf cf' \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
+  "dinitzPhaseRefine \<le> SPEC (\<lambda>(cf', changed). RGraph c s t cf' \<and> (if changed then min_dist_less s t cf cf' else isMaxFlow (flow_of_cf cf')))"
   using dinitzPhaseRefine_refine dinitzPhaseAssert_correct by simp
 end
 \<comment> \<open>Refining the assertion version\<close>
@@ -321,85 +353,13 @@ definition dinitzRefine :: "_ flow nres" where
     f \<leftarrow> return (flow_of_cf cf);
     return f}"
 
-find_theorems "_ \<le> SPEC _ \<Longrightarrow> _ \<le> _ \<Longrightarrow> _ \<le> SPEC _"
-find_theorems name:trans SPEC
-thm SPEC_cons_rule
-
-lemma dinitzRefine_step:
-  assumes RG: "RGraph c s t cf"
-  shows "RGraph.dinitzPhaseRefine s t cf \<le> SPEC (\<lambda>(cf', changed). RGraph c s t cf'
-      \<and> (changed \<or> isMaxFlow (flow_of_cf cf))
-      \<and> (changed \<longrightarrow> (cf', cf) \<in> cf_dist_rel))"
-proof -
-  from RG interpret RGraph c s t cf .
-  show ?thesis
-  proof (rule SPEC_cons_rule[OF dinitzPhaseRefine_correct], clarify, intro conjI)
-    fix cf'
-    assume "dist_increasing_cf cf'" and CON_IF_NEQ: "(cf' \<noteq> cf) \<longrightarrow> cf.connected s t"
-    then show "RGraph c s t cf'"
-      unfolding dist_increasing_cf_def by simp
-    then interpret rg': RGraph c s t cf' .
-
-    from \<open>dist_increasing_cf cf'\<close> have DIST: "rg'.cf.connected s t \<longrightarrow> cf.min_dist s t < rg'.cf.min_dist s t"
-      unfolding dist_increasing_cf_def by simp
-    with CON_IF_NEQ RG show "cf' \<noteq> cf \<longrightarrow> (cf', cf) \<in> cf_dist_rel" unfolding cf_dist_rel_def by blast
-
-    from 
-    with CON_IF_NEQ RG show "cf' = cf \<or> cf' \<noteq> cf \<and> (cf', cf) \<in> cf_dist_rel" unfolding cf_dist_rel_def by blast
-    from CON_IF_NEQ show "cf' = cf \<longrightarrow>  isMaxFlow (flow_of_cf cf)"
-      by (metis DIST Graph.isPath_rtc Graph.isSimplePath_def cf.connected_edgeRtc f.isAugmentingPath_def f.noAugPath_iff_maxFlow f_def le_eq_less_or_eq linorder_not_le rg_fo_inv)
-
-
-
-
-  apply (rule SPEC_cons_rule[OF RGraph.dinitzPhaseRefine_correct[OF RG]])
-  apply clarify
-  apply simp oops
-
 theorem dinitzRefine_correct: "dinitzRefine \<le> (spec f. isMaxFlow f)"
   unfolding dinitzRefine_def
   apply (refine_vcg WHILET_rule[where I="\<lambda>(cf, m). RGraph c s t cf \<and> (m \<or> isMaxFlow (flow_of_cf cf))"
           and R="inv_image (less_than_bool <*lex*> cf_dist_rel) prod.swap"])
-      apply (fastforce simp: cf_dist_rel_wf)
-     apply (clarsimp_all simp: c_is_RGraph)
-proof -
-  fix cf
-  assume RG: "RGraph c s t cf"
-  then interpret RGraph c s t cf .
-  have "dinitzPhaseRefine \<le> SPEC (\<lambda>(cf', changed). dist_increasing_cf cf' \<and> changed = (cf' \<noteq> cf) \<and> (changed \<longrightarrow> cf.connected s t))"
-    using dinitzPhaseRefine_correct .
-  also have "... \<le> (spec s'. (case s' of (cf', m) \<Rightarrow> RGraph c s t cf' \<and> (m \<or> isMaxFlow (flow_of_cf cf'))) \<and> (prod.swap s', True, cf) \<in> less_than_bool <*lex*> cf_dist_rel)"
-  proof (clarsimp, intro conjI)
-    fix cf'
-    assume "dist_increasing_cf cf'" and CON_IF_NEQ: "(cf' \<noteq> cf) \<longrightarrow> cf.connected s t"
-    then show "RGraph c s t cf'"
-      unfolding dist_increasing_cf_def by simp
-    then interpret rg': RGraph c s t cf' .
-    from \<open>dist_increasing_cf cf'\<close> have DIST: "rg'.cf.connected s t \<longrightarrow> cf.min_dist s t < rg'.cf.min_dist s t"
-      unfolding dist_increasing_cf_def by simp
-    with CON_IF_NEQ RG show "cf' = cf \<or> cf' \<noteq> cf \<and> (cf', cf) \<in> cf_dist_rel" unfolding cf_dist_rel_def by blast
-    from CON_IF_NEQ show "cf' = cf \<longrightarrow>  isMaxFlow (flow_of_cf cf)"
-      by (metis DIST Graph.isPath_rtc Graph.isSimplePath_def cf.connected_edgeRtc f.isAugmentingPath_def f.noAugPath_iff_maxFlow f_def le_eq_less_or_eq linorder_not_le rg_fo_inv)
-  qed
-  finally show "dinitzPhaseRefine
-  \<le> (spec s'.
-         (case s' of (cf', m) \<Rightarrow> RGraph c s t cf' \<and> (m \<or> isMaxFlow (flow_of_cf cf'))) \<and>
-         (prod.swap s', True, cf) \<in> less_than_bool <*lex*> cf_dist_rel)" .
-qed
+      apply (fastforce simp: cf_dist_wf)
+     apply (simp_all add: c_is_RGraph)
+  using SPEC_cons_rule by (fastforce simp: cf_dist_rel_def dest: RGraph.dinitzPhaseRefine_correct)
 end
 \<comment> \<open>Dinitz outer loop refinement\<close>
-
-
-
-
-
-
-
-(* TODO space for testing, remove! *)
-(*instantiation graph_dist_ord :: (type) ord
-begin
-
-end*)
-(*global_interpretation graph_dist_ord: *)
-
 end
